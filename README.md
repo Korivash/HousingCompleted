@@ -186,8 +186,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Support
 
-- **Discord**: [Korivash's Discord](https://discord.gg/yourdiscord)
-- **GitHub Issues**: [Report a Bug](https://github.com/yourusername/HousingCompleted/issues)
+- **Discord**: [Korivash's Discord](https://discord.gg/JbQQTbH4hR)
+- **GitHub Issues**: [Report a Bug](https://github.com/Korivash/HousingCompleted/issues)
 - **CurseForge**: [Housing Completed](https://www.curseforge.com/wow/addons/housing-completed)
 
 ---
