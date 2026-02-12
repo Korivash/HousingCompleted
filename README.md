@@ -1,6 +1,6 @@
 # Housing Completed
 
-![Version](https://img.shields.io/badge/version-1.3.6-green)
+![Version](https://img.shields.io/badge/version-1.3.7-green)
 ![WoW Version](https://img.shields.io/badge/WoW-12.0.1%20Midnight-blue)
 ![License](https://img.shields.io/badge/license-MIT-orange)
 

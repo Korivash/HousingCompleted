@@ -6,7 +6,7 @@
 local addonName, HC = ...
 _G["HousingCompleted"] = HC
 
-HC.version = "1.3.6"
+HC.version = "1.3.7"
 HC.searchResults = {}
 HC.collectionCache = {}
 
@@ -27,6 +27,7 @@ sourceTypes = {},
         expansions = {},
     },
     lastTab = "all",
+    shoppingList = {},
 }
 
 ---------------------------------------------------
@@ -83,6 +84,10 @@ function HC:InitSavedVars()
         HousingCompletedDB.navigation.forceTomTom = true
     end
 
+    if type(HousingCompletedDB.shoppingList) ~= "table" then
+        HousingCompletedDB.shoppingList = {}
+    end
+
     -- Item cache (flat at root for fast access)
     if type(HousingCompletedDB.itemCache) ~= "table" then
         HousingCompletedDB.itemCache = {}
@@ -94,6 +99,140 @@ function HC:InitSavedVars()
         HousingCompletedDB.itemCache = {}
         HousingCompletedDB.cacheVersion = HC.cacheVersion
     end
+end
+
+function HC:GetShoppingList()
+    if not HousingCompletedDB then return {} end
+    HousingCompletedDB.shoppingList = HousingCompletedDB.shoppingList or {}
+    return HousingCompletedDB.shoppingList
+end
+
+function HC:BuildShoppingListEntry(resultData)
+    if not resultData then return nil end
+
+    local mapID, x, y, title = self:GetResultWaypoint(resultData)
+    local itemID = (resultData.data and resultData.data.itemID) or resultData.itemID
+    local name = resultData.name or (resultData.data and resultData.data.name) or title
+    local vendor = resultData.vendor or (resultData.data and resultData.data.name)
+    local zone = resultData.zone or (resultData.data and resultData.data.zone) or ""
+    local sourceType = self:NormalizeSourceType(resultData.type or "unknown")
+    local source = resultData.source or ""
+
+    if not name or name == "" then return nil end
+
+    local key = string.format(
+        "%s|%s|%s|%s",
+        tostring(itemID or ""),
+        tostring(name or ""):lower(),
+        tostring(vendor or ""):lower(),
+        tostring(zone or ""):lower()
+    )
+
+    return {
+        key = key,
+        itemID = itemID,
+        name = name,
+        sourceType = sourceType,
+        source = source,
+        vendor = vendor,
+        zone = zone,
+        mapID = mapID,
+        x = x,
+        y = y,
+        title = title or name,
+        addedAt = time(),
+    }
+end
+
+function HC:AddResultToShoppingList(resultData)
+    local entry = self:BuildShoppingListEntry(resultData)
+    if not entry then
+        return false, "No item selected."
+    end
+
+    local list = self:GetShoppingList()
+    for _, existing in ipairs(list) do
+        if existing.key == entry.key then
+            return false, "Item is already in shopping list."
+        end
+    end
+
+    table.insert(list, entry)
+    return true, "Added to shopping list."
+end
+
+function HC:RemoveShoppingListEntry(index)
+    local list = self:GetShoppingList()
+    if type(index) ~= "number" or index < 1 or index > #list then
+        return false
+    end
+    table.remove(list, index)
+    return true
+end
+
+function HC:ClearShoppingList()
+    local list = self:GetShoppingList()
+    wipe(list)
+end
+
+function HC:MapWaypointsForShoppingList()
+    local list = self:GetShoppingList()
+    if #list == 0 then
+        print("|cff00ff99Housing Completed|r: Shopping list is empty.")
+        return false
+    end
+
+    local tt = _G.TomTom
+    local hasTomTom = tt and type(tt.AddWaypoint) == "function"
+    local mapped = 0
+    local seen = {}
+    local first = nil
+
+    for _, entry in ipairs(list) do
+        local mapID, x, y = entry.mapID, entry.x, entry.y
+        if mapID and x and y then
+            local nx, ny = x, y
+            if nx > 1 or ny > 1 then
+                nx, ny = x / 100, y / 100
+            end
+            if nx > 0 and ny > 0 and nx <= 1 and ny <= 1 then
+                local key = string.format("%d:%.4f:%.4f", mapID, nx, ny)
+                if not seen[key] then
+                    seen[key] = true
+                    if not first then
+                        first = entry
+                    end
+                    if hasTomTom then
+                        tt:AddWaypoint(mapID, nx, ny, {
+                            title = entry.title or entry.name or "Shopping Target",
+                            persistent = false,
+                            minimap = true,
+                            world = true,
+                        })
+                    end
+                    mapped = mapped + 1
+                end
+            end
+        end
+    end
+
+    if mapped == 0 then
+        print("|cff00ff99Housing Completed|r: Shopping list has no mappable entries.")
+        return false
+    end
+
+    if hasTomTom then
+        print("|cff00ff99Housing Completed|r: Added " .. mapped .. " shopping waypoint" .. (mapped == 1 and "." or "s."))
+        return true
+    end
+
+    if first then
+        self:SetSmartWaypoint(first.x, first.y, first.mapID, first.title or first.name)
+        print("|cff00ff99Housing Completed|r: TomTom not detected, set first shopping waypoint only.")
+        return true
+    end
+
+    return false
 end
 
 function HC:GetCachedItemInfo(itemID)
@@ -173,6 +312,23 @@ function HC:NormalizeItemName(name)
     normalized = normalized:lower()
     if normalized == "" then return nil end
     return normalized
+end
+
+function HC:NormalizeSourceType(sourceType)
+    local t = type(sourceType) == "string" and sourceType:lower() or "unknown"
+    t = t:gsub("[%s%-]+", "_")
+
+    if t == "promotion" then return "promo" end
+    if t == "world_quest" or t == "worldquest" then return "quest" end
+    if t == "crafted" or t == "craft" or t == "learned" then return "profession" end
+    if t == "treasure" or t == "gathering" or t == "in_game" then return "drop" end
+
+    if t == "achievement" or t == "vendor" or t == "quest" or t == "reputation"
+        or t == "profession" or t == "drop" or t == "auction" or t == "promo" or t == "unknown" then
+        return t
+    end
+
+    return "unknown"
 end
 
 function HC:BuildItemNameLookup()
@@ -510,8 +666,10 @@ function HC:BuildItemIndex(force)
             sourceCoords = { vendorData.x, vendorData.y }
         end
 
+        local normalizedSourceType = self:NormalizeSourceType(entry.sourceType or entry.type or "unknown")
+
         table.insert(item.sources, {
-            sourceType = entry.sourceType or entry.type or "unknown",
+            sourceType = normalizedSourceType,
             source = entry.source or entry.achievement or entry.quest or entry.faction,
             vendor = entry.vendor,
             cost = entry.cost,
@@ -622,29 +780,8 @@ function HC:SetItemWaypoint(itemData)
 end
 
 function HC:ResultHasWaypoint(resultData)
-    if not resultData then return false end
-
-    local data = resultData.data
-    if resultData.type == "vendor" and data and data.mapID and data.x and data.y then
-        return true
-    end
-
-    if data and data.waypoint and data.waypoint.mapID and data.waypoint.x and data.waypoint.y then
-        return true
-    end
-
-    if data and data.vendorData and data.vendorData.mapID and data.vendorData.x and data.vendorData.y then
-        return true
-    end
-
-    if resultData.vendor then
-        local vendor = self:GetVendorByName(resultData.vendor)
-        if vendor and vendor.mapID and vendor.x and vendor.y then
-            return true
-        end
-    end
-
-    return false
+    local mapID, x, y = self:GetResultWaypoint(resultData)
+    return mapID and x and y and true or false
 end
 
 function HC:SetResultWaypoint(resultData)
@@ -653,28 +790,10 @@ function HC:SetResultWaypoint(resultData)
         return false
     end
 
-    local data = resultData.data
-    if resultData.type == "vendor" and data and data.mapID and data.x and data.y then
-        self:SetSmartWaypoint(data.x, data.y, data.mapID, data.name or resultData.name)
+    local mapID, x, y, title = self:GetResultWaypoint(resultData)
+    if mapID and x and y then
+        self:SetSmartWaypoint(x, y, mapID, title or resultData.name)
         return true
-    end
-
-    if data and data.waypoint and data.waypoint.mapID and data.waypoint.x and data.waypoint.y then
-        self:SetSmartWaypoint(data.waypoint.x, data.waypoint.y, data.waypoint.mapID, data.waypoint.title or resultData.name)
-        return true
-    end
-
-    if data and data.vendorData and data.vendorData.mapID and data.vendorData.x and data.vendorData.y then
-        self:SetSmartWaypoint(data.vendorData.x, data.vendorData.y, data.vendorData.mapID, data.vendorData.name or resultData.name)
-        return true
-    end
-
-    if resultData.vendor then
-        local vendor = self:GetVendorByName(resultData.vendor)
-        if vendor and vendor.mapID and vendor.x and vendor.y then
-            self:SetSmartWaypoint(vendor.x, vendor.y, vendor.mapID, vendor.name or resultData.name)
-            return true
-        end
     end
 
     print("|cff00ff99Housing Completed|r: No waypoint available for this item.")
@@ -707,10 +826,12 @@ end
 
 function HC:SourceMatchesType(source, wantedType)
     if not source or not wantedType then return false end
+    wantedType = self:NormalizeSourceType(wantedType)
+    local sourceType = self:NormalizeSourceType(source.sourceType or "unknown")
     if wantedType == "reputation" then
         return self:IsReputationSource(source)
     end
-    return (source.sourceType or "unknown") == wantedType
+    return sourceType == wantedType
 end
 
 function HC:GetItemCategories()
@@ -765,7 +886,7 @@ function HC:GetSourceTags(sources)
     if type(sources) ~= "table" then return tags end
 
     for _, s in ipairs(sources) do
-        local sourceType = s and s.sourceType
+        local sourceType = s and self:NormalizeSourceType(s.sourceType or "unknown")
         local tag = sourceType and self:GetSourceTypeInfo(sourceType).name or nil
         if (sourceType == "reputation") or (self.IsReputationSource and self:IsReputationSource(s)) then
             tag = "Rep"
@@ -836,7 +957,7 @@ function HC:SearchAll(query, filters)
             end
 
             if not primaryType then
-                primaryType = s.sourceType or "unknown"
+                primaryType = self:NormalizeSourceType(s.sourceType or "unknown")
                 primarySource = s.source
                 primaryVendor = s.vendor
                 primaryCost = s.cost
@@ -860,7 +981,7 @@ function HC:SearchAll(query, filters)
                         if self:SourceMatchesType(s, wantedType) then
                             passes = true
                             -- Prefer a filter-matching source for row/preview fields.
-                            primaryType = wantedType
+                            primaryType = self:NormalizeSourceType(wantedType)
                             primarySource = s.source
                             primaryVendor = s.vendor
                             primaryCost = s.cost
@@ -903,6 +1024,17 @@ function HC:SearchAll(query, filters)
                 passes = self:ItemMatchesCategory(item, filters.itemCategory)
             end
 
+            if passes and filters.zoneMapID then
+                passes = false
+                for _, s in ipairs(item.sources or {}) do
+                    local sMapID = s.mapID or (s.vendorData and s.vendorData.mapID)
+                    if sMapID and sMapID == filters.zoneMapID then
+                        passes = true
+                        break
+                    end
+                end
+            end
+
             if passes then
                 local wpMapID, wpX, wpY, wpTitle = self:GetBestWaypointForItem(item)
                 local collected = self:IsItemCollected(item.itemID, name)
@@ -914,7 +1046,7 @@ function HC:SearchAll(query, filters)
                     self:EnsureItemCached(resolvedItemID)
                 end
                 table.insert(results, {
-                    type = primaryType or "unknown",
+                    type = self:NormalizeSourceType(primaryType or "unknown"),
                     data = {
                         name = item.name,
                         itemID = item.itemID,
@@ -956,7 +1088,10 @@ function HC:SearchAll(query, filters)
         local matches = (not hasQuery) or
             (vendor.name and vendor.name:lower():find(query, 1, true)) or
             (vendor.zone and vendor.zone:lower():find(query, 1, true))
-        if (not filters.hideVendorEntries) and matches and self:PassesFilters(vendor, filters, "vendor") then
+        if (not filters.hideVendorEntries)
+            and matches
+            and self:PassesFilters(vendor, filters, "vendor")
+            and ((not filters.zoneMapID) or (vendor.mapID == filters.zoneMapID)) then
             table.insert(results, {
                 type = "vendor",
                 data = vendor,
@@ -1026,6 +1161,7 @@ function HC:SearchAll(query, filters)
 end
 
 function HC:PassesFilters(item, filters, sourceType)
+    sourceType = self:NormalizeSourceType(sourceType or "unknown")
     -- Check source type filter
     if filters.sourceTypes and next(filters.sourceTypes) then
         if not filters.sourceTypes[sourceType] then
@@ -1050,6 +1186,91 @@ function HC:PassesFilters(item, filters, sourceType)
     end
     
     return true
+end
+
+function HC:GetResultWaypoint(resultData)
+    if not resultData then return nil end
+
+    local data = resultData.data
+    if resultData.type == "vendor" and data and data.mapID and data.x and data.y then
+        return data.mapID, data.x, data.y, data.name or resultData.name
+    end
+
+    if data and data.waypoint and data.waypoint.mapID and data.waypoint.x and data.waypoint.y then
+        return data.waypoint.mapID, data.waypoint.x, data.waypoint.y, data.waypoint.title or resultData.name
+    end
+
+    if data and data.vendorData and data.vendorData.mapID and data.vendorData.x and data.vendorData.y then
+        return data.vendorData.mapID, data.vendorData.x, data.vendorData.y, data.vendorData.name or resultData.name
+    end
+
+    if resultData.vendor then
+        local vendor = self:GetVendorByName(resultData.vendor)
+        if vendor and vendor.mapID and vendor.x and vendor.y then
+            return vendor.mapID, vendor.x, vendor.y, vendor.name or resultData.name
+        end
+    end
+
+    return nil
+end
+
+function HC:MapWaypointsForResults(results)
+    if type(results) ~= "table" or #results == 0 then
+        print("|cff00ff99Housing Completed|r: No results to map.")
+        return false
+    end
+
+    local tt = _G.TomTom
+    local hasTomTom = tt and type(tt.AddWaypoint) == "function"
+    local seen = {}
+    local mapped = 0
+    local first
+
+    for _, resultData in ipairs(results) do
+        local mapID, x, y, title = self:GetResultWaypoint(resultData)
+        if mapID and x and y then
+            local nx, ny = x, y
+            if nx > 1 or ny > 1 then
+                nx, ny = x / 100, y / 100
+            end
+            if nx > 0 and ny > 0 and nx <= 1 and ny <= 1 then
+                local key = string.format("%d:%.4f:%.4f", mapID, nx, ny)
+                if not seen[key] then
+                    seen[key] = true
+                    if not first then
+                        first = { mapID = mapID, x = x, y = y, title = title }
+                    end
+                    if hasTomTom then
+                        tt:AddWaypoint(mapID, nx, ny, {
+                            title = title or "Housing Vendor",
+                            persistent = false,
+                            minimap = true,
+                            world = true,
+                        })
+                    end
+                    mapped = mapped + 1
+                end
+            end
+        end
+    end
+
+    if mapped == 0 then
+        print("|cff00ff99Housing Completed|r: No waypoint coordinates found in these results.")
+        return false
+    end
+
+    if hasTomTom then
+        print("|cff00ff99Housing Completed|r: Added " .. mapped .. " TomTom waypoint" .. (mapped == 1 and "." or "s."))
+        return true
+    end
+
+    if first then
+        self:SetSmartWaypoint(first.x, first.y, first.mapID, first.title)
+        print("|cff00ff99Housing Completed|r: TomTom not detected, set the first available waypoint only.")
+        return true
+    end
+
+    return false
 end
 
 function HC:GetVendorByID(vendorID)
@@ -1225,6 +1446,7 @@ end
 -- Utility Functions
 ---------------------------------------------------
 function HC:GetSourceTypeInfo(sourceType)
+    sourceType = self:NormalizeSourceType(sourceType or "unknown")
     for _, info in ipairs(HC.SourceTypes or {}) do
         if info.id == sourceType then
             return info

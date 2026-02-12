@@ -5,30 +5,30 @@
 ---------------------------------------------------
 local addonName, HC = ...
 
-local FRAME_WIDTH = 1100
-local FRAME_HEIGHT = 700
-local SIDEBAR_WIDTH = 220
-local PREVIEW_WIDTH = 280
-local HEADER_HEIGHT = 70
-local ITEM_HEIGHT = 60
-local ITEMS_PER_PAGE = 8
+local FRAME_WIDTH = 1480
+local FRAME_HEIGHT = 860
+local SIDEBAR_WIDTH = 260
+local PREVIEW_WIDTH = 360
+local HEADER_HEIGHT = 86
+local ITEM_HEIGHT = 58
+local ITEMS_PER_PAGE = 10
 
 local COLORS = {
-    background = {0.05, 0.05, 0.08, 0.98},
-    headerBg = {0.08, 0.08, 0.12, 1},
-    sidebar = {0.04, 0.04, 0.06, 1},
-    preview = {0.06, 0.06, 0.09, 1},
-    accent = {0.2, 0.9, 0.6, 1},
-    accentAlt = {0.4, 0.8, 1, 1},
+    background = {0.07, 0.055, 0.035, 0.98},
+    headerBg = {0.12, 0.085, 0.05, 1},
+    sidebar = {0.09, 0.065, 0.04, 1},
+    preview = {0.08, 0.06, 0.04, 1},
+    accent = {0.98, 0.80, 0.38, 1},
+    accentAlt = {0.93, 0.72, 0.30, 1},
     gold = {1, 0.82, 0, 1},
     text = {1, 1, 1, 1},
-    textMuted = {0.5, 0.5, 0.55, 1},
-    textDim = {0.35, 0.35, 0.4, 1},
-    collected = {0.2, 0.9, 0.4, 1},
-    row = {0.08, 0.08, 0.12, 0.8},
-    rowHover = {0.12, 0.12, 0.18, 1},
-    rowSelected = {0.15, 0.25, 0.2, 1},
-    border = {0.14, 0.22, 0.26, 1},
+    textMuted = {0.76, 0.69, 0.57, 1},
+    textDim = {0.58, 0.50, 0.40, 1},
+    collected = {0.56, 0.95, 0.54, 1},
+    row = {0.13, 0.09, 0.06, 0.86},
+    rowHover = {0.18, 0.12, 0.08, 1},
+    rowSelected = {0.23, 0.16, 0.09, 1},
+    border = {0.34, 0.24, 0.12, 1},
 }
 
 local currentPage = 1
@@ -37,6 +37,16 @@ local currentResults = {}
 local currentTab = "all"
 local currentItemCategory = "all"
 local selectedItem = nil
+
+local function EscapeCSV(value)
+    if value == nil then return "" end
+    local s = tostring(value)
+    s = s:gsub('"', '""')
+    if s:find("[,\n\"]") then
+        s = '"' .. s .. '"'
+    end
+    return s
+end
 
 local function GetButtonText(button)
     return button.Text or button.text
@@ -97,9 +107,10 @@ function HC:CreateUI()
     frame:SetSize(FRAME_WIDTH, FRAME_HEIGHT)
     frame:SetPoint("CENTER")
     frame:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8x8",
-        edgeFile = "Interface\\Buttons\\WHITE8x8",
-        edgeSize = 2,
+        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        edgeSize = 12,
+        insets = { left = 3, right = 3, top = 3, bottom = 3 },
     })
     frame:SetBackdropColor(unpack(COLORS.background))
     frame:SetBackdropBorderColor(unpack(COLORS.border))
@@ -123,11 +134,35 @@ function HC:CreateUI()
     frame:SetScale(HousingCompletedDB.scale or 1.0)
     frame:Hide()
     self.mainFrame = frame
+
+    local vignetteTop = frame:CreateTexture(nil, "BACKGROUND")
+    vignetteTop:SetPoint("TOPLEFT", 2, -2)
+    vignetteTop:SetPoint("TOPRIGHT", -2, -2)
+    vignetteTop:SetHeight(220)
+    vignetteTop:SetTexture("Interface\\Buttons\\WHITE8x8")
+    if vignetteTop.SetGradientAlpha then
+        vignetteTop:SetGradientAlpha("VERTICAL", 0.24, 0.17, 0.09, 0.45, 0.24, 0.17, 0.09, 0.02)
+    else
+        vignetteTop:SetVertexColor(0.24, 0.17, 0.09, 0.22)
+    end
+
+    local vignetteBottom = frame:CreateTexture(nil, "BACKGROUND")
+    vignetteBottom:SetPoint("BOTTOMLEFT", 2, 2)
+    vignetteBottom:SetPoint("BOTTOMRIGHT", -2, 2)
+    vignetteBottom:SetHeight(180)
+    vignetteBottom:SetTexture("Interface\\Buttons\\WHITE8x8")
+    if vignetteBottom.SetGradientAlpha then
+        vignetteBottom:SetGradientAlpha("VERTICAL", 0.18, 0.12, 0.06, 0.02, 0.18, 0.12, 0.06, 0.35)
+    else
+        vignetteBottom:SetVertexColor(0.18, 0.12, 0.06, 0.18)
+    end
     
     self:CreateHeader(frame)
     self:CreateSidebar(frame)
     self:CreateContent(frame)
+    self:CreatePreviewPanel(frame)
     self:CreateSettingsPanel(frame)
+    self:CreateShoppingListPanel(frame)
     
     tinsert(UISpecialFrames, "HousingCompletedFrame")
 end
@@ -147,8 +182,13 @@ function HC:CreateHeader(parent)
     bottomBorder:SetColorTexture(unpack(COLORS.border))
     
     local title = header:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    title:SetPoint("LEFT", 20, 8)
-    title:SetText("|cff00ff99Housing|r |cffffffffCompleted|r")
+    title:SetPoint("LEFT", 20, 10)
+    title:SetText("|cfff4d38aHousing|r |cfffff8e7Completed|r")
+
+    local subtitle = header:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    subtitle:SetPoint("LEFT", 20, -12)
+    subtitle:SetText("Estate Collection Ledger")
+    subtitle:SetTextColor(0.82, 0.72, 0.56)
     
     local version = header:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     version:SetPoint("LEFT", title, "RIGHT", 10, 0)
@@ -156,7 +196,7 @@ function HC:CreateHeader(parent)
     version:SetTextColor(0.5, 0.5, 0.5)
     
     local stats = header:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    stats:SetPoint("LEFT", 20, -15)
+    stats:SetPoint("LEFT", 190, -2)
     stats:SetText("Loading...")
     stats:SetTextColor(unpack(COLORS.textMuted))
     self.statsText = stats
@@ -243,6 +283,9 @@ function HC:CreateSidebar(parent)
         { id = "quest", name = "Quests", icon = "Interface\\Icons\\INV_Misc_Book_07" },
         { id = "reputation", name = "Reputation", icon = "Interface\\Icons\\Achievement_Reputation_08" },
         { id = "profession", name = "Professions", icon = "Interface\\Icons\\INV_Misc_Note_01" },
+        { id = "drop", name = "Drops", icon = "Interface\\Icons\\INV_Misc_Bag_10_Blue" },
+        { id = "promo", name = "Promotions", icon = "Interface\\Icons\\INV_Misc_Gift_05" },
+        { id = "unknown", name = "Unknown", icon = "Interface\\Icons\\INV_Misc_QuestionMark" },
         { id = "auction", name = "Auction House", icon = "Interface\\Icons\\INV_Misc_Coin_02" },
     }
     
@@ -315,6 +358,15 @@ function HC:CreateSidebar(parent)
     uncollectedCb:SetScript("OnClick", function() HC:DoSearch() end)
     self.uncollectedCb = uncollectedCb
     y = y - 30
+
+    local zoneOnlyCb = CreateFrame("CheckButton", nil, scrollChild, "UICheckButtonTemplate")
+    zoneOnlyCb:SetPoint("TOPLEFT", 10, y)
+    zoneOnlyCb:SetSize(24, 24)
+    SetButtonText(zoneOnlyCb, "Current Zone Only", 0.7, 0.7, 0.7)
+    zoneOnlyCb:SetChecked(false)
+    zoneOnlyCb:SetScript("OnClick", function() HC:DoSearch() end)
+    self.zoneOnlyCb = zoneOnlyCb
+    y = y - 28
 
     local itemCategoryLabel = scrollChild:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     itemCategoryLabel:SetPoint("TOPLEFT", 15, y)
@@ -389,13 +441,13 @@ end
 function HC:CreateContent(parent)
     local content = CreateFrame("Frame", nil, parent, "BackdropTemplate")
     content:SetPoint("TOPLEFT", SIDEBAR_WIDTH, -HEADER_HEIGHT)
-    content:SetPoint("BOTTOMRIGHT", 0, 0)
+    content:SetPoint("BOTTOMRIGHT", -PREVIEW_WIDTH, 0)
     content:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8" })
-    content:SetBackdropColor(0.045, 0.045, 0.07, 0.9)
+    content:SetBackdropColor(0.06, 0.045, 0.03, 0.9)
     
     local resultsFrame = CreateFrame("Frame", nil, content, "BackdropTemplate")
     resultsFrame:SetPoint("TOPLEFT", 15, -15)
-    resultsFrame:SetPoint("BOTTOMRIGHT", -15, 55)
+    resultsFrame:SetPoint("BOTTOMRIGHT", -15, 80)
     resultsFrame:SetBackdrop({
         bgFile = "Interface\\Buttons\\WHITE8x8",
         edgeFile = "Interface\\Buttons\\WHITE8x8",
@@ -414,14 +466,34 @@ function HC:CreateContent(parent)
     
     self.resultsFrame = resultsFrame
     
-    local pagination = CreateFrame("Frame", nil, content)
+    local pagination = CreateFrame("Frame", nil, content, "BackdropTemplate")
     pagination:SetPoint("BOTTOMLEFT", 15, 15)
     pagination:SetPoint("BOTTOMRIGHT", -15, 15)
-    pagination:SetHeight(35)
+    pagination:SetHeight(58)
+    pagination:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8" })
+    pagination:SetBackdropColor(0.08, 0.06, 0.04, 0.92)
     
+    local exportBtn = CreateFrame("Button", nil, pagination, "UIPanelButtonTemplate")
+    exportBtn:SetSize(96, 26)
+    exportBtn:SetPoint("LEFT", 0, 0)
+    exportBtn:SetText("Export CSV")
+    exportBtn:SetScript("OnClick", function()
+        HC:ShowResultsExportDialog()
+    end)
+    self.exportBtn = exportBtn
+
+    local shoppingBtn = CreateFrame("Button", nil, pagination, "UIPanelButtonTemplate")
+    shoppingBtn:SetSize(108, 26)
+    shoppingBtn:SetPoint("LEFT", exportBtn, "RIGHT", 8, 0)
+    shoppingBtn:SetText("Shopping List")
+    shoppingBtn:SetScript("OnClick", function()
+        HC:ToggleShoppingListPanel()
+    end)
+    self.shoppingBtn = shoppingBtn
+
     local prevBtn = CreateFrame("Button", nil, pagination, "UIPanelButtonTemplate")
     prevBtn:SetSize(70, 26)
-    prevBtn:SetPoint("LEFT", 0, 0)
+    prevBtn:SetPoint("LEFT", shoppingBtn, "RIGHT", 12, 12)
     prevBtn:SetText("< Prev")
     prevBtn:SetScript("OnClick", function()
         if currentPage > 1 then currentPage = currentPage - 1; HC:UpdateResults() end
@@ -430,7 +502,7 @@ function HC:CreateContent(parent)
     
     local nextBtn = CreateFrame("Button", nil, pagination, "UIPanelButtonTemplate")
     nextBtn:SetSize(70, 26)
-    nextBtn:SetPoint("RIGHT", 0, 0)
+    nextBtn:SetPoint("LEFT", prevBtn, "RIGHT", 8, 0)
     nextBtn:SetText("Next >")
     nextBtn:SetScript("OnClick", function()
         if currentPage < totalPages then currentPage = currentPage + 1; HC:UpdateResults() end
@@ -439,26 +511,54 @@ function HC:CreateContent(parent)
 
     local setWaypointBtn = CreateFrame("Button", nil, pagination, "UIPanelButtonTemplate")
     setWaypointBtn:SetSize(130, 26)
-    setWaypointBtn:SetPoint("RIGHT", nextBtn, "LEFT", -10, 0)
+    setWaypointBtn:SetPoint("RIGHT", -8, 12)
     setWaypointBtn:SetText("Set Waypoint")
     setWaypointBtn:SetScript("OnClick", function()
         HC:SetResultWaypoint(selectedItem)
         HC:UpdateSetWaypointButton()
     end)
     self.setWaypointBtn = setWaypointBtn
+
+    local addShoppingBtn = CreateFrame("Button", nil, pagination, "UIPanelButtonTemplate")
+    addShoppingBtn:SetSize(110, 26)
+    addShoppingBtn:SetPoint("RIGHT", setWaypointBtn, "LEFT", -8, 0)
+    addShoppingBtn:SetText("Add To List")
+    addShoppingBtn:SetScript("OnClick", function()
+        local ok, msg = HC:AddResultToShoppingList(selectedItem)
+        if msg then
+            print("|cff00ff99Housing Completed|r: " .. msg)
+        end
+        if ok then
+            HC:RefreshShoppingListPanel()
+            HC:UpdateAddShoppingButton()
+        end
+    end)
+    self.addShoppingBtn = addShoppingBtn
+
+    local mapAllBtn = CreateFrame("Button", nil, pagination, "UIPanelButtonTemplate")
+    mapAllBtn:SetSize(96, 26)
+    mapAllBtn:SetPoint("RIGHT", addShoppingBtn, "LEFT", -8, 0)
+    mapAllBtn:SetText("Map All")
+    mapAllBtn:SetScript("OnClick", function()
+        HC:MapWaypointsForResults(currentResults)
+        HC:UpdateMapAllButton()
+    end)
+    self.mapAllBtn = mapAllBtn
     
     local pageText = pagination:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    pageText:SetPoint("CENTER")
+    pageText:SetPoint("TOP", 0, -10)
     pageText:SetText("Page 1 of 1")
     pageText:SetTextColor(unpack(COLORS.textMuted))
     self.pageText = pageText
     
     local statusText = pagination:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    statusText:SetPoint("LEFT", prevBtn, "RIGHT", 10, 0)
+    statusText:SetPoint("LEFT", 10, -14)
     statusText:SetText("0 results")
     statusText:SetTextColor(unpack(COLORS.textDim))
     self.statusText = statusText
     self:UpdateSetWaypointButton()
+    self:UpdateAddShoppingButton()
+    self:UpdateMapAllButton()
     
     self.content = content
 end
@@ -491,6 +591,10 @@ function HC:CreateResultRow(parent, index)
         selectedItem = self.itemData
         HC:UpdateRowSelection()
         HC:UpdateSetWaypointButton()
+        HC:UpdateAddShoppingButton()
+        if HC.UpdatePreview then
+            HC:UpdatePreview(self.itemData)
+        end
 
         -- If this entry has an itemID, open the Blizzard preview (DecorVendor-style)
         local itemID = HC:GetResolvedItemID(self.itemData)
@@ -675,33 +779,53 @@ function HC:CreatePreviewPanel(parent)
     preview:SetPoint("TOPRIGHT", 0, -HEADER_HEIGHT)
     preview:SetPoint("BOTTOMRIGHT", 0, 0)
     preview:SetWidth(PREVIEW_WIDTH)
-    preview:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8" })
+    preview:SetBackdrop({
+        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        edgeSize = 10,
+        insets = { left = 2, right = 2, top = 2, bottom = 2 },
+    })
     preview:SetBackdropColor(unpack(COLORS.preview))
+    preview:SetBackdropBorderColor(unpack(COLORS.border))
     
     local y = -15
     
     local title = preview:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     title:SetPoint("TOPLEFT", 15, y)
-    title:SetText("PREVIEW")
+    title:SetText("RESIDENCE PREVIEW")
     title:SetTextColor(unpack(COLORS.accentAlt))
     y = y - 25
+
+    local headerLine = preview:CreateTexture(nil, "ARTWORK")
+    headerLine:SetPoint("TOPLEFT", 12, y)
+    headerLine:SetPoint("TOPRIGHT", -12, y)
+    headerLine:SetHeight(1)
+    headerLine:SetColorTexture(0.42, 0.29, 0.16, 0.9)
+    y = y - 10
     
     -- Model container
     local modelContainer = CreateFrame("Frame", nil, preview, "BackdropTemplate")
-    modelContainer:SetSize(PREVIEW_WIDTH - 30, 180)
+    modelContainer:SetSize(PREVIEW_WIDTH - 24, 214)
     modelContainer:SetPoint("TOP", 0, y)
-    modelContainer:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8" })
-    modelContainer:SetBackdropColor(0.03, 0.03, 0.05, 1)
+    modelContainer:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    modelContainer:SetBackdropColor(0.06, 0.05, 0.04, 1)
+    modelContainer:SetBackdropBorderColor(0.3, 0.22, 0.12, 1)
     
-    -- Use ModelScene for better model display
-    local modelFrame = CreateFrame("ModelScene", nil, modelContainer, "WrappedAndUnwrappedModelScene")
+    -- Prefer DressUpModel behavior so preview matches Dressing Room rendering.
+    local modelFrame = CreateFrame("DressUpModel", nil, modelContainer)
     if not modelFrame then
-        -- Fallback to PlayerModel if ModelScene unavailable
         modelFrame = CreateFrame("PlayerModel", nil, modelContainer)
     end
     modelFrame:SetAllPoints()
     modelFrame:EnableMouse(true)
     modelFrame:EnableMouseWheel(true)
+    if modelFrame.SetUnit then
+        pcall(modelFrame.SetUnit, modelFrame, "player")
+    end
     
     local isDragging = false
     local lastX = 0
@@ -725,7 +849,16 @@ function HC:CreatePreviewPanel(parent)
     
     self.modelFrame = modelFrame
     self.modelContainer = modelContainer
-    y = y - 190
+
+    local modelFallbackIcon = modelContainer:CreateTexture(nil, "ARTWORK")
+    modelFallbackIcon:SetSize(56, 56)
+    modelFallbackIcon:SetPoint("CENTER")
+    modelFallbackIcon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+    modelFallbackIcon:SetVertexColor(0.8, 0.8, 0.8, 0.9)
+    modelFallbackIcon:Hide()
+    self.modelFallbackIcon = modelFallbackIcon
+
+    y = y - 224
     
     -- Item name
     local itemName = preview:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
@@ -748,7 +881,7 @@ function HC:CreatePreviewPanel(parent)
     local detailsFrame = CreateFrame("Frame", nil, preview)
     detailsFrame:SetPoint("TOPLEFT", 15, y)
     detailsFrame:SetPoint("TOPRIGHT", -15, y)
-    detailsFrame:SetHeight(180)
+    detailsFrame:SetHeight(220)
     
     local dy = 0
     
@@ -858,6 +991,21 @@ function HC:CreatePreviewPanel(parent)
         end
     end)
     self.previewWaypointBtn = wpBtn
+
+    local addListBtn = CreateFrame("Button", nil, preview, "UIPanelButtonTemplate")
+    addListBtn:SetSize(PREVIEW_WIDTH - 30, 24)
+    addListBtn:SetPoint("BOTTOM", 0, 48)
+    addListBtn:SetText("Add To Shopping List")
+    addListBtn:SetScript("OnClick", function()
+        local ok, msg = HC:AddResultToShoppingList(selectedItem)
+        if msg then
+            print("|cff00ff99Housing Completed|r: " .. msg)
+        end
+        if ok then
+            HC:RefreshShoppingListPanel()
+        end
+    end)
+    self.previewAddShoppingBtn = addListBtn
     
     self.previewPanel = preview
 end
@@ -880,6 +1028,11 @@ function HC:UpdatePreview(data)
         if self.previewItemID then self.previewItemID:SetText("-") end
         if self.previewSources then self.previewSources:SetText("-") end
         if self.modelFrame.ClearModel then self.modelFrame:ClearModel() end
+        if self.modelFallbackIcon then self.modelFallbackIcon:Show() end
+        if self.previewAddShoppingBtn then
+            self.previewAddShoppingBtn:SetEnabled(false)
+            self.previewAddShoppingBtn:SetAlpha(0.45)
+        end
         return
     end
     
@@ -951,19 +1104,52 @@ function HC:UpdatePreview(data)
         self.previewRepStanding:SetTextColor(unpack(color))
     end
     
-    -- Model - try to show NPC for vendors
+    -- Model - dressing-room style try-on first, with safe fallbacks.
     if self.modelFrame then
-        if data.type == "vendor" and data.data and data.data.id then
-            if self.modelFrame.SetCreature then
-                self.modelFrame:SetCreature(data.data.id)
-                self.modelFrame:SetPosition(0, 0, 0)
-                self.modelFrame:SetFacing(0)
+        local showedModel = false
+        if itemID then
+            if self.modelFrame.SetUnit then
+                pcall(self.modelFrame.SetUnit, self.modelFrame, "player")
             end
-        else
-            if self.modelFrame.ClearModel then
-                self.modelFrame:ClearModel()
+            if self.modelFrame.Undress then
+                pcall(self.modelFrame.Undress, self.modelFrame)
+            end
+
+            local itemLink = (C_Item and C_Item.GetItemLinkByID and C_Item.GetItemLinkByID(itemID)) or ("item:" .. itemID)
+            if self.modelFrame.TryOn then
+                local ok = pcall(self.modelFrame.TryOn, self.modelFrame, itemLink)
+                showedModel = ok and true or false
             end
         end
+
+        if (not showedModel) and data.type == "vendor" and data.data and data.data.id then
+            if self.modelFrame.SetCreature then
+                local ok = pcall(self.modelFrame.SetCreature, self.modelFrame, data.data.id)
+                if ok then
+                    showedModel = true
+                end
+            end
+        end
+
+        if self.modelFallbackIcon then
+            self.modelFallbackIcon:SetShown(not showedModel)
+        end
+
+        if not showedModel then
+            if self.modelFrame.ClearModel then
+                pcall(self.modelFrame.ClearModel, self.modelFrame)
+            end
+            local icon = (itemID and C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(itemID))
+                or "Interface\\Icons\\INV_Misc_QuestionMark"
+            if self.modelFallbackIcon then
+                self.modelFallbackIcon:SetTexture(icon)
+            end
+        end
+    end
+
+    if self.previewAddShoppingBtn then
+        self.previewAddShoppingBtn:SetEnabled(true)
+        self.previewAddShoppingBtn:SetAlpha(1)
     end
 end
 
@@ -1017,10 +1203,257 @@ function HC:UpdateSetWaypointButton()
     self.setWaypointBtn:SetAlpha(canWaypoint and 1 or 0.45)
 end
 
+function HC:UpdateAddShoppingButton()
+    if not self.addShoppingBtn then return end
+    local canAdd = selectedItem ~= nil
+    self.addShoppingBtn:SetEnabled(canAdd and true or false)
+    self.addShoppingBtn:SetAlpha(canAdd and 1 or 0.45)
+end
+
+function HC:UpdateMapAllButton()
+    if not self.mapAllBtn then return end
+    local hasAnyWaypoint = false
+    for _, resultData in ipairs(currentResults or {}) do
+        if self.ResultHasWaypoint and self:ResultHasWaypoint(resultData) then
+            hasAnyWaypoint = true
+            break
+        end
+    end
+
+    self.mapAllBtn:SetEnabled(hasAnyWaypoint and true or false)
+    self.mapAllBtn:SetAlpha(hasAnyWaypoint and 1 or 0.45)
+end
+
+function HC:BuildResultsCSV(results)
+    local lines = {
+        "Name,Type,Source,Vendor,Zone,Cost,Expansion,Faction,Collected,ItemID,SourceCount",
+    }
+
+    for _, r in ipairs(results or {}) do
+        local row = {
+            EscapeCSV(r.name or (r.data and r.data.name) or ""),
+            EscapeCSV(r.type or ""),
+            EscapeCSV(r.source or ""),
+            EscapeCSV(r.vendor or ""),
+            EscapeCSV(r.zone or ""),
+            EscapeCSV(r.cost or ""),
+            EscapeCSV(r.expansion or ""),
+            EscapeCSV(r.faction or ""),
+            EscapeCSV(r.collected and "Yes" or "No"),
+            EscapeCSV((r.data and r.data.itemID) or r.itemID or ""),
+            EscapeCSV(r.sourceCount or (r.data and r.data.sourceCount) or ""),
+        }
+        table.insert(lines, table.concat(row, ","))
+    end
+
+    return table.concat(lines, "\n")
+end
+
+function HC:ShowTextExportDialog(title, text)
+    if not self.exportFrame then
+        local f = CreateFrame("Frame", "HousingCompletedExportFrame", UIParent, "BackdropTemplate")
+        f:SetSize(900, 560)
+        f:SetPoint("CENTER")
+        f:SetFrameStrata("DIALOG")
+        f:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+        })
+        f:SetBackdropColor(0.04, 0.04, 0.06, 0.98)
+        f:SetBackdropBorderColor(0.2, 0.2, 0.25, 1)
+        f:Hide()
+
+        local header = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+        header:SetPoint("TOPLEFT", 16, -12)
+        header:SetTextColor(unpack(COLORS.accentAlt))
+        f.header = header
+
+        local closeBtn = CreateFrame("Button", nil, f, "UIPanelCloseButton")
+        closeBtn:SetPoint("TOPRIGHT", -4, -4)
+
+        local helpText = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        helpText:SetPoint("TOPLEFT", 16, -36)
+        helpText:SetTextColor(unpack(COLORS.textMuted))
+        helpText:SetText("Click in the box, press Ctrl+A, then Ctrl+C.")
+
+        local scroll = CreateFrame("ScrollFrame", nil, f, "UIPanelScrollFrameTemplate")
+        scroll:SetPoint("TOPLEFT", 16, -58)
+        scroll:SetPoint("BOTTOMRIGHT", -34, 16)
+
+        local edit = CreateFrame("EditBox", nil, scroll)
+        edit:SetMultiLine(true)
+        edit:SetAutoFocus(true)
+        edit:SetFontObject(ChatFontNormal)
+        edit:SetTextInsets(8, 8, 8, 8)
+        edit:SetWidth(830)
+        edit:SetScript("OnEscapePressed", function() f:Hide() end)
+        edit:SetScript("OnTextChanged", function(self)
+            self:SetHeight(math.max(1, self:GetStringHeight() + 20))
+        end)
+        scroll:SetScrollChild(edit)
+
+        f.editBox = edit
+        self.exportFrame = f
+    end
+
+    self.exportFrame.header:SetText(title or "Export")
+    self.exportFrame.editBox:SetText(text or "")
+    self.exportFrame.editBox:HighlightText()
+    self.exportFrame:Show()
+end
+
+function HC:ShowResultsExportDialog()
+    local csv = self:BuildResultsCSV(currentResults or {})
+    self:ShowTextExportDialog("Export Results CSV", csv)
+end
+
+function HC:CreateShoppingListPanel(parent)
+    local frame = CreateFrame("Frame", nil, parent, "BackdropTemplate")
+    frame:SetPoint("TOPLEFT", SIDEBAR_WIDTH + 30, -HEADER_HEIGHT - 30)
+    frame:SetPoint("BOTTOMRIGHT", -30, 30)
+    frame:SetFrameStrata("DIALOG")
+    frame:SetBackdrop({
+        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        edgeSize = 10,
+        insets = { left = 2, right = 2, top = 2, bottom = 2 },
+    })
+    frame:SetBackdropColor(0.06, 0.045, 0.03, 0.98)
+    frame:SetBackdropBorderColor(unpack(COLORS.border))
+    frame:Hide()
+
+    local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    title:SetPoint("TOPLEFT", 14, -10)
+    title:SetText("Shopping List")
+    title:SetTextColor(unpack(COLORS.accentAlt))
+    frame.title = title
+
+    local countText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    countText:SetPoint("TOPLEFT", 16, -34)
+    countText:SetTextColor(unpack(COLORS.textMuted))
+    frame.countText = countText
+
+    local closeBtn = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
+    closeBtn:SetPoint("TOPRIGHT", -4, -4)
+    closeBtn:SetScript("OnClick", function()
+        frame:Hide()
+    end)
+
+    local mapBtn = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    mapBtn:SetSize(90, 24)
+    mapBtn:SetPoint("TOPRIGHT", -36, -32)
+    mapBtn:SetText("Map All")
+    mapBtn:SetScript("OnClick", function()
+        HC:MapWaypointsForShoppingList()
+    end)
+    frame.mapBtn = mapBtn
+
+    local clearBtn = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    clearBtn:SetSize(90, 24)
+    clearBtn:SetPoint("RIGHT", mapBtn, "LEFT", -8, 0)
+    clearBtn:SetText("Clear")
+    clearBtn:SetScript("OnClick", function()
+        HC:ClearShoppingList()
+        HC:RefreshShoppingListPanel()
+    end)
+    frame.clearBtn = clearBtn
+
+    local scroll = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
+    scroll:SetPoint("TOPLEFT", 12, -62)
+    scroll:SetPoint("BOTTOMRIGHT", -30, 12)
+    frame.scroll = scroll
+
+    local child = CreateFrame("Frame", nil, scroll)
+    child:SetSize(1, 1)
+    scroll:SetScrollChild(child)
+    frame.child = child
+    frame.rows = {}
+
+    self.shoppingListPanel = frame
+end
+
+function HC:RefreshShoppingListPanel()
+    if not self.shoppingListPanel then return end
+
+    local panel = self.shoppingListPanel
+    local list = self:GetShoppingList()
+
+    panel.countText:SetText(string.format("%d item%s", #list, #list == 1 and "" or "s"))
+    panel.mapBtn:SetEnabled(#list > 0)
+    panel.mapBtn:SetAlpha(#list > 0 and 1 or 0.45)
+    panel.clearBtn:SetEnabled(#list > 0)
+    panel.clearBtn:SetAlpha(#list > 0 and 1 or 0.45)
+
+    for _, row in ipairs(panel.rows) do
+        row:Hide()
+    end
+
+    local rowHeight = 28
+    local y = -6
+    for i, entry in ipairs(list) do
+        local row = panel.rows[i]
+        if not row then
+            row = CreateFrame("Frame", nil, panel.child, "BackdropTemplate")
+            row:SetBackdrop({
+                bgFile = "Interface\\Buttons\\WHITE8x8",
+                edgeFile = "Interface\\Buttons\\WHITE8x8",
+                edgeSize = 1,
+            })
+            row:SetBackdropColor(0.12, 0.09, 0.06, 0.92)
+            row:SetBackdropBorderColor(0.25, 0.18, 0.1, 1)
+            row:SetHeight(rowHeight - 2)
+
+            local txt = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+            txt:SetPoint("LEFT", 8, 0)
+            txt:SetPoint("RIGHT", -96, 0)
+            txt:SetJustifyH("LEFT")
+            row.text = txt
+
+            local del = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+            del:SetSize(78, 20)
+            del:SetPoint("RIGHT", -8, 0)
+            del:SetText("Remove")
+            del:SetScript("OnClick", function(selfBtn)
+                local idx = selfBtn.rowIndex
+                HC:RemoveShoppingListEntry(idx)
+                HC:RefreshShoppingListPanel()
+            end)
+            row.deleteBtn = del
+
+            panel.rows[i] = row
+        end
+
+        row:ClearAllPoints()
+        row:SetPoint("TOPLEFT", 0, y)
+        row:SetPoint("TOPRIGHT", -8, y)
+        local vendorPart = entry.vendor and entry.vendor ~= "" and (" |cffaaaaaa- " .. entry.vendor .. "|r") or ""
+        local zonePart = entry.zone and entry.zone ~= "" and (" |cff888888(" .. entry.zone .. ")|r") or ""
+        row.text:SetText((entry.name or "Unknown") .. vendorPart .. zonePart)
+        row.deleteBtn.rowIndex = i
+        row:Show()
+
+        y = y - rowHeight
+    end
+
+    panel.child:SetWidth(math.max(1, panel.scroll:GetWidth() - 18))
+    panel.child:SetHeight(math.max(1, -y + 8))
+end
+
+function HC:ToggleShoppingListPanel()
+    if not self.shoppingListPanel then return end
+    if self.shoppingListPanel:IsShown() then
+        self.shoppingListPanel:Hide()
+    else
+        self:RefreshShoppingListPanel()
+        self.shoppingListPanel:Show()
+    end
+end
+
 function HC:CreateSettingsPanel(parent)
     local settings = CreateFrame("Frame", nil, parent, "BackdropTemplate")
     settings:SetPoint("TOPLEFT", SIDEBAR_WIDTH, -HEADER_HEIGHT)
-    settings:SetPoint("BOTTOMRIGHT", 0, 0)
+    settings:SetPoint("BOTTOMRIGHT", -PREVIEW_WIDTH, 0)
     settings:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8" })
     settings:SetBackdropColor(unpack(COLORS.background))
     settings:Hide()
@@ -1113,10 +1546,15 @@ end
 
 function HC:DoSearch()
     local query = self.searchBox and self.searchBox:GetText() or ""
+    local zoneMapID = nil
+    if self.zoneOnlyCb and self.zoneOnlyCb:GetChecked() then
+        zoneMapID = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player") or nil
+    end
     local filters = {
         showCollected = self.collectedCb and self.collectedCb:GetChecked(),
         showUncollected = self.uncollectedCb and self.uncollectedCb:GetChecked(),
         faction = self:GetPlayerFaction(),
+        zoneMapID = zoneMapID,
     }
     if currentTab == "items" then
         filters.itemCategory = currentItemCategory
@@ -1142,6 +1580,11 @@ function HC:DoSearch()
     self:UpdateResults()
     self:UpdateStats()
     self:UpdateSetWaypointButton()
+    self:UpdateAddShoppingButton()
+    self:UpdateMapAllButton()
+    if self.UpdatePreview then
+        self:UpdatePreview(nil)
+    end
 end
 
 function HC:UpdateResults()
@@ -1256,6 +1699,8 @@ function HC:UpdateResults()
     if self.nextBtn then self.nextBtn:SetEnabled(currentPage < totalPages) end
     if self.statusText then self.statusText:SetText(string.format("%d results", #currentResults)) end
     self:UpdateSetWaypointButton()
+    self:UpdateAddShoppingButton()
+    self:UpdateMapAllButton()
 end
 
 function HC:UpdateTabButtons()
@@ -1313,15 +1758,20 @@ function HC:ToggleUI()
     if not self.mainFrame then self:CreateUI() end
     if self.mainFrame:IsShown() then
         self.mainFrame:Hide()
+        if self.shoppingListPanel then self.shoppingListPanel:Hide() end
     else
         self.mainFrame:Show()
         if self.settingsPanel then self.settingsPanel:Hide() end
         if self.content then self.content:Show() end
+        if self.previewPanel then self.previewPanel:Show() end
         if self.CacheCollection and not self.catalogReady then
             self:CacheCollection()
         end
         self:UpdateTabButtons()
         self:DoSearch()
+        if self.UpdatePreview then
+            self:UpdatePreview(selectedItem)
+        end
     end
 end
 
@@ -1330,9 +1780,11 @@ function HC:ToggleSettings()
     if self.settingsPanel:IsShown() then
         self.settingsPanel:Hide()
         if self.content then self.content:Show() end
+        if self.previewPanel then self.previewPanel:Show() end
     else
         self.settingsPanel:Show()
         if self.content then self.content:Hide() end
+        if self.previewPanel then self.previewPanel:Hide() end
     end
 end
 
@@ -1341,4 +1793,5 @@ function HC:OpenSettings()
     self.mainFrame:Show()
     if self.settingsPanel then self.settingsPanel:Show() end
     if self.content then self.content:Hide() end
+    if self.previewPanel then self.previewPanel:Hide() end
 end
