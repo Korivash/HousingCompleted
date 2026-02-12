@@ -862,10 +862,17 @@ function HC:UpdateResults()
                 if itemIcon then icon = itemIcon end
             end
 
-            -- Use profession-specific icon
-            if data.type == "profession" and data.data and data.data.profession then
-                local profIcon = HC.ProfessionIcons and HC.ProfessionIcons[data.data.profession:lower()]
-                if profIcon then icon = profIcon end
+            -- Use profession-specific icon (scan sources for profession name)
+            if data.type == "profession" and data.data and data.data.sources and HC.ProfessionIcons then
+                for _, s in ipairs(data.data.sources) do
+                    if s.profession and type(s.profession) == "string" then
+                        local profIcon = HC.ProfessionIcons[s.profession:lower()]
+                        if profIcon then
+                            icon = profIcon
+                            break
+                        end
+                    end
+                end
             end
             row.typeIcon:SetTexture(icon)
             

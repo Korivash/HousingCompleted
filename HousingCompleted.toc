@@ -20,6 +20,7 @@ Data\Reputation.lua
 Data\Professions.lua
 Data\AuctionItems.lua
 Data\Sources.lua
+Data\AllItems.lua
 
 Core.lua
 

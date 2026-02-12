@@ -60,6 +60,9 @@ function HC:Initialize()
 
     -- Build item-first index (items -> sources)
     self:BuildItemIndex()
+
+    -- Prime master item list (names/icons load over time via client cache)
+    self:ResolveAllItems()
     
     -- Register slash commands
     SLASH_HOUSINGCOMPLETED1 = "/hc"
@@ -621,4 +624,43 @@ function HC:GetStatistics()
     end
     
     return stats
+end
+
+
+---------------------------------------------------
+-- Master Item Database (All Items)
+---------------------------------------------------
+function HC:ResolveAllItems()
+    -- Build a runtime cache of itemID -> name/icon for searching.
+    -- This uses in-client item cache; names may be nil until item is cached.
+    self.allItemCache = self.allItemCache or {}
+    if not (HC.AllItems and HC.AllItems.IDs) then return end
+
+    for _, itemID in ipairs(HC.AllItems.IDs) do
+        if not self.allItemCache[itemID] then
+            local name = C_Item and C_Item.GetItemNameByID and C_Item.GetItemNameByID(itemID) or nil
+            local icon = C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(itemID) or nil
+            self.allItemCache[itemID] = { itemID = itemID, name = name, icon = icon }
+        end
+    end
+end
+
+function HC:GetUnknownItemResult(itemID, itemName)
+    return {
+        type = "unknown",
+        data = {
+            name = itemName or ("Item " .. tostring(itemID)),
+            itemID = itemID,
+            sources = {},
+            waypoint = nil,
+        },
+        name = itemName or ("Item " .. tostring(itemID)),
+        source = "Currently Unknown",
+        vendor = nil,
+        zone = nil,
+        cost = nil,
+        expansion = nil,
+        faction = nil,
+        collected = self:IsDecorCollected(itemName or ("Item " .. tostring(itemID))),
+    }
 end
