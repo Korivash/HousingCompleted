@@ -6,7 +6,7 @@
 local addonName, HC = ...
 _G["HousingCompleted"] = HC
 
-HC.version = "1.0.0"
+HC.version = "1.2.0"
 HC.searchResults = {}
 HC.collectionCache = {}
 
@@ -81,6 +81,18 @@ function HC:Initialize()
                 HousingCompletedDB.minimap.hide = not HousingCompletedDB.showMinimapButton
             end
             print("|cff00ff99Housing|r |cffffffffCompleted|r: Minimap button " .. (HousingCompletedDB.showMinimapButton and "shown" or "hidden"))
+        elseif cmd == "arrow" then
+            HC:ToggleArrow()
+        elseif cmd == "arrow hide" or cmd == "arrow off" then
+            HC:HideArrow()
+        elseif cmd == "arrow show" or cmd == "arrow on" then
+            if HC:HasWaypoint() then
+                if not HC.arrowFrame then HC:CreateArrow() end
+                HC.arrowFrame:Show()
+                print("|cff00ff99Housing Completed|r: Arrow shown")
+            else
+                print("|cff00ff99Housing Completed|r: No waypoint set. Click a waypoint button in /hc first.")
+            end
         else
             HC:ToggleUI()
         end
@@ -90,11 +102,15 @@ function HC:Initialize()
 end
 
 function HC:SetupMinimapButton()
-    local LibDBIcon = LibStub("LibDBIcon-1.0", true)
     local LDB = LibStub("LibDataBroker-1.1", true)
+    local LibDBIcon = LibStub("LibDBIcon-1.0", true)
     
-    if not LibDBIcon or not LDB then return end
+    if not LDB or not LibDBIcon then 
+        print("|cff00ff99Housing Completed|r: LibDataBroker or LibDBIcon not found")
+        return 
+    end
     
+    -- Create the LDB object FIRST
     local dataObj = LDB:NewDataObject("HousingCompleted", {
         type = "launcher",
         text = "Housing Completed",
@@ -114,6 +130,13 @@ function HC:SetupMinimapButton()
         end,
     })
     
+    -- Ensure we have a valid object before registering
+    if not dataObj then
+        print("|cff00ff99Housing Completed|r: Failed to create data broker object")
+        return
+    end
+    
+    -- Now register with LibDBIcon
     LibDBIcon:Register("HousingCompleted", dataObj, HousingCompletedDB.minimap)
     
     if HousingCompletedDB.showMinimapButton == false then
@@ -359,6 +382,9 @@ function HC:SetWaypoint(x, y, mapID, title)
         C_SuperTrack.SetSuperTrackedUserWaypoint(true)
         print("|cff00ff99Housing Completed|r: Map pin set for " .. (title or "location"))
     end
+    
+    -- Show arrow (Arrow.lua checks showArrow setting)
+    self:ShowArrow(x, y, mapID, title)
 end
 
 ---------------------------------------------------

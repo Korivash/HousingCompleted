@@ -1,23 +1,23 @@
 ---------------------------------------------------
 -- Housing Completed - UI.lua
--- Modern, comprehensive user interface
+-- Modern interface with item/NPC previews
 -- Author: Korivash
 ---------------------------------------------------
 local addonName, HC = ...
 
--- UI Constants
-local FRAME_WIDTH = 950
-local FRAME_HEIGHT = 650
+local FRAME_WIDTH = 1100
+local FRAME_HEIGHT = 700
 local SIDEBAR_WIDTH = 220
+local PREVIEW_WIDTH = 280
 local HEADER_HEIGHT = 70
-local ITEM_HEIGHT = 55
+local ITEM_HEIGHT = 60
 local ITEMS_PER_PAGE = 8
 
--- Modern Color Scheme
 local COLORS = {
     background = {0.05, 0.05, 0.08, 0.98},
     headerBg = {0.08, 0.08, 0.12, 1},
     sidebar = {0.04, 0.04, 0.06, 1},
+    preview = {0.06, 0.06, 0.09, 1},
     accent = {0.2, 0.9, 0.6, 1},
     accentAlt = {0.4, 0.8, 1, 1},
     gold = {1, 0.82, 0, 1},
@@ -25,29 +25,22 @@ local COLORS = {
     textMuted = {0.5, 0.5, 0.55, 1},
     textDim = {0.35, 0.35, 0.4, 1},
     collected = {0.2, 0.9, 0.4, 1},
-    notCollected = {0.7, 0.3, 0.3, 1},
-    button = {0.12, 0.12, 0.18, 1},
-    buttonHover = {0.18, 0.18, 0.28, 1},
-    buttonActive = {0.15, 0.4, 0.3, 1},
-    border = {0.2, 0.2, 0.25, 1},
     row = {0.08, 0.08, 0.12, 0.8},
     rowHover = {0.12, 0.12, 0.18, 1},
+    rowSelected = {0.15, 0.25, 0.2, 1},
     achievement = {1, 0.8, 0.2, 1},
     quest = {1, 1, 0.4, 1},
     vendor = {0.3, 0.9, 0.3, 1},
     reputation = {0.6, 0.4, 1, 1},
     profession = {1, 0.5, 0.2, 1},
-    drop = {0.4, 0.7, 1, 1},
 }
 
--- Local variables
 local currentPage = 1
 local totalPages = 1
 local currentResults = {}
 local currentTab = "all"
-local currentFilters = {}
+local selectedItem = nil
 
--- Helper function for checkbox/radio text compatibility
 local function GetButtonText(button)
     return button.Text or button.text
 end
@@ -58,18 +51,6 @@ local function SetButtonText(button, text, r, g, b)
         textObj:SetText(text)
         if r then textObj:SetTextColor(r, g, b) end
     end
-end
-
----------------------------------------------------
--- UI Helper Functions
----------------------------------------------------
-local function CreateStyledButton(parent, text, width, height)
-    local btn = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
-    btn:SetSize(width or 120, height or 28)
-    btn:SetText(text)
-    btn:SetNormalFontObject(GameFontNormalSmall)
-    btn:SetHighlightFontObject(GameFontHighlightSmall)
-    return btn
 end
 
 local function CreateSearchBox(parent, width)
@@ -103,25 +84,15 @@ local function CreateSearchBox(parent, width)
     placeholder:SetTextColor(0.4, 0.4, 0.45)
     
     editBox:SetScript("OnTextChanged", function(self)
-        if self:GetText() ~= "" then
-            placeholder:Hide()
-        else
-            placeholder:Show()
-        end
+        placeholder:SetShown(self:GetText() == "")
     end)
-    
-    editBox:SetScript("OnEscapePressed", function(self)
-        self:ClearFocus()
-    end)
+    editBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
     
     container.editBox = editBox
     container.placeholder = placeholder
     return container
 end
 
----------------------------------------------------
--- Main UI Creation
----------------------------------------------------
 function HC:CreateUI()
     if self.mainFrame then return end
     
@@ -146,13 +117,10 @@ function HC:CreateUI()
         HousingCompletedDB.windowPos = {point, "CENTER", x, y}
     end)
     
-    if HousingCompletedDB and HousingCompletedDB.windowPos 
-       and HousingCompletedDB.windowPos[1] 
-       and HousingCompletedDB.windowPos[3]
-       and HousingCompletedDB.windowPos[4] then
+    if HousingCompletedDB and HousingCompletedDB.windowPos and HousingCompletedDB.windowPos[1] then
         local pos = HousingCompletedDB.windowPos
         frame:ClearAllPoints()
-        frame:SetPoint(pos[1], UIParent, pos[2], pos[3], pos[4])
+        frame:SetPoint(pos[1], UIParent, pos[2], pos[3] or 0, pos[4] or 0)
     end
     
     frame:SetScale(HousingCompletedDB.scale or 1.0)
@@ -161,6 +129,7 @@ function HC:CreateUI()
     
     self:CreateHeader(frame)
     self:CreateSidebar(frame)
+    self:CreatePreviewPanel(frame)
     self:CreateContent(frame)
     self:CreateSettingsPanel(frame)
     
@@ -186,7 +155,7 @@ function HC:CreateHeader(parent)
     
     local stats = header:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     stats:SetPoint("LEFT", 20, -15)
-    stats:SetText("Loading collection data...")
+    stats:SetText("Loading...")
     stats:SetTextColor(unpack(COLORS.textMuted))
     self.statsText = stats
     
@@ -221,14 +190,8 @@ function HC:CreateSidebar(parent)
         self:ClearFocus()
     end)
     searchBox.editBox:SetScript("OnTextChanged", function(self, userInput)
-        if self:GetText() ~= "" then
-            searchBox.placeholder:Hide()
-        else
-            searchBox.placeholder:Show()
-        end
-        if userInput then
-            C_Timer.After(0.3, function() HC:DoSearch() end)
-        end
+        searchBox.placeholder:SetShown(self:GetText() == "")
+        if userInput then C_Timer.After(0.3, function() HC:DoSearch() end) end
     end)
     self.searchBox = searchBox.editBox
     y = y - 50
@@ -272,14 +235,10 @@ function HC:CreateSidebar(parent)
         btn.label = label
         
         btn:SetScript("OnEnter", function(self)
-            if currentTab ~= self.tabID then
-                self.bg:SetColorTexture(0.15, 0.15, 0.2, 1)
-            end
+            if currentTab ~= self.tabID then self.bg:SetColorTexture(0.15, 0.15, 0.2, 1) end
         end)
         btn:SetScript("OnLeave", function(self)
-            if currentTab ~= self.tabID then
-                self.bg:SetColorTexture(0, 0, 0, 0)
-            end
+            if currentTab ~= self.tabID then self.bg:SetColorTexture(0, 0, 0, 0) end
         end)
         btn:SetScript("OnClick", function(self)
             currentTab = self.tabID
@@ -308,10 +267,7 @@ function HC:CreateSidebar(parent)
     collectedCb:SetPoint("TOPLEFT", 10, y)
     SetButtonText(collectedCb, "Show Collected", 0.7, 0.7, 0.7)
     collectedCb:SetChecked(true)
-    collectedCb:SetScript("OnClick", function(self)
-        currentFilters.showCollected = self:GetChecked()
-        HC:DoSearch()
-    end)
+    collectedCb:SetScript("OnClick", function() HC:DoSearch() end)
     self.collectedCb = collectedCb
     y = y - 26
     
@@ -319,22 +275,19 @@ function HC:CreateSidebar(parent)
     uncollectedCb:SetPoint("TOPLEFT", 10, y)
     SetButtonText(uncollectedCb, "Show Uncollected", 0.7, 0.7, 0.7)
     uncollectedCb:SetChecked(true)
-    uncollectedCb:SetScript("OnClick", function(self)
-        currentFilters.showUncollected = self:GetChecked()
-        HC:DoSearch()
-    end)
+    uncollectedCb:SetScript("OnClick", function() HC:DoSearch() end)
     self.uncollectedCb = uncollectedCb
     y = y - 40
     
-    local quickLabel = sidebar:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    quickLabel:SetPoint("TOPLEFT", 15, y)
-    quickLabel:SetText("PROGRESS")
-    quickLabel:SetTextColor(unpack(COLORS.accentAlt))
+    local progressLabel = sidebar:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    progressLabel:SetPoint("TOPLEFT", 15, y)
+    progressLabel:SetText("PROGRESS")
+    progressLabel:SetTextColor(unpack(COLORS.accentAlt))
     y = y - 25
     
     local progressText = sidebar:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     progressText:SetPoint("TOPLEFT", 15, y)
-    progressText:SetText("Collected: 0 / 0")
+    progressText:SetText("0 / 0")
     progressText:SetTextColor(0.7, 0.7, 0.7)
     self.progressText = progressText
     
@@ -344,7 +297,7 @@ end
 function HC:CreateContent(parent)
     local content = CreateFrame("Frame", nil, parent)
     content:SetPoint("TOPLEFT", SIDEBAR_WIDTH, -HEADER_HEIGHT)
-    content:SetPoint("BOTTOMRIGHT", 0, 0)
+    content:SetPoint("BOTTOMRIGHT", -PREVIEW_WIDTH, 0)
     
     local resultsFrame = CreateFrame("Frame", nil, content, "BackdropTemplate")
     resultsFrame:SetPoint("TOPLEFT", 15, -15)
@@ -372,23 +325,21 @@ function HC:CreateContent(parent)
     pagination:SetPoint("BOTTOMRIGHT", -15, 15)
     pagination:SetHeight(35)
     
-    local prevBtn = CreateStyledButton(pagination, "< Prev", 80, 28)
+    local prevBtn = CreateFrame("Button", nil, pagination, "UIPanelButtonTemplate")
+    prevBtn:SetSize(80, 28)
     prevBtn:SetPoint("LEFT", 0, 0)
+    prevBtn:SetText("< Prev")
     prevBtn:SetScript("OnClick", function()
-        if currentPage > 1 then
-            currentPage = currentPage - 1
-            HC:UpdateResults()
-        end
+        if currentPage > 1 then currentPage = currentPage - 1; HC:UpdateResults() end
     end)
     self.prevBtn = prevBtn
     
-    local nextBtn = CreateStyledButton(pagination, "Next >", 80, 28)
+    local nextBtn = CreateFrame("Button", nil, pagination, "UIPanelButtonTemplate")
+    nextBtn:SetSize(80, 28)
     nextBtn:SetPoint("RIGHT", 0, 0)
+    nextBtn:SetText("Next >")
     nextBtn:SetScript("OnClick", function()
-        if currentPage < totalPages then
-            currentPage = currentPage + 1
-            HC:UpdateResults()
-        end
+        if currentPage < totalPages then currentPage = currentPage + 1; HC:UpdateResults() end
     end)
     self.nextBtn = nextBtn
     
@@ -405,7 +356,6 @@ function HC:CreateContent(parent)
     self.statusText = statusText
     
     self.content = content
-    self.pagination = pagination
 end
 
 function HC:CreateResultRow(parent, index)
@@ -415,14 +365,23 @@ function HC:CreateResultRow(parent, index)
     row:SetBackdropColor(unpack(COLORS.row))
     
     row:SetScript("OnEnter", function(self)
-        self:SetBackdropColor(unpack(COLORS.rowHover))
+        if selectedItem ~= self.itemData then
+            self:SetBackdropColor(unpack(COLORS.rowHover))
+        end
     end)
     row:SetScript("OnLeave", function(self)
-        self:SetBackdropColor(unpack(COLORS.row))
+        if selectedItem ~= self.itemData then
+            self:SetBackdropColor(unpack(COLORS.row))
+        end
+    end)
+    row:SetScript("OnClick", function(self)
+        selectedItem = self.itemData
+        HC:UpdatePreview(self.itemData)
+        HC:UpdateRowSelection()
     end)
     
     local typeIcon = row:CreateTexture(nil, "ARTWORK")
-    typeIcon:SetSize(32, 32)
+    typeIcon:SetSize(36, 36)
     typeIcon:SetPoint("LEFT", 10, 0)
     row.typeIcon = typeIcon
     
@@ -434,22 +393,21 @@ function HC:CreateResultRow(parent, index)
     row.collectedIcon = collectedIcon
     
     local nameText = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    nameText:SetPoint("TOPLEFT", typeIcon, "TOPRIGHT", 10, -4)
-    nameText:SetPoint("RIGHT", -180, 0)
+    nameText:SetPoint("TOPLEFT", typeIcon, "TOPRIGHT", 10, -2)
+    nameText:SetPoint("RIGHT", -150, 0)
     nameText:SetJustifyH("LEFT")
-    nameText:SetWordWrap(false)
     row.nameText = nameText
     
     local sourceText = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     sourceText:SetPoint("TOPLEFT", nameText, "BOTTOMLEFT", 0, -2)
-    sourceText:SetPoint("RIGHT", -180, 0)
+    sourceText:SetPoint("RIGHT", -150, 0)
     sourceText:SetJustifyH("LEFT")
     sourceText:SetTextColor(unpack(COLORS.textMuted))
     row.sourceText = sourceText
     
     local infoText = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     infoText:SetPoint("TOPLEFT", sourceText, "BOTTOMLEFT", 0, -2)
-    infoText:SetPoint("RIGHT", -180, 0)
+    infoText:SetPoint("RIGHT", -150, 0)
     infoText:SetJustifyH("LEFT")
     infoText:SetTextColor(unpack(COLORS.textDim))
     row.infoText = infoText
@@ -460,35 +418,276 @@ function HC:CreateResultRow(parent, index)
     waypointBtn:SetNormalTexture("Interface\\Minimap\\Tracking\\TrivialQuests")
     waypointBtn:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
     waypointBtn:SetScript("OnClick", function()
-        if row.vendorData then
-            local v = row.vendorData
-            if v.x and v.y and v.mapID then
-                HC:SetWaypoint(v.x, v.y, v.mapID, v.name)
-            end
+        if row.vendorData and row.vendorData.x and row.vendorData.y and row.vendorData.mapID then
+            HC:SetWaypoint(row.vendorData.x, row.vendorData.y, row.vendorData.mapID, row.vendorData.name)
         elseif row.vendorName then
             local vendor = HC:GetVendorByName(row.vendorName)
             if vendor and vendor.x and vendor.y and vendor.mapID then
                 HC:SetWaypoint(vendor.x, vendor.y, vendor.mapID, vendor.name)
-            else
-                print("|cff00ff99Housing Completed|r: No coordinates available.")
             end
         end
     end)
-    waypointBtn:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_TOP")
-        GameTooltip:AddLine("Set Waypoint")
-        GameTooltip:Show()
-    end)
-    waypointBtn:SetScript("OnLeave", GameTooltip_Hide)
     row.waypointBtn = waypointBtn
     
     local typeBadge = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     typeBadge:SetPoint("RIGHT", waypointBtn, "LEFT", -10, 0)
-    typeBadge:SetJustifyH("RIGHT")
     row.typeBadge = typeBadge
     
     row:Hide()
     return row
+end
+
+function HC:CreatePreviewPanel(parent)
+    local preview = CreateFrame("Frame", nil, parent, "BackdropTemplate")
+    preview:SetPoint("TOPRIGHT", 0, -HEADER_HEIGHT)
+    preview:SetPoint("BOTTOMRIGHT", 0, 0)
+    preview:SetWidth(PREVIEW_WIDTH)
+    preview:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8" })
+    preview:SetBackdropColor(unpack(COLORS.preview))
+    
+    local y = -15
+    
+    local title = preview:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    title:SetPoint("TOPLEFT", 15, y)
+    title:SetText("PREVIEW")
+    title:SetTextColor(unpack(COLORS.accentAlt))
+    y = y - 25
+    
+    -- Model container with backdrop
+    local modelContainer = CreateFrame("Frame", nil, preview, "BackdropTemplate")
+    modelContainer:SetSize(PREVIEW_WIDTH - 30, 150)
+    modelContainer:SetPoint("TOP", 0, y)
+    modelContainer:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8" })
+    modelContainer:SetBackdropColor(0.03, 0.03, 0.05, 1)
+    
+    -- Model frame inside container
+    local modelFrame = CreateFrame("PlayerModel", nil, modelContainer)
+    modelFrame:SetAllPoints()
+    modelFrame:EnableMouse(true)
+    modelFrame:EnableMouseWheel(true)
+    modelFrame:SetScript("OnMouseWheel", function(self, delta)
+        local x, y, z = self:GetPosition()
+        self:SetPosition(x, y, z + delta * 0.5)
+    end)
+    
+    local isDragging = false
+    local lastX = 0
+    modelFrame:SetScript("OnMouseDown", function(self, button)
+        if button == "LeftButton" then
+            isDragging = true
+            lastX = GetCursorPosition()
+        end
+    end)
+    modelFrame:SetScript("OnMouseUp", function() isDragging = false end)
+    modelFrame:SetScript("OnUpdate", function(self)
+        if isDragging then
+            local x = GetCursorPosition()
+            local facing = self:GetFacing() or 0
+            self:SetFacing(facing + (x - lastX) * 0.02)
+            lastX = x
+        end
+    end)
+    self.modelFrame = modelFrame
+    y = y - 160
+    
+    -- Item name
+    local itemName = preview:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    itemName:SetPoint("TOPLEFT", 15, y)
+    itemName:SetPoint("TOPRIGHT", -15, y)
+    itemName:SetJustifyH("CENTER")
+    itemName:SetText("Select an item")
+    itemName:SetTextColor(1, 1, 1)
+    self.previewName = itemName
+    y = y - 25
+    
+    -- Source type
+    local sourceType = preview:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    sourceType:SetPoint("TOPLEFT", 15, y)
+    sourceType:SetPoint("TOPRIGHT", -15, y)
+    sourceType:SetJustifyH("CENTER")
+    sourceType:SetText("")
+    self.previewSourceType = sourceType
+    y = y - 30
+    
+    -- Divider
+    local div = preview:CreateTexture(nil, "ARTWORK")
+    div:SetSize(PREVIEW_WIDTH - 30, 1)
+    div:SetPoint("TOP", 0, y)
+    div:SetColorTexture(0.2, 0.2, 0.25, 1)
+    y = y - 15
+    
+    -- Details section
+    local detailsTitle = preview:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    detailsTitle:SetPoint("TOPLEFT", 15, y)
+    detailsTitle:SetText("DETAILS")
+    detailsTitle:SetTextColor(unpack(COLORS.accentAlt))
+    y = y - 20
+    
+    -- Vendor
+    local vendorLabel = preview:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    vendorLabel:SetPoint("TOPLEFT", 15, y)
+    vendorLabel:SetText("Vendor:")
+    vendorLabel:SetTextColor(unpack(COLORS.textMuted))
+    local vendorValue = preview:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    vendorValue:SetPoint("TOPLEFT", vendorLabel, "TOPRIGHT", 5, 0)
+    vendorValue:SetPoint("RIGHT", -15, 0)
+    vendorValue:SetJustifyH("LEFT")
+    vendorValue:SetText("-")
+    self.previewVendor = vendorValue
+    y = y - 18
+    
+    -- Location
+    local locLabel = preview:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    locLabel:SetPoint("TOPLEFT", 15, y)
+    locLabel:SetText("Location:")
+    locLabel:SetTextColor(unpack(COLORS.textMuted))
+    local locValue = preview:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    locValue:SetPoint("TOPLEFT", locLabel, "TOPRIGHT", 5, 0)
+    locValue:SetPoint("RIGHT", -15, 0)
+    locValue:SetJustifyH("LEFT")
+    locValue:SetText("-")
+    self.previewLocation = locValue
+    y = y - 18
+    
+    -- Cost
+    local costLabel = preview:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    costLabel:SetPoint("TOPLEFT", 15, y)
+    costLabel:SetText("Cost:")
+    costLabel:SetTextColor(unpack(COLORS.textMuted))
+    local costValue = preview:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    costValue:SetPoint("TOPLEFT", costLabel, "TOPRIGHT", 5, 0)
+    costValue:SetPoint("RIGHT", -15, 0)
+    costValue:SetJustifyH("LEFT")
+    costValue:SetText("-")
+    self.previewCost = costValue
+    y = y - 18
+    
+    -- Reputation
+    local repLabel = preview:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    repLabel:SetPoint("TOPLEFT", 15, y)
+    repLabel:SetText("Reputation:")
+    repLabel:SetTextColor(unpack(COLORS.textMuted))
+    repLabel:Hide()
+    self.previewRepLabel = repLabel
+    
+    local repValue = preview:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    repValue:SetPoint("TOPLEFT", repLabel, "TOPRIGHT", 5, 0)
+    repValue:SetPoint("RIGHT", -15, 0)
+    repValue:SetJustifyH("LEFT")
+    repValue:SetText("-")
+    repValue:Hide()
+    self.previewRep = repValue
+    y = y - 35
+    
+    -- Waypoint button
+    local wpBtn = CreateFrame("Button", nil, preview, "UIPanelButtonTemplate")
+    wpBtn:SetSize(PREVIEW_WIDTH - 30, 28)
+    wpBtn:SetPoint("BOTTOM", 0, 15)
+    wpBtn:SetText("Set Waypoint")
+    wpBtn:SetScript("OnClick", function()
+        if selectedItem then
+            local data = selectedItem.data
+            if selectedItem.type == "vendor" and data and data.x and data.y and data.mapID then
+                HC:SetWaypoint(data.x, data.y, data.mapID, data.name)
+            elseif selectedItem.vendor then
+                local v = HC:GetVendorByName(selectedItem.vendor)
+                if v and v.x and v.y and v.mapID then
+                    HC:SetWaypoint(v.x, v.y, v.mapID, v.name)
+                end
+            end
+        end
+    end)
+    self.previewWaypointBtn = wpBtn
+    
+    self.previewPanel = preview
+end
+
+function HC:UpdatePreview(data)
+    if not self.previewName then return end
+    
+    if not data then
+        self.previewName:SetText("Select an item")
+        self.previewName:SetTextColor(1, 1, 1)
+        self.previewSourceType:SetText("")
+        self.previewVendor:SetText("-")
+        self.previewLocation:SetText("-")
+        self.previewCost:SetText("-")
+        self.previewRepLabel:Hide()
+        self.previewRep:Hide()
+        if self.modelFrame then self.modelFrame:ClearModel() end
+        return
+    end
+    
+    self.previewName:SetText(data.name or "Unknown")
+    if data.collected then
+        self.previewName:SetTextColor(unpack(COLORS.collected))
+    else
+        self.previewName:SetTextColor(1, 1, 1)
+    end
+    
+    local sourceInfo = self:GetSourceTypeInfo(data.type)
+    self.previewSourceType:SetText(sourceInfo.name)
+    self.previewSourceType:SetTextColor(unpack(sourceInfo.color))
+    
+    -- Vendor
+    if data.type == "vendor" then
+        self.previewVendor:SetText(data.name or "-")
+    else
+        self.previewVendor:SetText(data.vendor or "-")
+    end
+    
+    -- Location
+    local loc = data.zone or ""
+    if data.data and data.data.subzone then
+        loc = loc .. " - " .. data.data.subzone
+    end
+    if data.data and data.data.x and data.data.y then
+        loc = loc .. string.format(" (%.1f, %.1f)", data.data.x, data.data.y)
+    end
+    self.previewLocation:SetText(loc ~= "" and loc or "-")
+    
+    -- Cost
+    self.previewCost:SetText(data.cost or "-")
+    
+    -- Reputation
+    if data.type == "reputation" and data.data then
+        self.previewRepLabel:Show()
+        self.previewRep:Show()
+        local repText = (data.data.faction or "") .. " - " .. (data.data.standing or "")
+        self.previewRep:SetText(repText)
+        local standing = data.data.standing
+        if standing == "Exalted" then
+            self.previewRep:SetTextColor(0.2, 1, 0.2)
+        elseif standing == "Revered" then
+            self.previewRep:SetTextColor(0.2, 0.8, 1)
+        elseif standing == "Honored" then
+            self.previewRep:SetTextColor(0.5, 0.5, 1)
+        else
+            self.previewRep:SetTextColor(0.7, 0.7, 0.7)
+        end
+    else
+        self.previewRepLabel:Hide()
+        self.previewRep:Hide()
+    end
+    
+    -- Model
+    if self.modelFrame then
+        if data.type == "vendor" and data.data and data.data.id then
+            self.modelFrame:SetCreature(data.data.id)
+        else
+            self.modelFrame:ClearModel()
+        end
+    end
+end
+
+function HC:UpdateRowSelection()
+    for _, row in ipairs(self.resultRows) do
+        if row.itemData == selectedItem then
+            row:SetBackdropColor(unpack(COLORS.rowSelected))
+        else
+            row:SetBackdropColor(unpack(COLORS.row))
+        end
+    end
 end
 
 function HC:CreateSettingsPanel(parent)
@@ -510,7 +709,6 @@ function HC:CreateSettingsPanel(parent)
     local waypointLabel = settings:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     waypointLabel:SetPoint("TOPLEFT", 20, y)
     waypointLabel:SetText("Waypoint System:")
-    waypointLabel:SetTextColor(1, 1, 1)
     y = y - 30
     
     local waypointOptions = {"tomtom", "blizzard", "both"}
@@ -534,7 +732,6 @@ function HC:CreateSettingsPanel(parent)
     local scaleLabel = settings:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     scaleLabel:SetPoint("TOPLEFT", 20, y)
     scaleLabel:SetText("UI Scale:")
-    scaleLabel:SetTextColor(1, 1, 1)
     y = y - 30
     
     local scaleSlider = CreateFrame("Slider", nil, settings, "OptionsSliderTemplate")
@@ -545,20 +742,13 @@ function HC:CreateSettingsPanel(parent)
     scaleSlider:SetValue(HousingCompletedDB.scale or 1.0)
     scaleSlider.Low:SetText("50%")
     scaleSlider.High:SetText("150%")
-    local sliderText = GetButtonText(scaleSlider)
-    if sliderText then
-        sliderText:SetText(string.format("%.0f%%", (HousingCompletedDB.scale or 1.0) * 100))
-    end
     scaleSlider:SetScript("OnValueChanged", function(self, value)
         value = math.floor(value * 20 + 0.5) / 20
         HousingCompletedDB.scale = value
         local text = GetButtonText(self)
-        if text then
-            text:SetText(string.format("%.0f%%", value * 100))
-        end
-        HC.mainFrame:SetScale(value)
+        if text then text:SetText(string.format("%.0f%%", value * 100)) end
+        if HC.mainFrame then HC.mainFrame:SetScale(value) end
     end)
-    self.scaleSlider = scaleSlider
     y = y - 50
     
     local minimapCb = CreateFrame("CheckButton", nil, settings, "UICheckButtonTemplate")
@@ -569,88 +759,72 @@ function HC:CreateSettingsPanel(parent)
         HousingCompletedDB.showMinimapButton = self:GetChecked()
         local LibDBIcon = LibStub("LibDBIcon-1.0", true)
         if LibDBIcon then
-            if HousingCompletedDB.showMinimapButton then
-                LibDBIcon:Show("HousingCompleted")
-            else
-                LibDBIcon:Hide("HousingCompleted")
-            end
-            HousingCompletedDB.minimap.hide = not HousingCompletedDB.showMinimapButton
+            if self:GetChecked() then LibDBIcon:Show("HousingCompleted")
+            else LibDBIcon:Hide("HousingCompleted") end
         end
     end)
     y = y - 30
     
-    -- Show Arrow checkbox
     local arrowCb = CreateFrame("CheckButton", nil, settings, "UICheckButtonTemplate")
     arrowCb:SetPoint("TOPLEFT", 20, y)
     SetButtonText(arrowCb, "Show Navigation Arrow", 0.8, 0.8, 0.8)
     arrowCb:SetChecked(HousingCompletedDB.showArrow ~= false)
     arrowCb:SetScript("OnClick", function(self)
         HousingCompletedDB.showArrow = self:GetChecked()
-        if not self:GetChecked() and HC.HideArrow then
-            HC:HideArrow()
-        end
+        if not self:GetChecked() and HC.HideArrow then HC:HideArrow() end
     end)
     y = y - 50
     
-    local backBtn = CreateStyledButton(settings, "Back", 100, 32)
+    local backBtn = CreateFrame("Button", nil, settings, "UIPanelButtonTemplate")
+    backBtn:SetSize(100, 32)
     backBtn:SetPoint("BOTTOMLEFT", 20, 20)
+    backBtn:SetText("Back")
     backBtn:SetScript("OnClick", function() HC:ToggleSettings() end)
     
     self.settingsPanel = settings
 end
 
 function HC:UpdateWaypointRadios()
-    local currentOpt = HousingCompletedDB.waypointSystem or "tomtom"
+    local opt = HousingCompletedDB.waypointSystem or "tomtom"
     for i = 1, 3 do
         local radio = self["waypointRadio" .. i]
-        if radio then
-            radio:SetChecked(radio.option == currentOpt)
-        end
+        if radio then radio:SetChecked(radio.option == opt) end
     end
 end
 
----------------------------------------------------
--- Search and Display
----------------------------------------------------
 function HC:DoSearch()
     local query = self.searchBox and self.searchBox:GetText() or ""
-    
     local filters = {
         showCollected = self.collectedCb and self.collectedCb:GetChecked(),
         showUncollected = self.uncollectedCb and self.uncollectedCb:GetChecked(),
         faction = self:GetPlayerFaction(),
     }
-    
-    if currentTab ~= "all" then
-        filters.sourceTypes = { [currentTab] = true }
-    end
+    if currentTab ~= "all" then filters.sourceTypes = { [currentTab] = true } end
     
     local results = self:SearchAll(query, filters)
-    
-    local filteredResults = {}
-    for _, result in ipairs(results) do
+    local filtered = {}
+    for _, r in ipairs(results) do
         local show = true
-        if result.collected and not filters.showCollected then
-            show = false
-        elseif not result.collected and not filters.showUncollected then
-            show = false
-        end
-        if show then
-            table.insert(filteredResults, result)
-        end
+        if r.collected and not filters.showCollected then show = false end
+        if not r.collected and not filters.showUncollected then show = false end
+        if show then table.insert(filtered, r) end
     end
     
-    currentResults = filteredResults
+    currentResults = filtered
     currentPage = 1
     totalPages = math.max(1, math.ceil(#currentResults / ITEMS_PER_PAGE))
+    selectedItem = nil
     
     self:UpdateResults()
     self:UpdateStats()
+    self:UpdatePreview(nil)
 end
 
 function HC:UpdateResults()
     for i = 1, ITEMS_PER_PAGE do
-        self.resultRows[i]:Hide()
+        if self.resultRows[i] then
+            self.resultRows[i]:Hide()
+        end
     end
     
     local startIdx = (currentPage - 1) * ITEMS_PER_PAGE + 1
@@ -661,79 +835,64 @@ function HC:UpdateResults()
         local row = self.resultRows[rowIndex]
         local data = currentResults[i]
         
-        if data then
+        if row and data then
+            row.itemData = data
+            
             local sourceInfo = self:GetSourceTypeInfo(data.type)
             row.typeIcon:SetTexture(sourceInfo.icon)
             
             row.nameText:SetText(data.name or "Unknown")
             if data.collected then
                 row.nameText:SetTextColor(unpack(COLORS.collected))
-                row.collectedIcon:Show()
             else
                 row.nameText:SetTextColor(1, 1, 1)
-                row.collectedIcon:Hide()
             end
+            row.collectedIcon:SetShown(data.collected)
             
             local sourceText = data.source or ""
-            if data.type == "vendor" then
+            if data.type == "vendor" and data.data then
                 sourceText = data.zone or ""
-                if data.data and data.data.subzone then
-                    sourceText = sourceText .. " - " .. data.data.subzone
-                end
+                if data.data.subzone then sourceText = sourceText .. " - " .. data.data.subzone end
             end
             row.sourceText:SetText(sourceText)
             row.sourceText:SetTextColor(unpack(sourceInfo.color))
             
             local infoText = ""
-            if data.cost then
-                infoText = "|cffffd700" .. data.cost .. "|r"
-            end
+            if data.cost then infoText = "|cffffd700" .. data.cost .. "|r" end
             if data.vendor then
                 if infoText ~= "" then infoText = infoText .. " - " end
                 infoText = infoText .. data.vendor
-            end
-            if data.zone and data.type ~= "vendor" then
-                if infoText ~= "" then infoText = infoText .. " - " end
-                infoText = infoText .. data.zone
             end
             row.infoText:SetText(infoText)
             
             row.typeBadge:SetText(sourceInfo.name)
             row.typeBadge:SetTextColor(unpack(sourceInfo.color))
             
-            if data.type == "vendor" then
-                row.vendorData = data.data
-                row.vendorName = nil
-            else
-                row.vendorData = nil
-                row.vendorName = data.vendor
-            end
+            row.vendorData = data.type == "vendor" and data.data or nil
+            row.vendorName = data.vendor
             
-            if data.type == "vendor" and data.data and data.data.x and data.data.y and data.data.mapID then
-                row.waypointBtn:Enable()
-                row.waypointBtn:SetAlpha(1)
-            elseif data.vendor then
-                local vendor = self:GetVendorByName(data.vendor)
-                if vendor and vendor.x and vendor.y and vendor.mapID then
-                    row.waypointBtn:Enable()
-                    row.waypointBtn:SetAlpha(1)
-                else
-                    row.waypointBtn:Disable()
-                    row.waypointBtn:SetAlpha(0.3)
-                end
-            else
-                row.waypointBtn:Disable()
-                row.waypointBtn:SetAlpha(0.3)
-            end
+            local hasCoords = (data.type == "vendor" and data.data and data.data.x) or 
+                              (data.vendor and HC:GetVendorByName(data.vendor))
+            row.waypointBtn:SetEnabled(hasCoords ~= nil)
+            row.waypointBtn:SetAlpha(hasCoords and 1 or 0.3)
             
+            row:SetBackdropColor(unpack(COLORS.row))
             row:Show()
         end
     end
     
-    self.pageText:SetText(string.format("Page %d of %d", currentPage, totalPages))
-    self.prevBtn:SetEnabled(currentPage > 1)
-    self.nextBtn:SetEnabled(currentPage < totalPages)
-    self.statusText:SetText(string.format("%d results", #currentResults))
+    if self.pageText then
+        self.pageText:SetText(string.format("Page %d of %d", currentPage, totalPages))
+    end
+    if self.prevBtn then
+        self.prevBtn:SetEnabled(currentPage > 1)
+    end
+    if self.nextBtn then
+        self.nextBtn:SetEnabled(currentPage < totalPages)
+    end
+    if self.statusText then
+        self.statusText:SetText(string.format("%d results", #currentResults))
+    end
 end
 
 function HC:UpdateTabButtons()
@@ -750,57 +909,46 @@ end
 
 function HC:UpdateStats()
     local stats = self:GetStatistics()
-    
     if self.statsText then
-        local percent = stats.totalItems > 0 and math.floor((stats.collected / stats.totalItems) * 100) or 0
-        self.statsText:SetText(string.format("Collection: %d / %d (%d%%)", stats.collected, stats.totalItems, percent))
+        local pct = stats.totalItems > 0 and math.floor((stats.collected / stats.totalItems) * 100) or 0
+        self.statsText:SetText(string.format("Collection: %d / %d (%d%%)", stats.collected, stats.totalItems, pct))
     end
-    
     if self.progressText then
         self.progressText:SetText(string.format("Collected: %d / %d", stats.collected, stats.totalItems))
     end
 end
 
-function HC:RefreshUI()
-    if self.mainFrame and self.mainFrame:IsShown() then
-        self:DoSearch()
-    end
-end
-
----------------------------------------------------
--- Toggle Functions
----------------------------------------------------
 function HC:ToggleUI()
-    if not self.mainFrame then
-        self:CreateUI()
-    end
-    
+    if not self.mainFrame then self:CreateUI() end
     if self.mainFrame:IsShown() then
         self.mainFrame:Hide()
     else
         self.mainFrame:Show()
-        self.settingsPanel:Hide()
-        self.content:Show()
+        if self.settingsPanel then self.settingsPanel:Hide() end
+        if self.content then self.content:Show() end
+        if self.previewPanel then self.previewPanel:Show() end
         self:UpdateTabButtons()
         self:DoSearch()
     end
 end
 
 function HC:ToggleSettings()
+    if not self.settingsPanel then return end
     if self.settingsPanel:IsShown() then
         self.settingsPanel:Hide()
-        self.content:Show()
+        if self.content then self.content:Show() end
+        if self.previewPanel then self.previewPanel:Show() end
     else
         self.settingsPanel:Show()
-        self.content:Hide()
+        if self.content then self.content:Hide() end
+        if self.previewPanel then self.previewPanel:Hide() end
     end
 end
 
 function HC:OpenSettings()
-    if not self.mainFrame then
-        self:CreateUI()
-    end
+    if not self.mainFrame then self:CreateUI() end
     self.mainFrame:Show()
-    self.settingsPanel:Show()
-    self.content:Hide()
+    if self.settingsPanel then self.settingsPanel:Show() end
+    if self.content then self.content:Hide() end
+    if self.previewPanel then self.previewPanel:Hide() end
 end

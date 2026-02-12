@@ -2,7 +2,7 @@
 ## Title: |cff00ff99Housing|r |cffffffffCompleted|r
 ## Notes: Complete housing decor collection tracker - Find all items, vendors, achievements, and more!
 ## Author: Korivash
-## Version: 1.1.0
+## Version: 1.2.0
 ## SavedVariables: HousingCompletedDB
 ## OptionalDeps: TomTom
 ## IconTexture: Interface\Icons\INV_Misc_Key_14
@@ -22,20 +22,4 @@ Data\Sources.lua
 
 Core.lua
 Arrow.lua
-UI.lua
-
-Libs\LibStub.lua
-Libs\CallbackHandler-1.0.lua
-Libs\LibDataBroker-1.1.lua
-Libs\LibDBIcon-1.0.lua
-
-Data\Categories.lua
-Data\Sources.lua
-Data\Vendors.lua
-Data\Achievements.lua
-Data\Quests.lua
-Data\Professions.lua
-Data\Reputation.lua
-
-Core.lua
 UI.lua
