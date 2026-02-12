@@ -368,9 +368,10 @@ function HC:CreateResultRow(parent, index)
             self:SetBackdropColor(unpack(COLORS.rowHover))
         end
         -- Show item tooltip if we have itemID
-        if self.itemData and self.itemData.data and self.itemData.data.itemID then
+        local itemID = HC:GetResolvedItemID(self.itemData)
+        if itemID then
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            GameTooltip:SetItemByID(self.itemData.data.itemID)
+            GameTooltip:SetItemByID(itemID)
             GameTooltip:Show()
         end
     end)
@@ -386,8 +387,9 @@ function HC:CreateResultRow(parent, index)
         HC:UpdateRowSelection()
 
         -- If this entry has an itemID, open the Blizzard preview (DecorVendor-style)
-        if self.itemData and self.itemData.data and self.itemData.data.itemID then
-            HC:OpenItemPreview(self.itemData.data.itemID)
+        local itemID = HC:GetResolvedItemID(self.itemData)
+        if itemID then
+            HC:OpenItemPreview(itemID)
         end
     end)
     
@@ -448,6 +450,31 @@ function HC:CreateResultRow(parent, index)
     
     row:Hide()
     return row
+end
+
+function HC:GetResolvedItemID(resultData)
+    if not resultData then return nil end
+
+    local directID = resultData.itemID or (resultData.data and resultData.data.itemID)
+    if directID then
+        return directID
+    end
+
+    local itemName = resultData.name or (resultData.data and resultData.data.name)
+    if not itemName or not self.ResolveItemIDByName then
+        return nil
+    end
+
+    local resolvedID = self:ResolveItemIDByName(itemName)
+    if resolvedID then
+        resultData.itemID = resolvedID
+        resultData.data = resultData.data or {}
+        resultData.data.itemID = resolvedID
+        if self.EnsureItemCached then
+            self:EnsureItemCached(resolvedID)
+        end
+    end
+    return resolvedID
 end
 
 function HC:CreatePreviewPanel(parent)
@@ -566,6 +593,30 @@ function HC:CreatePreviewPanel(parent)
     costValue:SetJustifyH("LEFT")
     costValue:SetText("-")
     self.previewCost = costValue
+    dy = dy - 16
+
+    -- Item ID
+    local itemIDLabel = detailsFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    itemIDLabel:SetPoint("TOPLEFT", 0, dy)
+    itemIDLabel:SetText("|cff888888Item ID:|r")
+    local itemIDValue = detailsFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    itemIDValue:SetPoint("TOPLEFT", 55, dy)
+    itemIDValue:SetPoint("RIGHT", 0, 0)
+    itemIDValue:SetJustifyH("LEFT")
+    itemIDValue:SetText("-")
+    self.previewItemID = itemIDValue
+    dy = dy - 16
+
+    -- Sources
+    local sourcesLabel = detailsFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    sourcesLabel:SetPoint("TOPLEFT", 0, dy)
+    sourcesLabel:SetText("|cff888888Sources:|r")
+    local sourcesValue = detailsFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    sourcesValue:SetPoint("TOPLEFT", 55, dy)
+    sourcesValue:SetPoint("RIGHT", 0, 0)
+    sourcesValue:SetJustifyH("LEFT")
+    sourcesValue:SetText("-")
+    self.previewSources = sourcesValue
     dy = dy - 20
     
     -- Reputation section
@@ -603,6 +654,8 @@ function HC:CreatePreviewPanel(parent)
             local data = selectedItem.data
             if selectedItem.type == "vendor" and data and data.x and data.y and data.mapID then
                 HC:SetSmartWaypoint(data.x, data.y, data.mapID, data.name)
+            elseif data and data.vendorData and data.vendorData.x and data.vendorData.y and data.vendorData.mapID then
+                HC:SetSmartWaypoint(data.vendorData.x, data.vendorData.y, data.vendorData.mapID, data.vendorData.name)
             elseif selectedItem.vendor then
                 local v = HC:GetVendorByName(selectedItem.vendor)
                 if v and v.x and v.y and v.mapID then
@@ -631,6 +684,8 @@ function HC:UpdatePreview(data)
         self.previewVendor:SetText("-")
         self.previewLocation:SetText("-")
         self.previewCost:SetText("-")
+        if self.previewItemID then self.previewItemID:SetText("-") end
+        if self.previewSources then self.previewSources:SetText("-") end
         if self.modelFrame.ClearModel then self.modelFrame:ClearModel() end
         return
     end
@@ -671,6 +726,16 @@ function HC:UpdatePreview(data)
     else
         self.previewCost:SetText("-")
     end
+
+    local itemID = self:GetResolvedItemID(data)
+    if self.previewItemID then
+        self.previewItemID:SetText(itemID and tostring(itemID) or "-")
+    end
+
+    if self.previewSources then
+        local sourceCount = (data.data and data.data.sourceCount) or (data.sourceCount) or ((data.data and data.data.sources and #data.data.sources) or nil)
+        self.previewSources:SetText(sourceCount and tostring(sourceCount) or "-")
+    end
     
     -- Reputation details
     if data.type == "reputation" and data.data then
@@ -710,18 +775,33 @@ function HC:UpdatePreview(data)
 end
 
 function HC:OpenItemPreview(itemID)
-    if not itemID then return end
+    if not itemID then return false end
 
     -- Housing-native preview if available
     if C_HousingCatalog and C_HousingCatalog.OpenToItemID then
-        C_HousingCatalog.OpenToItemID(itemID)
-        return
+        local ok = pcall(C_HousingCatalog.OpenToItemID, itemID)
+        if ok then
+            return true
+        end
     end
 
     -- Fallback: Dressing Room
     if DressUpItemLink then
-        DressUpItemLink("item:" .. itemID)
+        local ok = pcall(DressUpItemLink, "item:" .. itemID)
+        if ok then
+            return true
+        end
     end
+
+    -- Last fallback: use modified-click handler when available.
+    if HandleModifiedItemClick then
+        local ok = pcall(HandleModifiedItemClick, "item:" .. itemID)
+        if ok then
+            return true
+        end
+    end
+
+    return false
 end
 
 
@@ -878,14 +958,15 @@ function HC:UpdateResults()
             -- Get icon based on source type and profession
             local sourceInfo = self:GetSourceTypeInfo(data.type)
             local icon = sourceInfo.icon
+            local resolvedItemID = self:GetResolvedItemID(data)
             
             -- Prefer the actual item icon when we have an itemID
-            if data.data and data.data.itemID then
+            if resolvedItemID then
                 local itemIcon
                 if C_Item and C_Item.GetItemIconByID then
-                    itemIcon = C_Item.GetItemIconByID(data.data.itemID)
+                    itemIcon = C_Item.GetItemIconByID(resolvedItemID)
                 elseif GetItemIcon then
-                    itemIcon = GetItemIcon(data.data.itemID)
+                    itemIcon = GetItemIcon(resolvedItemID)
                 end
                 if itemIcon then icon = itemIcon end
             end

@@ -142,6 +142,13 @@ function HC:OnItemDataLoadResult(itemID, success)
             if name then self.allItemCache[itemID].name = name end
             if icon then self.allItemCache[itemID].icon = icon end
         end
+        if name then
+            self.itemNameToID = self.itemNameToID or {}
+            local key = self:NormalizeItemName(name)
+            if key then
+                self.itemNameToID[key] = itemID
+            end
+        end
         self:ScheduleUIRefresh()
     end
 end
@@ -155,6 +162,38 @@ function HC:ScheduleUIRefresh()
             self:DoSearch()
         end
     end)
+end
+
+function HC:NormalizeItemName(name)
+    if type(name) ~= "string" then return nil end
+    local normalized = name
+    normalized = normalized:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+    normalized = normalized:gsub("%s+", " ")
+    normalized = normalized:gsub("^%s+", ""):gsub("%s+$", "")
+    normalized = normalized:lower()
+    if normalized == "" then return nil end
+    return normalized
+end
+
+function HC:BuildItemNameLookup()
+    self.itemNameToID = {}
+    for itemID, itemData in pairs(self.allItemCache or {}) do
+        if itemData and itemData.name then
+            local key = self:NormalizeItemName(itemData.name)
+            if key then
+                self.itemNameToID[key] = itemID
+            end
+        end
+    end
+end
+
+function HC:ResolveItemIDByName(itemName)
+    local key = self:NormalizeItemName(itemName)
+    if not key then return nil end
+    if not self.itemNameToID then
+        self:BuildItemNameLookup()
+    end
+    return self.itemNameToID[key]
 end
 
 
@@ -318,16 +357,30 @@ function HC:BuildItemIndex(force)
         if not entry then return end
         local name = entry.name
         if not name or name == "" then return end
+        local resolvedItemID = entry.itemID or self:ResolveItemIDByName(name)
 
         local item = self.ItemIndex[name]
         if not item then
-            item = { name = name, itemID = entry.itemID, sources = {} }
+            item = { name = name, itemID = resolvedItemID, sources = {} }
             self.ItemIndex[name] = item
             table.insert(self.ItemList, item)
         end
 
-        if (not item.itemID) and entry.itemID then
-            item.itemID = entry.itemID
+        if (not item.itemID) and resolvedItemID then
+            item.itemID = resolvedItemID
+        end
+        if item.itemID then
+            self:EnsureItemCached(item.itemID)
+        end
+
+        local vendorData
+        if entry.vendor then
+            vendorData = self:GetVendorByName(entry.vendor)
+        end
+
+        local sourceCoords = entry.coords
+        if (not sourceCoords) and vendorData and vendorData.x and vendorData.y then
+            sourceCoords = { vendorData.x, vendorData.y }
         end
 
         table.insert(item.sources, {
@@ -335,14 +388,15 @@ function HC:BuildItemIndex(force)
             source = entry.source or entry.achievement or entry.quest or entry.faction,
             vendor = entry.vendor,
             cost = entry.cost,
-            zone = entry.zone,
-            coords = entry.coords,
-            mapID = entry.mapID,
-            faction = entry.faction,
+            zone = entry.zone or (vendorData and vendorData.zone) or nil,
+            coords = sourceCoords,
+            mapID = entry.mapID or (vendorData and vendorData.mapID) or nil,
+            faction = entry.faction or (vendorData and vendorData.faction) or nil,
             expansion = entry.expansion,
             notes = entry.notes,
             standing = entry.standing,
             profession = entry.profession,
+            vendorData = vendorData,
         })
     end
 
@@ -463,6 +517,7 @@ function HC:SearchAll(query, filters)
         local primaryZone
         local primaryExpansion
         local primaryFaction
+        local primaryVendorData
 
         for _, s in ipairs(item.sources or {}) do
             local parts = {}
@@ -482,6 +537,7 @@ function HC:SearchAll(query, filters)
                 primaryZone = s.zone
                 primaryExpansion = s.expansion
                 primaryFaction = s.faction
+                primaryVendorData = s.vendorData
             end
         end
 
@@ -524,12 +580,19 @@ function HC:SearchAll(query, filters)
             if passes then
                 local wpMapID, wpX, wpY, wpTitle = self:GetBestWaypointForItem(item)
                 local collected = self:IsDecorCollected(name)
+                local resolvedItemID = item.itemID or self:ResolveItemIDByName(item.name)
+                if resolvedItemID then
+                    item.itemID = resolvedItemID
+                    self:EnsureItemCached(resolvedItemID)
+                end
                 table.insert(results, {
                     type = primaryType or "unknown",
                     data = {
                         name = item.name,
                         itemID = item.itemID,
                         sources = item.sources,
+                        sourceCount = #(item.sources or {}),
+                        vendorData = primaryVendorData,
                         waypoint = (wpMapID and wpX and wpY) and { mapID = wpMapID, x = wpX, y = wpY, title = wpTitle } or nil,
                     },
                     name = item.name,
@@ -539,6 +602,8 @@ function HC:SearchAll(query, filters)
                     cost = primaryCost,
                     expansion = primaryExpansion,
                     faction = primaryFaction,
+                    sourceCount = #(item.sources or {}),
+                    vendorData = primaryVendorData,
                     collected = collected,
                 })
             end
@@ -560,6 +625,8 @@ function HC:SearchAll(query, filters)
                 vendor = vendor.name,
                 source = vendor.zone,
                 cost = nil,
+                sourceCount = 1,
+                vendorData = vendor,
                 collected = false,
             })
         end
@@ -883,6 +950,8 @@ function HC:ResolveAllItems()
             end
         end
     end
+
+    self:BuildItemNameLookup()
 end
 
 function HC:GetUnknownItemResult(itemID, itemName)
