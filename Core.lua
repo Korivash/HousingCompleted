@@ -57,6 +57,9 @@ function HC:Initialize()
     
     -- Setup minimap button
     self:SetupMinimapButton()
+
+    -- Build item-first index (items -> sources)
+    self:BuildItemIndex()
     
     -- Register slash commands
     SLASH_HOUSINGCOMPLETED1 = "/hc"
@@ -167,24 +170,254 @@ function HC:IsDecorCollected(decorName)
     return false, 0
 end
 
+
+---------------------------------------------------
+-- Item-first Index (Items -> Sources)
+---------------------------------------------------
+function HC:BuildItemIndex(force)
+    -- Build a unique item list where each item can have multiple sources.
+    -- force=true rebuilds even if already built.
+    if self.ItemList and not force then return end
+
+    self.ItemIndex = {}
+    self.ItemList = {}
+
+    local function addEntry(entry)
+        if not entry then return end
+        local name = entry.name
+        if not name or name == "" then return end
+
+        local item = self.ItemIndex[name]
+        if not item then
+            item = { name = name, itemID = entry.itemID, sources = {} }
+            self.ItemIndex[name] = item
+            table.insert(self.ItemList, item)
+        end
+
+        if (not item.itemID) and entry.itemID then
+            item.itemID = entry.itemID
+        end
+
+        table.insert(item.sources, {
+            sourceType = entry.sourceType or entry.type or "unknown",
+            source = entry.source or entry.achievement or entry.quest or entry.faction,
+            vendor = entry.vendor,
+            cost = entry.cost,
+            zone = entry.zone,
+            coords = entry.coords,
+            mapID = entry.mapID,
+            faction = entry.faction,
+            expansion = entry.expansion,
+            notes = entry.notes,
+            standing = entry.standing,
+            profession = entry.profession,
+        })
+    end
+
+    -- Primary combined table (if present)
+    for _, entry in ipairs(HC.DecorItems or {}) do addEntry(entry) end
+
+    -- Back-compat tables (many projects still populate these)
+    for _, entry in ipairs(HC.AchievementItems or {}) do
+        addEntry({
+            name = entry.name, itemID = entry.itemID,
+            sourceType = "achievement", source = entry.achievement,
+            vendor = entry.vendor, cost = entry.cost, zone = entry.zone,
+            coords = entry.coords, mapID = entry.mapID, faction = entry.faction,
+            expansion = entry.expansion, notes = entry.notes
+        })
+    end
+    for _, entry in ipairs(HC.QuestItems or {}) do
+        addEntry({
+            name = entry.name, itemID = entry.itemID,
+            sourceType = "quest", source = entry.quest,
+            vendor = entry.vendor, cost = entry.cost, zone = entry.zone,
+            coords = entry.coords, mapID = entry.mapID, faction = entry.faction,
+            expansion = entry.expansion, notes = entry.notes
+        })
+    end
+    for _, entry in ipairs(HC.ReputationItems or {}) do
+        addEntry({
+            name = entry.name, itemID = entry.itemID,
+            sourceType = "reputation", source = (entry.faction and entry.standing) and (entry.faction .. " - " .. entry.standing) or entry.faction,
+            vendor = entry.vendor, cost = entry.cost, zone = entry.zone,
+            coords = entry.coords, mapID = entry.mapID, faction = entry.faction,
+            expansion = entry.expansion, notes = entry.notes, standing = entry.standing
+        })
+    end
+    for _, entry in ipairs(HC.ProfessionItems or {}) do
+        addEntry({
+            name = entry.name, itemID = entry.itemID,
+            sourceType = "profession", source = entry.profession,
+            vendor = entry.vendor, cost = entry.cost, zone = entry.zone,
+            coords = entry.coords, mapID = entry.mapID, faction = entry.faction,
+            expansion = entry.expansion, notes = entry.notes, profession = entry.profession
+        })
+    end
+    for _, entry in ipairs(HC.AuctionItems or {}) do
+        addEntry({
+            name = entry.name, itemID = entry.itemID,
+            sourceType = "auction", source = "Auction House",
+            vendor = entry.vendor, cost = entry.cost, zone = entry.zone,
+            coords = entry.coords, mapID = entry.mapID, faction = entry.faction,
+            expansion = entry.expansion, notes = entry.notes
+        })
+    end
+
+    table.sort(self.ItemList, function(a, b) return (a.name or "") < (b.name or "") end)
+end
+
+function HC:GetBestWaypointForItem(item)
+    if not item or not item.sources then return nil end
+
+    -- Prefer coordinate-bearing sources first (vendor-like), but any with coords works.
+    local preferred = {
+        vendor = 1, achievement = 2, reputation = 2, quest = 2, profession = 3, auction = 4, drop = 5, unknown = 9,
+    }
+
+    local best
+    for _, s in ipairs(item.sources) do
+        local mapID = s.mapID
+        local x, y
+        if s.coords and type(s.coords) == "table" then
+            x, y = s.coords[1], s.coords[2]
+        end
+        if mapID and x and y then
+            local score = preferred[s.sourceType or "unknown"] or 9
+            if not best or score < best.score then
+                best = { mapID = mapID, x = x, y = y, title = (s.vendor or s.source or item.name), score = score }
+            end
+        end
+    end
+
+    if best then
+        return best.mapID, best.x, best.y, best.title
+    end
+    return nil
+end
+
+function HC:SetItemWaypoint(itemData)
+    if not itemData then return end
+    local wp = itemData.waypoint
+    if wp and wp.mapID and wp.x and wp.y then
+        self:SetWaypoint(wp.x, wp.y, wp.mapID, wp.title)
+    else
+        print("|cff00ff99Housing Completed|r: No waypoint available for this item.")
+    end
+end
+
 ---------------------------------------------------
 -- Search Functions
 ---------------------------------------------------
 function HC:SearchAll(query, filters)
     local results = {}
     local hasQuery = query and query:gsub("%s+", "") ~= ""
-    if hasQuery then
-        query = query:lower()
-    end
-    
+    if hasQuery then query = query:lower() end
     filters = filters or {}
-    
-    -- Search vendors
+
+    if (not self.ItemList) or (#self.ItemList == 0) then
+        self:BuildItemIndex(true)
+    end
+
+    for _, item in ipairs(self.ItemList or {}) do
+        local name = item.name or ""
+        local nameMatch = (not hasQuery) or (name:lower():find(query, 1, true) ~= nil)
+        local sourceMatch = false
+
+        local primaryType
+        local primarySource
+        local primaryVendor
+        local primaryCost
+        local primaryZone
+        local primaryExpansion
+        local primaryFaction
+
+        for _, s in ipairs(item.sources or {}) do
+            local parts = {}
+            if s.source then table.insert(parts, s.source) end
+            if s.vendor then table.insert(parts, s.vendor) end
+            if s.zone then table.insert(parts, s.zone) end
+            local blob = table.concat(parts, " "):lower()
+            if hasQuery and blob:find(query, 1, true) then
+                sourceMatch = true
+            end
+
+            if not primaryType then
+                primaryType = s.sourceType or "unknown"
+                primarySource = s.source
+                primaryVendor = s.vendor
+                primaryCost = s.cost
+                primaryZone = s.zone
+                primaryExpansion = s.expansion
+                primaryFaction = s.faction
+            end
+        end
+
+        local matches = nameMatch or sourceMatch
+        if matches then
+            -- Source-level filters: if ANY source passes, keep the item
+            local passes = true
+
+            if filters.sourceTypes and next(filters.sourceTypes) then
+                passes = false
+                for _, s in ipairs(item.sources or {}) do
+                    if filters.sourceTypes[s.sourceType or "unknown"] then
+                        passes = true
+                        break
+                    end
+                end
+            end
+
+            if passes and filters.expansions and next(filters.expansions) then
+                passes = false
+                for _, s in ipairs(item.sources or {}) do
+                    local exp = s.expansion
+                    if exp and filters.expansions[exp] then
+                        passes = true
+                        break
+                    end
+                end
+            end
+
+            if passes and filters.faction then
+                for _, s in ipairs(item.sources or {}) do
+                    local f = s.faction
+                    if f and f ~= "neutral" and f ~= filters.faction then
+                        passes = false
+                        break
+                    end
+                end
+            end
+
+            if passes then
+                local wpMapID, wpX, wpY, wpTitle = self:GetBestWaypointForItem(item)
+                local collected = self:IsDecorCollected(name)
+                table.insert(results, {
+                    type = primaryType or "unknown",
+                    data = {
+                        name = item.name,
+                        itemID = item.itemID,
+                        sources = item.sources,
+                        waypoint = (wpMapID and wpX and wpY) and { mapID = wpMapID, x = wpX, y = wpY, title = wpTitle } or nil,
+                    },
+                    name = item.name,
+                    source = primarySource,
+                    vendor = primaryVendor,
+                    zone = primaryZone,
+                    cost = primaryCost,
+                    expansion = primaryExpansion,
+                    faction = primaryFaction,
+                    collected = collected,
+                })
+            end
+        end
+    end
+
+    -- Search vendors (as results) - keep vendor browsing available
     for _, vendor in ipairs(HC.Vendors or {}) do
-        local matches = not hasQuery or 
-                       (vendor.name and vendor.name:lower():find(query, 1, true)) or
-                       (vendor.zone and vendor.zone:lower():find(query, 1, true))
-        
+        local matches = (not hasQuery) or
+            (vendor.name and vendor.name:lower():find(query, 1, true)) or
+            (vendor.zone and vendor.zone:lower():find(query, 1, true))
         if matches and self:PassesFilters(vendor, filters, "vendor") then
             table.insert(results, {
                 type = "vendor",
@@ -192,113 +425,14 @@ function HC:SearchAll(query, filters)
                 name = vendor.name,
                 zone = vendor.zone,
                 expansion = vendor.expansion,
+                vendor = vendor.name,
+                source = vendor.zone,
+                cost = nil,
+                collected = false,
             })
         end
     end
-    
-    -- Search achievement items
-    for _, item in ipairs(HC.AchievementItems or {}) do
-        local matches = not hasQuery or
-                       (item.name and item.name:lower():find(query, 1, true)) or
-                       (item.achievement and item.achievement:lower():find(query, 1, true))
-        
-        if matches and self:PassesFilters(item, filters, "achievement") then
-            local collected = self:IsDecorCollected(item.name)
-            table.insert(results, {
-                type = "achievement",
-                data = item,
-                name = item.name,
-                source = item.achievement,
-                vendor = item.vendor,
-                zone = item.zone,
-                cost = item.cost,
-                collected = collected,
-            })
-        end
-    end
-    
-    -- Search quest items
-    for _, item in ipairs(HC.QuestItems or {}) do
-        local matches = not hasQuery or
-                       (item.name and item.name:lower():find(query, 1, true)) or
-                       (item.quest and item.quest:lower():find(query, 1, true))
-        
-        if matches and self:PassesFilters(item, filters, "quest") then
-            local collected = self:IsDecorCollected(item.name)
-            table.insert(results, {
-                type = "quest",
-                data = item,
-                name = item.name,
-                source = item.quest,
-                vendor = item.vendor,
-                zone = item.zone,
-                cost = item.cost,
-                expansion = item.expansion,
-                collected = collected,
-            })
-        end
-    end
-    
-    -- Search reputation items
-    for _, item in ipairs(HC.ReputationItems or {}) do
-        local matches = not hasQuery or
-                       (item.name and item.name:lower():find(query, 1, true)) or
-                       (item.faction and item.faction:lower():find(query, 1, true))
-        
-        if matches and self:PassesFilters(item, filters, "reputation") then
-            local collected = self:IsDecorCollected(item.name)
-            table.insert(results, {
-                type = "reputation",
-                data = item,
-                name = item.name,
-                source = item.faction .. " - " .. item.standing,
-                vendor = item.vendor,
-                zone = item.zone,
-                cost = item.cost,
-                collected = collected,
-            })
-        end
-    end
-    
-    -- Search profession items
-    for _, item in ipairs(HC.ProfessionItems or {}) do
-        local matches = not hasQuery or
-                       (item.name and item.name:lower():find(query, 1, true)) or
-                       (item.profession and item.profession:lower():find(query, 1, true))
-        
-        if matches and self:PassesFilters(item, filters, "profession") then
-            local collected = self:IsDecorCollected(item.name)
-            table.insert(results, {
-                type = "profession",
-                data = item,
-                name = item.name,
-                source = item.profession,
-                expansion = item.expansion,
-                skill = item.skill,
-                collected = collected,
-            })
-        end
-    end
-    
-    -- Search auction house items (tradeable profession items)
-    for _, item in ipairs(HC.AuctionItems or {}) do
-        local matches = not hasQuery or
-                       (item.name and item.name:lower():find(query, 1, true))
-        
-        if matches and self:PassesFilters(item, filters, "auction") then
-            local collected = self:IsDecorCollected(item.name)
-            table.insert(results, {
-                type = "auction",
-                data = item,
-                name = item.name,
-                source = "Auction House",
-                profession = item.profession,
-                collected = collected,
-            })
-        end
-    end
-    
-    self.searchResults = results
+
     return results
 end
 
@@ -354,21 +488,36 @@ end
 -- Waypoint Functions
 ---------------------------------------------------
 function HC:SetWaypoint(x, y, mapID, title)
-    -- x/y are stored as 0-100 in our data tables. Convert to 0-1 for Blizzard waypoint APIs.
     if not x or not y or not mapID then
         print("|cff00ff99Housing Completed|r: No coordinates available for this location.")
         return
     end
 
-    local nx, ny = (x / 100), (y / 100)
+    -- Normalize safely (accept either 0-100 or 0-1).
+    local nx, ny = x, y
+    if nx > 1 or ny > 1 then
+        nx, ny = (x / 100), (y / 100)
+    end
     if nx <= 0 or ny <= 0 or nx > 1 or ny > 1 then
-        -- Safety: if data is already normalized, don't double-divide
-        nx, ny = x, y
+        print("|cff00ff99Housing Completed|r: Invalid coordinates for this location.")
+        return
+    end
+
+    -- Clear existing SuperTrack content first (helps routing refresh)
+    if C_SuperTrack and C_SuperTrack.ClearSuperTrackedContent then
+        C_SuperTrack.ClearSuperTrackedContent()
+    end
+    if C_Map and C_Map.ClearUserWaypoint then
+        C_Map.ClearUserWaypoint()
     end
 
     local waypoint = UiMapPoint.CreateFromCoordinates(mapID, nx, ny)
     C_Map.SetUserWaypoint(waypoint)
     C_SuperTrack.SetSuperTrackedUserWaypoint(true)
+
+    if WorldMapFrame and WorldMapFrame.RefreshAllDataProviders then
+        WorldMapFrame:RefreshAllDataProviders()
+    end
 
     if title then
         print("|cff00ff99Housing Completed|r: Waypoint set for " .. title)

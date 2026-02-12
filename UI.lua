@@ -384,6 +384,11 @@ function HC:CreateResultRow(parent, index)
         selectedItem = self.itemData
         HC:UpdatePreview(self.itemData)
         HC:UpdateRowSelection()
+
+        -- If this entry has an itemID, open the Blizzard preview (DecorVendor-style)
+        if self.itemData and self.itemData.data and self.itemData.data.itemID then
+            HC:OpenItemPreview(self.itemData.data.itemID)
+        end
     end)
     
     local typeIcon = row:CreateTexture(nil, "ARTWORK")
@@ -424,13 +429,15 @@ function HC:CreateResultRow(parent, index)
     waypointBtn:SetNormalTexture("Interface\\Minimap\\Tracking\\TrivialQuests")
     waypointBtn:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
     waypointBtn:SetScript("OnClick", function()
-        if row.vendorData and row.vendorData.x and row.vendorData.y and row.vendorData.mapID then
-            HC:SetWaypoint(row.vendorData.x, row.vendorData.y, row.vendorData.mapID, row.vendorData.name)
-        elseif row.vendorName then
-            local vendor = HC:GetVendorByName(row.vendorName)
-            if vendor and vendor.x and vendor.y and vendor.mapID then
-                HC:SetWaypoint(vendor.x, vendor.y, vendor.mapID, vendor.name)
+        if row.itemData and row.itemData.type == "vendor" and row.itemData.data then
+            local v = row.itemData.data
+            if v and v.mapID and v.x and v.y then
+                HC:SetWaypoint(v.x, v.y, v.mapID, v.name)
             end
+            return
+        end
+        if row.itemData and row.itemData.data then
+            HC:SetItemWaypoint(row.itemData.data)
         end
     end)
     row.waypointBtn = waypointBtn
@@ -702,6 +709,22 @@ function HC:UpdatePreview(data)
     end
 end
 
+function HC:OpenItemPreview(itemID)
+    if not itemID then return end
+
+    -- Housing-native preview if available
+    if C_HousingCatalog and C_HousingCatalog.OpenToItemID then
+        C_HousingCatalog.OpenToItemID(itemID)
+        return
+    end
+
+    -- Fallback: Dressing Room
+    if DressUpItemLink then
+        DressUpItemLink("item:" .. itemID)
+    end
+end
+
+
 function HC:UpdateRowSelection()
     for _, row in ipairs(self.resultRows) do
         if row.itemData == selectedItem then
@@ -828,12 +851,22 @@ function HC:UpdateResults()
             local sourceInfo = self:GetSourceTypeInfo(data.type)
             local icon = sourceInfo.icon
             
+            -- Prefer the actual item icon when we have an itemID
+            if data.data and data.data.itemID then
+                local itemIcon
+                if C_Item and C_Item.GetItemIconByID then
+                    itemIcon = C_Item.GetItemIconByID(data.data.itemID)
+                elseif GetItemIcon then
+                    itemIcon = GetItemIcon(data.data.itemID)
+                end
+                if itemIcon then icon = itemIcon end
+            end
+
             -- Use profession-specific icon
             if data.type == "profession" and data.data and data.data.profession then
                 local profIcon = HC.ProfessionIcons and HC.ProfessionIcons[data.data.profession:lower()]
                 if profIcon then icon = profIcon end
             end
-            
             row.typeIcon:SetTexture(icon)
             
             row.nameText:SetText(data.name or "Unknown")
@@ -868,9 +901,8 @@ function HC:UpdateResults()
             row.vendorData = data.type == "vendor" and data.data or nil
             row.vendorName = data.vendor
             
-            local hasCoords = (data.type == "vendor" and data.data and data.data.x) or 
-                              (data.vendor and HC:GetVendorByName(data.vendor))
-            row.waypointBtn:SetEnabled(hasCoords ~= nil)
+            local hasCoords = (data.type == "vendor" and data.data and data.data.mapID and data.data.x and data.data.y) or (data.data and data.data.waypoint and data.data.waypoint.mapID and data.data.waypoint.x and data.data.waypoint.y)
+            row.waypointBtn:SetEnabled(hasCoords and true or false)
             row.waypointBtn:SetAlpha(hasCoords and 1 or 0.3)
             
             row:SetBackdropColor(unpack(COLORS.row))
