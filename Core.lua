@@ -6,7 +6,7 @@
 local addonName, HC = ...
 _G["HousingCompleted"] = HC
 
-HC.version = "1.3.0"
+HC.version = "1.3.2"
 HC.searchResults = {}
 HC.collectionCache = {}
 
@@ -19,11 +19,132 @@ scale = 1.0,
     filters = {
         showCollected = true,
         showUncollected = true,
-        sourceTypes = {},
+                showUnknownOnly = false,
+sourceTypes = {},
         expansions = {},
     },
     lastTab = "all",
 }
+
+---------------------------------------------------
+-- SavedVariables item cache (names/icons)
+---------------------------------------------------
+HC.cacheVersion = 1
+HC.pendingItemLoads = HC.pendingItemLoads or {}
+HC._uiRefreshQueued = false
+
+function HC:InitSavedVars()
+    -- Root table
+    if type(HousingCompletedDB) ~= "table" then
+        HousingCompletedDB = {}
+    end
+
+    -- Safe copy: CopyTable only works on tables; primitives should pass through
+    local function SafeCopy(val)
+        if type(val) == "table" then
+            return CopyTable(val)
+        end
+        return val
+    end
+
+    -- Merge defaults + repair type-mismatches (e.g. legacy booleans)
+    if not HousingCompletedDB._initedDefaults then
+        for k, v in pairs(defaults) do
+            if HousingCompletedDB[k] == nil then
+                HousingCompletedDB[k] = SafeCopy(v)
+            elseif type(v) == "table" then
+                if type(HousingCompletedDB[k]) ~= "table" then
+                    -- Repair bad legacy type (e.g. settings=false)
+                    HousingCompletedDB[k] = SafeCopy(v)
+                else
+                    for kk, vv in pairs(v) do
+                        if HousingCompletedDB[k][kk] == nil then
+                            HousingCompletedDB[k][kk] = SafeCopy(vv)
+                        elseif type(vv) == "table" and type(HousingCompletedDB[k][kk]) ~= "table" then
+                            -- Repair nested type mismatch
+                            HousingCompletedDB[k][kk] = SafeCopy(vv)
+                        end
+                    end
+                end
+            end
+        end
+        HousingCompletedDB._initedDefaults = true
+    end
+
+    -- Item cache (flat at root for fast access)
+    if type(HousingCompletedDB.itemCache) ~= "table" then
+        HousingCompletedDB.itemCache = {}
+    end
+
+    HousingCompletedDB.cacheVersion = tonumber(HousingCompletedDB.cacheVersion) or HC.cacheVersion
+    if HousingCompletedDB.cacheVersion ~= HC.cacheVersion then
+        -- Future-proof: wipe cache on schema change
+        HousingCompletedDB.itemCache = {}
+        HousingCompletedDB.cacheVersion = HC.cacheVersion
+    end
+end
+
+function HC:GetCachedItemInfo(itemID)
+    if not HousingCompletedDB or not HousingCompletedDB.itemCache then return nil, nil end
+    local c = HousingCompletedDB.itemCache[itemID]
+    if c then
+        return c.name, c.icon
+    end
+    return nil, nil
+end
+
+function HC:UpdateItemCache(itemID, name, icon)
+    if not itemID or not HousingCompletedDB or not HousingCompletedDB.itemCache then return end
+    if not name and not icon then return end
+
+    local c = HousingCompletedDB.itemCache[itemID] or {}
+    if name and name ~= "" then c.name = name end
+    if icon then c.icon = icon end
+    HousingCompletedDB.itemCache[itemID] = c
+end
+
+function HC:EnsureItemCached(itemID)
+    if not itemID then return end
+    if self.pendingItemLoads[itemID] then return end
+
+    local name, icon = self:GetCachedItemInfo(itemID)
+    if name and icon then return end
+
+    if C_Item and C_Item.RequestLoadItemDataByID then
+        self.pendingItemLoads[itemID] = true
+        C_Item.RequestLoadItemDataByID(itemID)
+    end
+end
+
+function HC:OnItemDataLoadResult(itemID, success)
+    self.pendingItemLoads[itemID] = nil
+    if not success then return end
+
+    local name = C_Item and C_Item.GetItemNameByID and C_Item.GetItemNameByID(itemID) or nil
+    local icon = C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(itemID) or nil
+
+    if name or icon then
+        self:UpdateItemCache(itemID, name, icon)
+        -- keep runtime cache in sync
+        if self.allItemCache and self.allItemCache[itemID] then
+            if name then self.allItemCache[itemID].name = name end
+            if icon then self.allItemCache[itemID].icon = icon end
+        end
+        self:ScheduleUIRefresh()
+    end
+end
+
+function HC:ScheduleUIRefresh()
+    if self._uiRefreshQueued then return end
+    self._uiRefreshQueued = true
+    C_Timer.After(0.2, function()
+        self._uiRefreshQueued = false
+        if self.mainFrame and self.mainFrame:IsShown() and self.DoSearch then
+            self:DoSearch()
+        end
+    end)
+end
+
 
 ---------------------------------------------------
 -- Initialization
@@ -31,29 +152,25 @@ scale = 1.0,
 local frame = CreateFrame("Frame")
 frame:RegisterEvent("ADDON_LOADED")
 frame:RegisterEvent("PLAYER_ENTERING_WORLD")
+frame:RegisterEvent("ITEM_DATA_LOAD_RESULT")
 
-frame:SetScript("OnEvent", function(self, event, arg1)
+frame:SetScript("OnEvent", function(self, event, ...)
+    local arg1, arg2 = ...
     if event == "ADDON_LOADED" and arg1 == addonName then
         HC:Initialize()
     elseif event == "PLAYER_ENTERING_WORLD" then
         C_Timer.After(2, function()
             HC:CacheCollection()
         end)
+    elseif event == "ITEM_DATA_LOAD_RESULT" then
+        -- arg1=itemID, arg2=success
+        HC:OnItemDataLoadResult(arg1, arg2)
     end
 end)
 
 function HC:Initialize()
     -- Initialize saved variables
-    if not HousingCompletedDB then
-        HousingCompletedDB = CopyTable(defaults)
-    else
-        -- Merge defaults for any missing keys
-        for k, v in pairs(defaults) do
-            if HousingCompletedDB[k] == nil then
-                HousingCompletedDB[k] = v
-            end
-        end
-    end
+    self:InitSavedVars()
     
     -- Setup minimap button
     self:SetupMinimapButton()
@@ -632,15 +749,26 @@ end
 ---------------------------------------------------
 function HC:ResolveAllItems()
     -- Build a runtime cache of itemID -> name/icon for searching.
-    -- This uses in-client item cache; names may be nil until item is cached.
+    -- Prefer persisted SavedVariables cache so names/icons are instant on login.
     self.allItemCache = self.allItemCache or {}
     if not (HC.AllItems and HC.AllItems.IDs) then return end
 
     for _, itemID in ipairs(HC.AllItems.IDs) do
         if not self.allItemCache[itemID] then
-            local name = C_Item and C_Item.GetItemNameByID and C_Item.GetItemNameByID(itemID) or nil
-            local icon = C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(itemID) or nil
+            local cachedName, cachedIcon = self:GetCachedItemInfo(itemID)
+
+            local name = (C_Item and C_Item.GetItemNameByID and C_Item.GetItemNameByID(itemID)) or cachedName
+            local icon = (C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(itemID)) or cachedIcon
+
             self.allItemCache[itemID] = { itemID = itemID, name = name, icon = icon }
+
+            if name or icon then
+                self:UpdateItemCache(itemID, name, icon)
+            end
+
+            if not name or not icon then
+                self:EnsureItemCached(itemID)
+            end
         end
     end
 end
