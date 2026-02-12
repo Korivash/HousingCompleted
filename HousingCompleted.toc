@@ -22,5 +22,5 @@ Data\AuctionItems.lua
 Data\Sources.lua
 
 Core.lua
-Arrow.lua
+
 UI.lua

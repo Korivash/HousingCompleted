@@ -184,4 +184,38 @@ HC.Vendors = {
     { id = 252915, name = "Corlen Hordralin", zone = "Silvermoon City", subzone = "The Bazaar", x = 44.16, y = 62.72, mapID = 2393, faction = "neutral", expansion = "midnight" },
     { id = 256828, name = "Dennia Silvertongue", zone = "Silvermoon City", subzone = "Murder Row", x = 51.16, y = 56.47, mapID = 2393, faction = "neutral", expansion = "midnight" },
     { id = 249196, name = "Materialist Ophinell", zone = "Twilight Highlands", x = 49.6, y = 81.2, mapID = 241, faction = "neutral", expansion = "midnight" },
+
+    -- =====================================================
+    -- DECORVENDOR MERGED (ADDITIONAL VENDORS)
+    -- =====================================================
+    { id = 142115, name = "Fiona", zone = "Boralus Harbor", x = 67.6, y = 40.8, mapID = 1161, faction = "alliance", expansion = "bfa", model3D = 34450, notes = "DecorVendor: Boralus Harbor" },
+    { id = 252316, name = "Delphine", zone = "Norwington Estate", x = 53.4, y = 31.2, mapID = 895, faction = "neutral", expansion = "bfa", model3D = 137394, notes = "DecorVendor: Norwington Estate" },
+    { id = 148923, name = "Captain Zen'taga", zone = "Port of Zandalar", x = 44.6, y = 94.4, mapID = 1165, faction = "horde", expansion = "bfa", model3D = 90162, notes = "DecorVendor: Port of Zandalar" },
+    { id = 49386, name = "Craw MacGraw", zone = "Thundermar", x = 48.6, y = 30.6, mapID = 241, faction = "alliance", expansion = "cata", model3D = 36453, notes = "DecorVendor: Thundermar" },
+    { id = 144129, name = "Plugger Spazzring", zone = "Dark Iron Dwarf Only", x = 49.77, y = 32.22, mapID = 1186, faction = "neutral", expansion = "classic", model3D = 8652, notes = "Race Locked - Dark Iron Dwarf Only" },
+    { id = 50304, name = "Captain Donald Adams", zone = "PRE-DESTRUCTION", x = 63.2, y = 49.0, mapID = 90, faction = "horde", expansion = "classic", model3D = 37023, notes = "DecorVendor: PRE-DESTRUCTION" },
+    { id = 112634, name = "Hilseth Travelstride", zone = "Field of Dreamers (patrols)", x = 57.14, y = 71.91, mapID = 641, faction = "neutral", expansion = "legion", model3D = 72149, notes = "DecorVendor: Field of Dreamers (patrols)" },
+    { id = 253434, name = "Sileas Duskvine", zone = "Irongrove Retreat", x = 79.92, y = 73.89, mapID = 641, faction = "neutral", expansion = "legion", model3D = 137851, notes = "DecorVendor: Irongrove Retreat" },
+    { id = 255101, name = "Mynde", zone = "Shimmershade Garden", x = 45.58, y = 69.15, mapID = 680, faction = "neutral", expansion = "legion", model3D = 138645, notes = "DecorVendor: Shimmershade Garden" },
+    { id = 256826, name = "Mrgrgrl", zone = "Val'sharah", x = 68.72, y = 95.1, mapID = 641, faction = "neutral", expansion = "legion", model3D = 139842, notes = "DecorVendor: Val'sharah" },
+    { id = 248594, name = "Sundries Merchant", zone = "suramar", x = 50.9, y = 77.78, mapID = 680, faction = "neutral", expansion = "legion", model3D = 73413, notes = "DecorVendor: suramar" },
+    { id = 255218, name = "Argan Hammerfist", zone = "Founders Point", x = 52.2, y = 37.8, mapID = 2352, faction = "alliance", expansion = "the neighborhoods", model3D = 138689, notes = "DecorVendor: Founders Point" },
+    { id = 255216, name = "Balen Starfinder", zone = "Founders Point", x = 52.2, y = 38.0, mapID = 2352, faction = "alliance", expansion = "the neighborhoods", model3D = 138688, notes = "DecorVendor: Founders Point" },
+    { id = 255213, name = "Faarden the Builder", zone = "Founders Point", x = 52.0, y = 38.4, mapID = 2352, faction = "alliance", expansion = "the neighborhoods", model3D = 138687, notes = "DecorVendor: Founders Point" },
+    { id = 256750, name = "Klasa", zone = "Founders Point", x = 58.3, y = 61.68, mapID = 2352, faction = "alliance", expansion = "the neighborhoods", model3D = 139782, notes = "DecorVendor: Founders Point" },
+    { id = 255221, name = "Trevor Grenner", zone = "Founders Point", x = 53.47, y = 40.93, mapID = 2352, faction = "alliance", expansion = "the neighborhoods", model3D = 138690, notes = "DecorVendor: Founders Point" },
+    { id = 255203, name = "Xiao Dan", zone = "Founders Point", x = 51.95, y = 38.31, mapID = 2352, faction = "alliance", expansion = "the neighborhoods", model3D = 138684, notes = "DecorVendor: Founders Point" },
+    { id = 255278, name = "Gronthul", zone = "Razorwind Shores", x = 54.12, y = 59.11, mapID = 2351, faction = "horde", expansion = "the neighborhoods", model3D = 138741, notes = "DecorVendor: Razorwind Shores" },
+    { id = 255298, name = "Jehzar Starfall", zone = "Razorwind Shores", x = 53.56, y = 58.49, mapID = 2351, faction = "horde", expansion = "the neighborhoods", model3D = 138752, notes = "DecorVendor: Razorwind Shores" },
+    { id = 255299, name = "Lefton Farrer", zone = "Razorwind Shores", x = 53.48, y = 58.53, mapID = 2351, faction = "horde", expansion = "the neighborhoods", model3D = 138753, notes = "DecorVendor: Razorwind Shores" },
+    { id = 240465, name = "Lonomia", zone = "Razorwind Shores", x = 68.29, y = 75.5, mapID = 2351, faction = "horde", expansion = "the neighborhoods", model3D = 127583, notes = "DecorVendor: Razorwind Shores" },
+    { id = 255297, name = "Shon'ja", zone = "Razorwind Shores", x = 54.13, y = 59.05, mapID = 2351, faction = "horde", expansion = "the neighborhoods", model3D = 138751, notes = "DecorVendor: Razorwind Shores" },
+    { id = 226994, name = "Blair Bass", zone = "Undermine", x = 34.0, y = 70.8, mapID = 2346, faction = "neutral", expansion = "tww", model3D = 127681, notes = "DecorVendor: Undermine" },
+    { id = 239333, name = "Street Food Vendor", zone = "Undermine", x = 26.2, y = 42.8, mapID = 2346, faction = "neutral", expansion = "tww", model3D = 127373, notes = "DecorVendor: Undermine" },
+    { id = 86779, name = "Krixel Pinchwhistle", zone = "Alliance Garrison", x = 31.0, y = 15.0, mapID = 539, faction = "alliance", expansion = "wod", model3D = 56410, notes = "DecorVendor: Alliance Garrison" },
+    { id = 88220, name = "Peter", zone = "Alliance Garrison", x = 31.0, y = 15.0, mapID = 539, faction = "alliance", expansion = "wod", model3D = 60816, notes = "DecorVendor: Alliance Garrison" },
+    { id = 87312, name = "Vora Strongarm", zone = "Horde Garrison", x = 48.0, y = 66.0, mapID = 525, faction = "horde", expansion = "wod", model3D = 27957, notes = "DecorVendor: Horde Garrison" },
+    { id = 256946, name = "Duskcaller Erthix", zone = "Terokkar Refuge", x = 70.4, y = 57.6, mapID = 535, faction = "neutral", expansion = "wod", model3D = 139888, notes = "DecorVendor: Terokkar Refuge" },
+    { id = 86779, name = "Krixel Pinchwhistle", zone = "Trading Post Level 2", x = 31.0, y = 15.0, mapID = 525, faction = "horde", expansion = "wod", model3D = 56410, notes = "DecorVendor: Trading Post Level 2" },
+
 }

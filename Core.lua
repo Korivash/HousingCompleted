@@ -14,10 +14,7 @@ HC.collectionCache = {}
 local defaults = {
     minimap = { hide = false },
     showMinimapButton = true,
-    waypointSystem = "tomtom",
-    showArrow = true,
-    arrowPos = nil,
-    scale = 1.0,
+scale = 1.0,
     windowPos = nil,
     filters = {
         showCollected = true,
@@ -81,18 +78,6 @@ function HC:Initialize()
                 HousingCompletedDB.minimap.hide = not HousingCompletedDB.showMinimapButton
             end
             print("|cff00ff99Housing|r |cffffffffCompleted|r: Minimap button " .. (HousingCompletedDB.showMinimapButton and "shown" or "hidden"))
-        elseif cmd == "arrow" then
-            HC:ToggleArrow()
-        elseif cmd == "arrow hide" or cmd == "arrow off" then
-            HC:HideArrow()
-        elseif cmd == "arrow show" or cmd == "arrow on" then
-            if HC:HasWaypoint() then
-                if not HC.arrowFrame then HC:CreateArrow() end
-                HC.arrowFrame:Show()
-                print("|cff00ff99Housing Completed|r: Arrow shown")
-            else
-                print("|cff00ff99Housing Completed|r: No waypoint set. Click a waypoint button in /hc first.")
-            end
         else
             HC:ToggleUI()
         end
@@ -369,41 +354,34 @@ end
 -- Waypoint Functions
 ---------------------------------------------------
 function HC:SetWaypoint(x, y, mapID, title)
+    -- x/y are stored as 0-100 in our data tables. Convert to 0-1 for Blizzard waypoint APIs.
     if not x or not y or not mapID then
         print("|cff00ff99Housing Completed|r: No coordinates available for this location.")
         return
     end
-    
-    local system = HousingCompletedDB.waypointSystem or "tomtom"
-    local useTomTom = (system == "tomtom" or system == "both") and TomTom
-    local useBlizzard = (system == "blizzard" or system == "both")
-    
-    if useTomTom then
-        TomTom:AddWaypoint(mapID, x / 100, y / 100, {
-            title = title or "Housing Vendor",
-            persistent = false,
-            minimap = true,
-            world = true,
-        })
-        print("|cff00ff99Housing Completed|r: TomTom waypoint set for " .. (title or "location"))
+
+    local nx, ny = (x / 100), (y / 100)
+    if nx <= 0 or ny <= 0 or nx > 1 or ny > 1 then
+        -- Safety: if data is already normalized, don't double-divide
+        nx, ny = x, y
     end
-    
-    if useBlizzard then
-        C_Map.SetUserWaypoint(UiMapPoint.CreateFromCoordinates(mapID, x / 100, y / 100))
-        C_SuperTrack.SetSuperTrackedUserWaypoint(true)
-        print("|cff00ff99Housing Completed|r: Map pin set for " .. (title or "location"))
+
+    local waypoint = UiMapPoint.CreateFromCoordinates(mapID, nx, ny)
+    C_Map.SetUserWaypoint(waypoint)
+    C_SuperTrack.SetSuperTrackedUserWaypoint(true)
+
+    if title then
+        print("|cff00ff99Housing Completed|r: Waypoint set for " .. title)
+    else
+        print("|cff00ff99Housing Completed|r: Waypoint set.")
     end
-    
-    if not useTomTom and not useBlizzard then
-        -- Fallback to Blizzard
-        C_Map.SetUserWaypoint(UiMapPoint.CreateFromCoordinates(mapID, x / 100, y / 100))
-        C_SuperTrack.SetSuperTrackedUserWaypoint(true)
-        print("|cff00ff99Housing Completed|r: Map pin set for " .. (title or "location"))
-    end
-    
-    -- Show arrow (Arrow.lua checks showArrow setting)
-    self:ShowArrow(x, y, mapID, title)
 end
+
+function HC:ClearWaypoint()
+    C_Map.ClearUserWaypoint()
+    C_SuperTrack.SetSuperTrackedUserWaypoint(false)
+end
+
 
 ---------------------------------------------------
 -- Utility Functions

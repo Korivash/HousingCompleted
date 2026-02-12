@@ -730,27 +730,9 @@ function HC:CreateSettingsPanel(parent)
     
     local waypointLabel = settings:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     waypointLabel:SetPoint("TOPLEFT", 20, y)
-    waypointLabel:SetText("Waypoint System:")
-    y = y - 28
-    
-    local waypointOptions = {"tomtom", "blizzard", "both"}
-    local waypointLabels = {"TomTom Only", "Blizzard Only", "Both"}
-    
-    for i, opt in ipairs(waypointOptions) do
-        local radio = CreateFrame("CheckButton", nil, settings, "UIRadioButtonTemplate")
-        radio:SetPoint("TOPLEFT", 30, y)
-        SetButtonText(radio, waypointLabels[i], 0.8, 0.8, 0.8)
-        radio:SetChecked((HousingCompletedDB.waypointSystem or "tomtom") == opt)
-        radio:SetScript("OnClick", function()
-            HousingCompletedDB.waypointSystem = opt
-            HC:UpdateWaypointRadios()
-        end)
-        radio.option = opt
-        self["waypointRadio" .. i] = radio
-        y = y - 24
-    end
-    y = y - 15
-    
+    waypointLabel:SetText("Waypoints: Blizzard (SuperTrack)")
+    y = y - 35
+
     local scaleLabel = settings:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     scaleLabel:SetPoint("TOPLEFT", 20, y)
     scaleLabel:SetText("UI Scale:")
@@ -786,18 +768,7 @@ function HC:CreateSettingsPanel(parent)
         end
     end)
     y = y - 26
-    
-    local arrowCb = CreateFrame("CheckButton", nil, settings, "UICheckButtonTemplate")
-    arrowCb:SetPoint("TOPLEFT", 20, y)
-    SetButtonText(arrowCb, "Show Navigation Arrow", 0.8, 0.8, 0.8)
-    arrowCb:SetChecked(HousingCompletedDB.showArrow ~= false)
-    arrowCb:SetScript("OnClick", function(self)
-        HousingCompletedDB.showArrow = self:GetChecked()
-        if not self:GetChecked() and HC.HideArrow then HC:HideArrow() end
-    end)
-    y = y - 45
-    
-    local backBtn = CreateFrame("Button", nil, settings, "UIPanelButtonTemplate")
+local backBtn = CreateFrame("Button", nil, settings, "UIPanelButtonTemplate")
     backBtn:SetSize(100, 28)
     backBtn:SetPoint("BOTTOMLEFT", 20, 20)
     backBtn:SetText("Back")
@@ -806,13 +777,6 @@ function HC:CreateSettingsPanel(parent)
     self.settingsPanel = settings
 end
 
-function HC:UpdateWaypointRadios()
-    local opt = HousingCompletedDB.waypointSystem or "tomtom"
-    for i = 1, 3 do
-        local radio = self["waypointRadio" .. i]
-        if radio then radio:SetChecked(radio.option == opt) end
-    end
-end
 
 function HC:DoSearch()
     local query = self.searchBox and self.searchBox:GetText() or ""
