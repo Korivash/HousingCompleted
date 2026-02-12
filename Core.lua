@@ -6,7 +6,7 @@
 local addonName, HC = ...
 _G["HousingCompleted"] = HC
 
-HC.version = "1.2.0"
+HC.version = "1.3.0"
 HC.searchResults = {}
 HC.collectionCache = {}
 
@@ -290,6 +290,24 @@ function HC:SearchAll(query, filters)
                 source = item.profession,
                 expansion = item.expansion,
                 skill = item.skill,
+                collected = collected,
+            })
+        end
+    end
+    
+    -- Search auction house items (tradeable profession items)
+    for _, item in ipairs(HC.AuctionItems or {}) do
+        local matches = not hasQuery or
+                       (item.name and item.name:lower():find(query, 1, true))
+        
+        if matches and self:PassesFilters(item, filters, "auction") then
+            local collected = self:IsDecorCollected(item.name)
+            table.insert(results, {
+                type = "auction",
+                data = item,
+                name = item.name,
+                source = "Auction House",
+                profession = item.profession,
                 collected = collected,
             })
         end

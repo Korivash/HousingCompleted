@@ -5,12 +5,13 @@
 local addonName, HC = ...
 
 HC.SourceTypes = {
-    { id = "achievement", name = "Achievement", icon = "Interface\\Icons\\Achievement_General_100kQuests", color = {1, 0.8, 0} },
-    { id = "vendor", name = "Vendor", icon = "Interface\\Icons\\INV_Misc_Coin_01", color = {0.2, 0.8, 0.2} },
-    { id = "quest", name = "Quest", icon = "Interface\\Icons\\INV_Misc_Book_07", color = {1, 1, 0} },
-    { id = "reputation", name = "Reputation", icon = "Interface\\Icons\\Achievement_Reputation_01", color = {0.6, 0.4, 1} },
-    { id = "profession", name = "Profession", icon = "Interface\\Icons\\Trade_BlackSmithing", color = {1, 0.6, 0.2} },
-    { id = "drop", name = "Drop", icon = "Interface\\Icons\\INV_Misc_Bag_10_Blue", color = {0.4, 0.8, 1} },
+    { id = "achievement", name = "Achievement", icon = "Interface\\Icons\\Achievement_General_100kQuests", color = {1, 0.8, 0.2} },
+    { id = "vendor", name = "Vendor", icon = "Interface\\Icons\\INV_Misc_Coin_01", color = {0.3, 0.9, 0.3} },
+    { id = "quest", name = "Quest", icon = "Interface\\Icons\\INV_Misc_Book_07", color = {1, 1, 0.4} },
+    { id = "reputation", name = "Reputation", icon = "Interface\\Icons\\Achievement_Reputation_08", color = {0.6, 0.4, 1} },
+    { id = "profession", name = "Profession", icon = "Interface\\Icons\\INV_Misc_Note_01", color = {1, 0.5, 0.2} },
+    { id = "drop", name = "Drop", icon = "Interface\\Icons\\INV_Misc_Bag_10_Blue", color = {0.4, 0.7, 1} },
+    { id = "auction", name = "Auction House", icon = "Interface\\Icons\\INV_Misc_Coin_02", color = {1, 0.82, 0} },
     { id = "promo", name = "Promotion", icon = "Interface\\Icons\\INV_Misc_Gift_05", color = {1, 0.4, 0.8} },
     { id = "unknown", name = "Unknown", icon = "Interface\\Icons\\INV_Misc_QuestionMark", color = {0.5, 0.5, 0.5} },
 }
@@ -30,18 +31,30 @@ HC.Expansions = {
     { id = "midnight", name = "Midnight", color = {0.8, 0.2, 0.4} },
 }
 
+-- Correct profession icons
 HC.Professions = {
     { id = "alchemy", name = "Alchemy", icon = "Interface\\Icons\\Trade_Alchemy" },
     { id = "blacksmithing", name = "Blacksmithing", icon = "Interface\\Icons\\Trade_BlackSmithing" },
     { id = "cooking", name = "Cooking", icon = "Interface\\Icons\\INV_Misc_Food_15" },
     { id = "enchanting", name = "Enchanting", icon = "Interface\\Icons\\Trade_Engraving" },
     { id = "engineering", name = "Engineering", icon = "Interface\\Icons\\Trade_Engineering" },
+    { id = "herbalism", name = "Herbalism", icon = "Interface\\Icons\\Trade_Herbalism" },
     { id = "inscription", name = "Inscription", icon = "Interface\\Icons\\INV_Inscription_Tradeskill01" },
-    { id = "jewelcrafting", name = "Jewelcrafting", icon = "Interface\\Icons\\INV_Misc_Gem_01" },
-    { id = "leatherworking", name = "Leatherworking", icon = "Interface\\Icons\\INV_Misc_ArmorKit_17" },
+    { id = "jewelcrafting", name = "Jewelcrafting", icon = "Interface\\Icons\\INV_Misc_Gem_02" },
+    { id = "leatherworking", name = "Leatherworking", icon = "Interface\\Icons\\Trade_LeatherWorking" },
+    { id = "mining", name = "Mining", icon = "Interface\\Icons\\Trade_Mining" },
+    { id = "skinning", name = "Skinning", icon = "Interface\\Icons\\INV_Misc_Pelt_Wolf_01" },
     { id = "tailoring", name = "Tailoring", icon = "Interface\\Icons\\Trade_Tailoring" },
-    { id = "tinkering", name = "Tinkering", icon = "Interface\\Icons\\Trade_Engineering" },
+    { id = "fishing", name = "Fishing", icon = "Interface\\Icons\\Trade_Fishing" },
+    { id = "archaeology", name = "Archaeology", icon = "Interface\\Icons\\Trade_Archaeology" },
 }
+
+-- Lookup table for quick access
+HC.ProfessionIcons = {}
+for _, prof in ipairs(HC.Professions) do
+    HC.ProfessionIcons[prof.id] = prof.icon
+    HC.ProfessionIcons[prof.name:lower()] = prof.icon
+end
 
 HC.DecorCategories = {
     { id = "furnishings", name = "Furnishings", icon = "Interface\\Icons\\INV_Misc_Basket_01" },

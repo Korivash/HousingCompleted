@@ -1,6 +1,6 @@
 ---------------------------------------------------
 -- Housing Completed - UI.lua
--- Modern interface with item/NPC previews
+-- Modern interface with Blizzard item/NPC previews
 -- Author: Korivash
 ---------------------------------------------------
 local addonName, HC = ...
@@ -28,11 +28,6 @@ local COLORS = {
     row = {0.08, 0.08, 0.12, 0.8},
     rowHover = {0.12, 0.12, 0.18, 1},
     rowSelected = {0.15, 0.25, 0.2, 1},
-    achievement = {1, 0.8, 0.2, 1},
-    quest = {1, 1, 0.4, 1},
-    vendor = {0.3, 0.9, 0.3, 1},
-    reputation = {0.6, 0.4, 1, 1},
-    profession = {1, 0.5, 0.2, 1},
 }
 
 local currentPage = 1
@@ -80,7 +75,7 @@ local function CreateSearchBox(parent, width)
     
     local placeholder = editBox:CreateFontString(nil, "ARTWORK", "GameFontDisable")
     placeholder:SetPoint("LEFT", 0, 0)
-    placeholder:SetText("Search items, vendors, zones...")
+    placeholder:SetText("Search...")
     placeholder:SetTextColor(0.4, 0.4, 0.45)
     
     editBox:SetScript("OnTextChanged", function(self)
@@ -200,21 +195,23 @@ function HC:CreateSidebar(parent)
     tabLabel:SetPoint("TOPLEFT", 15, y)
     tabLabel:SetText("CATEGORIES")
     tabLabel:SetTextColor(unpack(COLORS.accentAlt))
-    y = y - 25
+    y = y - 22
     
+    -- Category tabs with correct icons
     local tabs = {
         { id = "all", name = "All Items", icon = "Interface\\Icons\\INV_Misc_Bag_10" },
         { id = "vendor", name = "Vendors", icon = "Interface\\Icons\\INV_Misc_Coin_01" },
         { id = "achievement", name = "Achievements", icon = "Interface\\Icons\\Achievement_General_100kQuests" },
         { id = "quest", name = "Quests", icon = "Interface\\Icons\\INV_Misc_Book_07" },
-        { id = "reputation", name = "Reputation", icon = "Interface\\Icons\\Achievement_Reputation_01" },
-        { id = "profession", name = "Professions", icon = "Interface\\Icons\\Trade_BlackSmithing" },
+        { id = "reputation", name = "Reputation", icon = "Interface\\Icons\\Achievement_Reputation_08" },
+        { id = "profession", name = "Professions", icon = "Interface\\Icons\\INV_Misc_Note_01" },
+        { id = "auction", name = "Auction House", icon = "Interface\\Icons\\INV_Misc_Coin_02" },
     }
     
     self.tabButtons = {}
     for _, tabInfo in ipairs(tabs) do
         local btn = CreateFrame("Button", nil, sidebar)
-        btn:SetSize(SIDEBAR_WIDTH - 20, 28)
+        btn:SetSize(SIDEBAR_WIDTH - 20, 26)
         btn:SetPoint("TOP", 0, y)
         btn.tabID = tabInfo.id
         
@@ -228,10 +225,10 @@ function HC:CreateSidebar(parent)
         icon:SetPoint("LEFT", 10, 0)
         icon:SetTexture(tabInfo.icon)
         
-        local label = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-        label:SetPoint("LEFT", icon, "RIGHT", 8, 0)
+        local label = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        label:SetPoint("LEFT", icon, "RIGHT", 6, 0)
         label:SetText(tabInfo.name)
-        label:SetTextColor(0.8, 0.8, 0.8)
+        label:SetTextColor(0.75, 0.75, 0.75)
         btn.label = label
         
         btn:SetScript("OnEnter", function(self)
@@ -247,43 +244,45 @@ function HC:CreateSidebar(parent)
         end)
         
         self.tabButtons[tabInfo.id] = btn
-        y = y - 30
+        y = y - 26
     end
-    y = y - 15
+    y = y - 12
     
     local divider = sidebar:CreateTexture(nil, "ARTWORK")
     divider:SetSize(SIDEBAR_WIDTH - 30, 1)
     divider:SetPoint("TOP", 0, y)
     divider:SetColorTexture(0.2, 0.2, 0.25, 1)
-    y = y - 20
+    y = y - 15
     
     local filterLabel = sidebar:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     filterLabel:SetPoint("TOPLEFT", 15, y)
     filterLabel:SetText("FILTERS")
     filterLabel:SetTextColor(unpack(COLORS.accentAlt))
-    y = y - 25
+    y = y - 22
     
     local collectedCb = CreateFrame("CheckButton", nil, sidebar, "UICheckButtonTemplate")
     collectedCb:SetPoint("TOPLEFT", 10, y)
-    SetButtonText(collectedCb, "Show Collected", 0.7, 0.7, 0.7)
+    collectedCb:SetSize(24, 24)
+    SetButtonText(collectedCb, "Collected", 0.7, 0.7, 0.7)
     collectedCb:SetChecked(true)
     collectedCb:SetScript("OnClick", function() HC:DoSearch() end)
     self.collectedCb = collectedCb
-    y = y - 26
+    y = y - 24
     
     local uncollectedCb = CreateFrame("CheckButton", nil, sidebar, "UICheckButtonTemplate")
     uncollectedCb:SetPoint("TOPLEFT", 10, y)
-    SetButtonText(uncollectedCb, "Show Uncollected", 0.7, 0.7, 0.7)
+    uncollectedCb:SetSize(24, 24)
+    SetButtonText(uncollectedCb, "Uncollected", 0.7, 0.7, 0.7)
     uncollectedCb:SetChecked(true)
     uncollectedCb:SetScript("OnClick", function() HC:DoSearch() end)
     self.uncollectedCb = uncollectedCb
-    y = y - 40
+    y = y - 35
     
     local progressLabel = sidebar:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     progressLabel:SetPoint("TOPLEFT", 15, y)
     progressLabel:SetText("PROGRESS")
     progressLabel:SetTextColor(unpack(COLORS.accentAlt))
-    y = y - 25
+    y = y - 20
     
     local progressText = sidebar:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     progressText:SetPoint("TOPLEFT", 15, y)
@@ -301,7 +300,7 @@ function HC:CreateContent(parent)
     
     local resultsFrame = CreateFrame("Frame", nil, content, "BackdropTemplate")
     resultsFrame:SetPoint("TOPLEFT", 15, -15)
-    resultsFrame:SetPoint("BOTTOMRIGHT", -15, 60)
+    resultsFrame:SetPoint("BOTTOMRIGHT", -15, 55)
     resultsFrame:SetBackdrop({
         bgFile = "Interface\\Buttons\\WHITE8x8",
         edgeFile = "Interface\\Buttons\\WHITE8x8",
@@ -326,7 +325,7 @@ function HC:CreateContent(parent)
     pagination:SetHeight(35)
     
     local prevBtn = CreateFrame("Button", nil, pagination, "UIPanelButtonTemplate")
-    prevBtn:SetSize(80, 28)
+    prevBtn:SetSize(70, 26)
     prevBtn:SetPoint("LEFT", 0, 0)
     prevBtn:SetText("< Prev")
     prevBtn:SetScript("OnClick", function()
@@ -335,7 +334,7 @@ function HC:CreateContent(parent)
     self.prevBtn = prevBtn
     
     local nextBtn = CreateFrame("Button", nil, pagination, "UIPanelButtonTemplate")
-    nextBtn:SetSize(80, 28)
+    nextBtn:SetSize(70, 26)
     nextBtn:SetPoint("RIGHT", 0, 0)
     nextBtn:SetText("Next >")
     nextBtn:SetScript("OnClick", function()
@@ -350,7 +349,7 @@ function HC:CreateContent(parent)
     self.pageText = pageText
     
     local statusText = pagination:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    statusText:SetPoint("LEFT", prevBtn, "RIGHT", 15, 0)
+    statusText:SetPoint("LEFT", prevBtn, "RIGHT", 10, 0)
     statusText:SetText("0 results")
     statusText:SetTextColor(unpack(COLORS.textDim))
     self.statusText = statusText
@@ -368,11 +367,18 @@ function HC:CreateResultRow(parent, index)
         if selectedItem ~= self.itemData then
             self:SetBackdropColor(unpack(COLORS.rowHover))
         end
+        -- Show item tooltip if we have itemID
+        if self.itemData and self.itemData.data and self.itemData.data.itemID then
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:SetItemByID(self.itemData.data.itemID)
+            GameTooltip:Show()
+        end
     end)
     row:SetScript("OnLeave", function(self)
         if selectedItem ~= self.itemData then
             self:SetBackdropColor(unpack(COLORS.row))
         end
+        GameTooltip:Hide()
     end)
     row:SetScript("OnClick", function(self)
         selectedItem = self.itemData
@@ -453,22 +459,22 @@ function HC:CreatePreviewPanel(parent)
     title:SetTextColor(unpack(COLORS.accentAlt))
     y = y - 25
     
-    -- Model container with backdrop
+    -- Model container
     local modelContainer = CreateFrame("Frame", nil, preview, "BackdropTemplate")
-    modelContainer:SetSize(PREVIEW_WIDTH - 30, 150)
+    modelContainer:SetSize(PREVIEW_WIDTH - 30, 180)
     modelContainer:SetPoint("TOP", 0, y)
     modelContainer:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8" })
     modelContainer:SetBackdropColor(0.03, 0.03, 0.05, 1)
     
-    -- Model frame inside container
-    local modelFrame = CreateFrame("PlayerModel", nil, modelContainer)
+    -- Use ModelScene for better model display
+    local modelFrame = CreateFrame("ModelScene", nil, modelContainer, "WrappedAndUnwrappedModelScene")
+    if not modelFrame then
+        -- Fallback to PlayerModel if ModelScene unavailable
+        modelFrame = CreateFrame("PlayerModel", nil, modelContainer)
+    end
     modelFrame:SetAllPoints()
     modelFrame:EnableMouse(true)
     modelFrame:EnableMouseWheel(true)
-    modelFrame:SetScript("OnMouseWheel", function(self, delta)
-        local x, y, z = self:GetPosition()
-        self:SetPosition(x, y, z + delta * 0.5)
-    end)
     
     local isDragging = false
     local lastX = 0
@@ -482,13 +488,17 @@ function HC:CreatePreviewPanel(parent)
     modelFrame:SetScript("OnUpdate", function(self)
         if isDragging then
             local x = GetCursorPosition()
-            local facing = self:GetFacing() or 0
-            self:SetFacing(facing + (x - lastX) * 0.02)
+            if self.SetFacing then
+                local facing = self:GetFacing() or 0
+                self:SetFacing(facing + (x - lastX) * 0.02)
+            end
             lastX = x
         end
     end)
+    
     self.modelFrame = modelFrame
-    y = y - 160
+    self.modelContainer = modelContainer
+    y = y - 190
     
     -- Item name
     local itemName = preview:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
@@ -498,88 +508,85 @@ function HC:CreatePreviewPanel(parent)
     itemName:SetText("Select an item")
     itemName:SetTextColor(1, 1, 1)
     self.previewName = itemName
-    y = y - 25
+    y = y - 22
     
-    -- Source type
+    -- Source type badge
     local sourceType = preview:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    sourceType:SetPoint("TOPLEFT", 15, y)
-    sourceType:SetPoint("TOPRIGHT", -15, y)
-    sourceType:SetJustifyH("CENTER")
+    sourceType:SetPoint("TOP", 0, y)
     sourceType:SetText("")
     self.previewSourceType = sourceType
-    y = y - 30
+    y = y - 25
     
-    -- Divider
-    local div = preview:CreateTexture(nil, "ARTWORK")
-    div:SetSize(PREVIEW_WIDTH - 30, 1)
-    div:SetPoint("TOP", 0, y)
-    div:SetColorTexture(0.2, 0.2, 0.25, 1)
-    y = y - 15
+    -- Details frame
+    local detailsFrame = CreateFrame("Frame", nil, preview)
+    detailsFrame:SetPoint("TOPLEFT", 15, y)
+    detailsFrame:SetPoint("TOPRIGHT", -15, y)
+    detailsFrame:SetHeight(180)
     
-    -- Details section
-    local detailsTitle = preview:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    detailsTitle:SetPoint("TOPLEFT", 15, y)
-    detailsTitle:SetText("DETAILS")
-    detailsTitle:SetTextColor(unpack(COLORS.accentAlt))
-    y = y - 20
+    local dy = 0
     
     -- Vendor
-    local vendorLabel = preview:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    vendorLabel:SetPoint("TOPLEFT", 15, y)
-    vendorLabel:SetText("Vendor:")
-    vendorLabel:SetTextColor(unpack(COLORS.textMuted))
-    local vendorValue = preview:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    vendorValue:SetPoint("TOPLEFT", vendorLabel, "TOPRIGHT", 5, 0)
-    vendorValue:SetPoint("RIGHT", -15, 0)
+    local vendorLabel = detailsFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    vendorLabel:SetPoint("TOPLEFT", 0, dy)
+    vendorLabel:SetText("|cff888888Vendor:|r")
+    local vendorValue = detailsFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    vendorValue:SetPoint("TOPLEFT", 55, dy)
+    vendorValue:SetPoint("RIGHT", 0, 0)
     vendorValue:SetJustifyH("LEFT")
     vendorValue:SetText("-")
     self.previewVendor = vendorValue
-    y = y - 18
+    dy = dy - 16
     
     -- Location
-    local locLabel = preview:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    locLabel:SetPoint("TOPLEFT", 15, y)
-    locLabel:SetText("Location:")
-    locLabel:SetTextColor(unpack(COLORS.textMuted))
-    local locValue = preview:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    locValue:SetPoint("TOPLEFT", locLabel, "TOPRIGHT", 5, 0)
-    locValue:SetPoint("RIGHT", -15, 0)
+    local locLabel = detailsFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    locLabel:SetPoint("TOPLEFT", 0, dy)
+    locLabel:SetText("|cff888888Location:|r")
+    local locValue = detailsFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    locValue:SetPoint("TOPLEFT", 55, dy)
+    locValue:SetPoint("RIGHT", 0, 0)
     locValue:SetJustifyH("LEFT")
     locValue:SetText("-")
     self.previewLocation = locValue
-    y = y - 18
+    dy = dy - 16
     
     -- Cost
-    local costLabel = preview:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    costLabel:SetPoint("TOPLEFT", 15, y)
-    costLabel:SetText("Cost:")
-    costLabel:SetTextColor(unpack(COLORS.textMuted))
-    local costValue = preview:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    costValue:SetPoint("TOPLEFT", costLabel, "TOPRIGHT", 5, 0)
-    costValue:SetPoint("RIGHT", -15, 0)
+    local costLabel = detailsFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    costLabel:SetPoint("TOPLEFT", 0, dy)
+    costLabel:SetText("|cff888888Cost:|r")
+    local costValue = detailsFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    costValue:SetPoint("TOPLEFT", 55, dy)
+    costValue:SetPoint("RIGHT", 0, 0)
     costValue:SetJustifyH("LEFT")
     costValue:SetText("-")
     self.previewCost = costValue
-    y = y - 18
+    dy = dy - 20
     
-    -- Reputation
-    local repLabel = preview:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    repLabel:SetPoint("TOPLEFT", 15, y)
-    repLabel:SetText("Reputation:")
-    repLabel:SetTextColor(unpack(COLORS.textMuted))
-    repLabel:Hide()
-    self.previewRepLabel = repLabel
+    -- Reputation section
+    local repHeader = detailsFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    repHeader:SetPoint("TOPLEFT", 0, dy)
+    repHeader:SetText("|cffaa88ffReputation Required:|r")
+    repHeader:Hide()
+    self.previewRepHeader = repHeader
+    dy = dy - 14
     
-    local repValue = preview:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    repValue:SetPoint("TOPLEFT", repLabel, "TOPRIGHT", 5, 0)
-    repValue:SetPoint("RIGHT", -15, 0)
-    repValue:SetJustifyH("LEFT")
-    repValue:SetText("-")
-    repValue:Hide()
-    self.previewRep = repValue
-    y = y - 35
+    local repFaction = detailsFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    repFaction:SetPoint("TOPLEFT", 10, dy)
+    repFaction:SetPoint("RIGHT", 0, 0)
+    repFaction:SetJustifyH("LEFT")
+    repFaction:SetText("")
+    repFaction:Hide()
+    self.previewRepFaction = repFaction
+    dy = dy - 14
     
-    -- Waypoint button
+    local repStanding = detailsFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    repStanding:SetPoint("TOPLEFT", 10, dy)
+    repStanding:SetText("")
+    repStanding:Hide()
+    self.previewRepStanding = repStanding
+    
+    self.detailsFrame = detailsFrame
+    
+    -- Waypoint button at bottom
     local wpBtn = CreateFrame("Button", nil, preview, "UIPanelButtonTemplate")
     wpBtn:SetSize(PREVIEW_WIDTH - 30, 28)
     wpBtn:SetPoint("BOTTOM", 0, 15)
@@ -605,19 +612,23 @@ end
 function HC:UpdatePreview(data)
     if not self.previewName then return end
     
+    -- Reset all
+    self.previewRepHeader:Hide()
+    self.previewRepFaction:Hide()
+    self.previewRepStanding:Hide()
+    
     if not data then
         self.previewName:SetText("Select an item")
-        self.previewName:SetTextColor(1, 1, 1)
+        self.previewName:SetTextColor(0.6, 0.6, 0.6)
         self.previewSourceType:SetText("")
         self.previewVendor:SetText("-")
         self.previewLocation:SetText("-")
         self.previewCost:SetText("-")
-        self.previewRepLabel:Hide()
-        self.previewRep:Hide()
-        if self.modelFrame then self.modelFrame:ClearModel() end
+        if self.modelFrame.ClearModel then self.modelFrame:ClearModel() end
         return
     end
     
+    -- Name
     self.previewName:SetText(data.name or "Unknown")
     if data.collected then
         self.previewName:SetTextColor(unpack(COLORS.collected))
@@ -625,13 +636,14 @@ function HC:UpdatePreview(data)
         self.previewName:SetTextColor(1, 1, 1)
     end
     
+    -- Source type
     local sourceInfo = self:GetSourceTypeInfo(data.type)
     self.previewSourceType:SetText(sourceInfo.name)
     self.previewSourceType:SetTextColor(unpack(sourceInfo.color))
     
     -- Vendor
-    if data.type == "vendor" then
-        self.previewVendor:SetText(data.name or "-")
+    if data.type == "vendor" and data.data then
+        self.previewVendor:SetText(data.data.name or "-")
     else
         self.previewVendor:SetText(data.vendor or "-")
     end
@@ -639,7 +651,7 @@ function HC:UpdatePreview(data)
     -- Location
     local loc = data.zone or ""
     if data.data and data.data.subzone then
-        loc = loc .. " - " .. data.data.subzone
+        loc = loc .. ", " .. data.data.subzone
     end
     if data.data and data.data.x and data.data.y then
         loc = loc .. string.format(" (%.1f, %.1f)", data.data.x, data.data.y)
@@ -647,35 +659,45 @@ function HC:UpdatePreview(data)
     self.previewLocation:SetText(loc ~= "" and loc or "-")
     
     -- Cost
-    self.previewCost:SetText(data.cost or "-")
-    
-    -- Reputation
-    if data.type == "reputation" and data.data then
-        self.previewRepLabel:Show()
-        self.previewRep:Show()
-        local repText = (data.data.faction or "") .. " - " .. (data.data.standing or "")
-        self.previewRep:SetText(repText)
-        local standing = data.data.standing
-        if standing == "Exalted" then
-            self.previewRep:SetTextColor(0.2, 1, 0.2)
-        elseif standing == "Revered" then
-            self.previewRep:SetTextColor(0.2, 0.8, 1)
-        elseif standing == "Honored" then
-            self.previewRep:SetTextColor(0.5, 0.5, 1)
-        else
-            self.previewRep:SetTextColor(0.7, 0.7, 0.7)
-        end
+    if data.cost then
+        self.previewCost:SetText("|cffffd700" .. data.cost .. "|r")
     else
-        self.previewRepLabel:Hide()
-        self.previewRep:Hide()
+        self.previewCost:SetText("-")
     end
     
-    -- Model
+    -- Reputation details
+    if data.type == "reputation" and data.data then
+        self.previewRepHeader:Show()
+        self.previewRepFaction:Show()
+        self.previewRepStanding:Show()
+        
+        self.previewRepFaction:SetText(data.data.faction or "Unknown Faction")
+        
+        local standing = data.data.standing or "Unknown"
+        local standingColors = {
+            ["Exalted"] = {0.2, 1, 0.2},
+            ["Revered"] = {0.2, 0.8, 1},
+            ["Honored"] = {0.4, 0.6, 1},
+            ["Friendly"] = {0.2, 0.9, 0.2},
+            ["Neutral"] = {1, 1, 0.2},
+        }
+        local color = standingColors[standing] or {0.7, 0.7, 0.7}
+        self.previewRepStanding:SetText(standing .. " Required")
+        self.previewRepStanding:SetTextColor(unpack(color))
+    end
+    
+    -- Model - try to show NPC for vendors
     if self.modelFrame then
         if data.type == "vendor" and data.data and data.data.id then
-            self.modelFrame:SetCreature(data.data.id)
+            if self.modelFrame.SetCreature then
+                self.modelFrame:SetCreature(data.data.id)
+                self.modelFrame:SetPosition(0, 0, 0)
+                self.modelFrame:SetFacing(0)
+            end
         else
-            self.modelFrame:ClearModel()
+            if self.modelFrame.ClearModel then
+                self.modelFrame:ClearModel()
+            end
         end
     end
 end
@@ -709,7 +731,7 @@ function HC:CreateSettingsPanel(parent)
     local waypointLabel = settings:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     waypointLabel:SetPoint("TOPLEFT", 20, y)
     waypointLabel:SetText("Waypoint System:")
-    y = y - 30
+    y = y - 28
     
     local waypointOptions = {"tomtom", "blizzard", "both"}
     local waypointLabels = {"TomTom Only", "Blizzard Only", "Both"}
@@ -725,18 +747,18 @@ function HC:CreateSettingsPanel(parent)
         end)
         radio.option = opt
         self["waypointRadio" .. i] = radio
-        y = y - 26
+        y = y - 24
     end
-    y = y - 20
+    y = y - 15
     
     local scaleLabel = settings:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     scaleLabel:SetPoint("TOPLEFT", 20, y)
     scaleLabel:SetText("UI Scale:")
-    y = y - 30
+    y = y - 28
     
     local scaleSlider = CreateFrame("Slider", nil, settings, "OptionsSliderTemplate")
     scaleSlider:SetPoint("TOPLEFT", 30, y)
-    scaleSlider:SetWidth(200)
+    scaleSlider:SetWidth(180)
     scaleSlider:SetMinMaxValues(0.5, 1.5)
     scaleSlider:SetValueStep(0.05)
     scaleSlider:SetValue(HousingCompletedDB.scale or 1.0)
@@ -749,7 +771,7 @@ function HC:CreateSettingsPanel(parent)
         if text then text:SetText(string.format("%.0f%%", value * 100)) end
         if HC.mainFrame then HC.mainFrame:SetScale(value) end
     end)
-    y = y - 50
+    y = y - 45
     
     local minimapCb = CreateFrame("CheckButton", nil, settings, "UICheckButtonTemplate")
     minimapCb:SetPoint("TOPLEFT", 20, y)
@@ -763,7 +785,7 @@ function HC:CreateSettingsPanel(parent)
             else LibDBIcon:Hide("HousingCompleted") end
         end
     end)
-    y = y - 30
+    y = y - 26
     
     local arrowCb = CreateFrame("CheckButton", nil, settings, "UICheckButtonTemplate")
     arrowCb:SetPoint("TOPLEFT", 20, y)
@@ -773,10 +795,10 @@ function HC:CreateSettingsPanel(parent)
         HousingCompletedDB.showArrow = self:GetChecked()
         if not self:GetChecked() and HC.HideArrow then HC:HideArrow() end
     end)
-    y = y - 50
+    y = y - 45
     
     local backBtn = CreateFrame("Button", nil, settings, "UIPanelButtonTemplate")
-    backBtn:SetSize(100, 32)
+    backBtn:SetSize(100, 28)
     backBtn:SetPoint("BOTTOMLEFT", 20, 20)
     backBtn:SetText("Back")
     backBtn:SetScript("OnClick", function() HC:ToggleSettings() end)
@@ -799,7 +821,9 @@ function HC:DoSearch()
         showUncollected = self.uncollectedCb and self.uncollectedCb:GetChecked(),
         faction = self:GetPlayerFaction(),
     }
-    if currentTab ~= "all" then filters.sourceTypes = { [currentTab] = true } end
+    if currentTab ~= "all" then 
+        filters.sourceTypes = { [currentTab] = true } 
+    end
     
     local results = self:SearchAll(query, filters)
     local filtered = {}
@@ -822,9 +846,7 @@ end
 
 function HC:UpdateResults()
     for i = 1, ITEMS_PER_PAGE do
-        if self.resultRows[i] then
-            self.resultRows[i]:Hide()
-        end
+        if self.resultRows[i] then self.resultRows[i]:Hide() end
     end
     
     local startIdx = (currentPage - 1) * ITEMS_PER_PAGE + 1
@@ -838,8 +860,17 @@ function HC:UpdateResults()
         if row and data then
             row.itemData = data
             
+            -- Get icon based on source type and profession
             local sourceInfo = self:GetSourceTypeInfo(data.type)
-            row.typeIcon:SetTexture(sourceInfo.icon)
+            local icon = sourceInfo.icon
+            
+            -- Use profession-specific icon
+            if data.type == "profession" and data.data and data.data.profession then
+                local profIcon = HC.ProfessionIcons and HC.ProfessionIcons[data.data.profession:lower()]
+                if profIcon then icon = profIcon end
+            end
+            
+            row.typeIcon:SetTexture(icon)
             
             row.nameText:SetText(data.name or "Unknown")
             if data.collected then
@@ -853,6 +884,8 @@ function HC:UpdateResults()
             if data.type == "vendor" and data.data then
                 sourceText = data.zone or ""
                 if data.data.subzone then sourceText = sourceText .. " - " .. data.data.subzone end
+            elseif data.type == "reputation" and data.data then
+                sourceText = (data.data.faction or "") .. " (" .. (data.data.standing or "") .. ")"
             end
             row.sourceText:SetText(sourceText)
             row.sourceText:SetTextColor(unpack(sourceInfo.color))
@@ -884,15 +917,9 @@ function HC:UpdateResults()
     if self.pageText then
         self.pageText:SetText(string.format("Page %d of %d", currentPage, totalPages))
     end
-    if self.prevBtn then
-        self.prevBtn:SetEnabled(currentPage > 1)
-    end
-    if self.nextBtn then
-        self.nextBtn:SetEnabled(currentPage < totalPages)
-    end
-    if self.statusText then
-        self.statusText:SetText(string.format("%d results", #currentResults))
-    end
+    if self.prevBtn then self.prevBtn:SetEnabled(currentPage > 1) end
+    if self.nextBtn then self.nextBtn:SetEnabled(currentPage < totalPages) end
+    if self.statusText then self.statusText:SetText(string.format("%d results", #currentResults)) end
 end
 
 function HC:UpdateTabButtons()
