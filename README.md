@@ -6,8 +6,6 @@
 
 A comprehensive World of Warcraft addon for tracking and collecting all housing decor items. Find vendors, complete achievements, finish quests, and craft your way to a fully decorated home!
 
-![Housing Completed Preview](https://i.imgur.com/placeholder.png)
-
 ## Features
 
 ### 📦 Complete Database
