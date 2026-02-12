@@ -6,7 +6,7 @@
 local addonName, HC = ...
 _G["HousingCompleted"] = HC
 
-HC.version = "1.3.5"
+HC.version = "1.3.6"
 HC.searchResults = {}
 HC.collectionCache = {}
 
@@ -309,34 +309,161 @@ end
 function HC:CacheCollection()
     -- Cache the player's housing collection
     self.collectionCache = {}
+    self.collectionNameCache = {}
+    self.collectionItemIDCache = {}
     self.catalogReady = false
-    
-    -- Check if Housing Catalog API is available
-    if C_HousingCatalog and C_HousingCatalog.GetNumCategories then
-        local numCategories = C_HousingCatalog.GetNumCategories(1) or 0
-        for catIndex = 1, numCategories do
-            local numItems = C_HousingCatalog.GetNumCatalogEntriesInCategory(1, catIndex) or 0
-            for itemIndex = 1, numItems do
-                local info = C_HousingCatalog.GetCatalogEntryInfoByIndex(1, catIndex, itemIndex)
-                if info then
-                    self.collectionCache[info.decorID] = {
-                        collected = info.isCollected,
-                        count = info.count or 0,
-                        name = info.name,
+
+    local function mergeCollectionEntry(info)
+        if not info then return end
+
+        local entry = {
+            collected = info.isCollected and true or false,
+            count = tonumber(info.count) or 0,
+            name = info.name,
+            itemID = info.itemID,
+            decorID = info.decorID,
+        }
+
+        if entry.decorID then
+            local existingDecor = self.collectionCache[entry.decorID]
+            if existingDecor then
+                existingDecor.collected = existingDecor.collected or entry.collected
+                if entry.count > (existingDecor.count or 0) then
+                    existingDecor.count = entry.count
+                end
+                if (not existingDecor.name or existingDecor.name == "") and entry.name and entry.name ~= "" then
+                    existingDecor.name = entry.name
+                end
+                if (not existingDecor.itemID) and entry.itemID then
+                    existingDecor.itemID = entry.itemID
+                end
+            else
+                self.collectionCache[entry.decorID] = entry
+            end
+        end
+
+        if entry.name and entry.name ~= "" then
+            local key = self:NormalizeItemName(entry.name)
+            if key then
+                local existingName = self.collectionNameCache[key]
+                if existingName then
+                    existingName.collected = existingName.collected or entry.collected
+                    if entry.count > (existingName.count or 0) then
+                        existingName.count = entry.count
+                    end
+                    if (not existingName.itemID) and entry.itemID then
+                        existingName.itemID = entry.itemID
+                    end
+                else
+                    self.collectionNameCache[key] = {
+                        collected = entry.collected,
+                        count = entry.count,
+                        name = entry.name,
+                        itemID = entry.itemID,
                     }
                 end
             end
         end
+
+        if entry.itemID then
+            local existingItem = self.collectionItemIDCache[entry.itemID]
+            if existingItem then
+                existingItem.collected = existingItem.collected or entry.collected
+                if entry.count > (existingItem.count or 0) then
+                    existingItem.count = entry.count
+                end
+                if (not existingItem.name or existingItem.name == "") and entry.name and entry.name ~= "" then
+                    existingItem.name = entry.name
+                end
+            else
+                self.collectionItemIDCache[entry.itemID] = {
+                    collected = entry.collected,
+                    count = entry.count,
+                    name = entry.name,
+                }
+            end
+        end
+    end
+
+    -- Check if Housing Catalog API is available
+    if C_HousingCatalog and C_HousingCatalog.GetNumCategories then
+        local anyData = false
+
+        -- Scan multiple catalog roots when available to avoid missing entries.
+        local catalogRoots = { 1, 2, 3, 4, 5, 6 }
+        for _, rootIndex in ipairs(catalogRoots) do
+            local okCategories, numCategories = pcall(C_HousingCatalog.GetNumCategories, rootIndex)
+            if okCategories and type(numCategories) == "number" and numCategories > 0 then
+                for catIndex = 1, numCategories do
+                    local okItems, numItems = pcall(C_HousingCatalog.GetNumCatalogEntriesInCategory, rootIndex, catIndex)
+                    if okItems and type(numItems) == "number" and numItems > 0 then
+                        for itemIndex = 1, numItems do
+                            local okInfo, info = pcall(C_HousingCatalog.GetCatalogEntryInfoByIndex, rootIndex, catIndex, itemIndex)
+                            if okInfo and info then
+                                mergeCollectionEntry(info)
+                                anyData = true
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        -- Fallback to legacy root if multi-root scan returned no data.
+        if not anyData then
+            local numCategories = C_HousingCatalog.GetNumCategories(1) or 0
+            for catIndex = 1, numCategories do
+                local numItems = C_HousingCatalog.GetNumCatalogEntriesInCategory(1, catIndex) or 0
+                for itemIndex = 1, numItems do
+                    local info = C_HousingCatalog.GetCatalogEntryInfoByIndex(1, catIndex, itemIndex)
+                    if info then
+                        mergeCollectionEntry(info)
+                    end
+                end
+            end
+        end
+
         self.catalogReady = true
     end
 end
 
 function HC:IsDecorCollected(decorName)
     -- Check if a decor item is collected by name
-    for decorID, info in pairs(self.collectionCache) do
-        if info.name and info.name:lower() == decorName:lower() then
-            return info.collected, info.count
+    local key = self:NormalizeItemName(decorName)
+    if key and self.collectionNameCache and self.collectionNameCache[key] then
+        local info = self.collectionNameCache[key]
+        return info.collected, info.count
+    end
+
+    -- Backward-compatible fallback for legacy cache shapes.
+    if type(decorName) == "string" then
+        for _, info in pairs(self.collectionCache or {}) do
+            if info.name and info.name:lower() == decorName:lower() then
+                return info.collected, info.count
+            end
         end
+    end
+
+    return false, 0
+end
+
+function HC:IsDecorCollectedByID(itemID)
+    if not itemID then return false, 0 end
+    local info = self.collectionItemIDCache and self.collectionItemIDCache[itemID]
+    if info then
+        return info.collected, info.count
+    end
+    return false, 0
+end
+
+function HC:IsItemCollected(itemID, itemName)
+    local collectedByName, countByName = self:IsDecorCollected(itemName)
+    if collectedByName then
+        return true, countByName or 0
+    end
+    local collectedByID, countByID = self:IsDecorCollectedByID(itemID)
+    if collectedByID then
+        return true, countByID or 0
     end
     return false, 0
 end
@@ -494,6 +621,66 @@ function HC:SetItemWaypoint(itemData)
     end
 end
 
+function HC:ResultHasWaypoint(resultData)
+    if not resultData then return false end
+
+    local data = resultData.data
+    if resultData.type == "vendor" and data and data.mapID and data.x and data.y then
+        return true
+    end
+
+    if data and data.waypoint and data.waypoint.mapID and data.waypoint.x and data.waypoint.y then
+        return true
+    end
+
+    if data and data.vendorData and data.vendorData.mapID and data.vendorData.x and data.vendorData.y then
+        return true
+    end
+
+    if resultData.vendor then
+        local vendor = self:GetVendorByName(resultData.vendor)
+        if vendor and vendor.mapID and vendor.x and vendor.y then
+            return true
+        end
+    end
+
+    return false
+end
+
+function HC:SetResultWaypoint(resultData)
+    if not resultData then
+        print("|cff00ff99Housing Completed|r: Select an item first.")
+        return false
+    end
+
+    local data = resultData.data
+    if resultData.type == "vendor" and data and data.mapID and data.x and data.y then
+        self:SetSmartWaypoint(data.x, data.y, data.mapID, data.name or resultData.name)
+        return true
+    end
+
+    if data and data.waypoint and data.waypoint.mapID and data.waypoint.x and data.waypoint.y then
+        self:SetSmartWaypoint(data.waypoint.x, data.waypoint.y, data.waypoint.mapID, data.waypoint.title or resultData.name)
+        return true
+    end
+
+    if data and data.vendorData and data.vendorData.mapID and data.vendorData.x and data.vendorData.y then
+        self:SetSmartWaypoint(data.vendorData.x, data.vendorData.y, data.vendorData.mapID, data.vendorData.name or resultData.name)
+        return true
+    end
+
+    if resultData.vendor then
+        local vendor = self:GetVendorByName(resultData.vendor)
+        if vendor and vendor.mapID and vendor.x and vendor.y then
+            self:SetSmartWaypoint(vendor.x, vendor.y, vendor.mapID, vendor.name or resultData.name)
+            return true
+        end
+    end
+
+    print("|cff00ff99Housing Completed|r: No waypoint available for this item.")
+    return false
+end
+
 ---------------------------------------------------
 -- Search Functions
 ---------------------------------------------------
@@ -526,10 +713,95 @@ function HC:SourceMatchesType(source, wantedType)
     return (source.sourceType or "unknown") == wantedType
 end
 
+function HC:GetItemCategories()
+    return {
+        { id = "all", name = "All Item Types" },
+        { id = "vendor", name = "Vendor" },
+        { id = "chair", name = "Chair" },
+        { id = "plant", name = "Plant" },
+        { id = "table", name = "Table" },
+        { id = "bed", name = "Bed" },
+        { id = "lighting", name = "Lighting" },
+        { id = "rug", name = "Rug" },
+        { id = "storage", name = "Storage" },
+        { id = "banner", name = "Banner" },
+        { id = "fountain", name = "Fountain" },
+        { id = "book", name = "Book/Scroll" },
+        { id = "misc", name = "Misc" },
+    }
+end
+
+function HC:GetItemCategoryByName(itemName)
+    local name = type(itemName) == "string" and itemName:lower() or ""
+    if name == "" then return "misc" end
+
+    local keywordGroups = {
+        { id = "chair", terms = { "chair", "seat", "stool", "recliner", "bench", "throne" } },
+        { id = "plant", terms = { "plant", "flower", "tree", "vine", "trellis", "shrub", "bush", "garden", "herb" } },
+        { id = "table", terms = { "table", "desk", "counter", "workbench", "work table" } },
+        { id = "bed", terms = { "bed", "bunk", "cot", "mattress" } },
+        { id = "lighting", terms = { "lamp", "lantern", "brazier", "torch", "candle", "sconce", "chandelier", "light" } },
+        { id = "rug", terms = { "rug", "carpet", "mat" } },
+        { id = "storage", terms = { "crate", "chest", "cabinet", "shelf", "bookcase", "locker", "barrel", "box", "storage" } },
+        { id = "banner", terms = { "banner", "flag", "standard", "emblem", "pennant" } },
+        { id = "fountain", terms = { "fountain", "well", "waterfall" } },
+        { id = "book", terms = { "book", "tome", "scroll", "map", "painting" } },
+    }
+
+    for _, group in ipairs(keywordGroups) do
+        for _, term in ipairs(group.terms) do
+            if name:find(term, 1, true) then
+                return group.id
+            end
+        end
+    end
+
+    return "misc"
+end
+
+function HC:GetSourceTags(sources)
+    local tags = {}
+    local seen = {}
+    if type(sources) ~= "table" then return tags end
+
+    for _, s in ipairs(sources) do
+        local sourceType = s and s.sourceType
+        local tag = sourceType and self:GetSourceTypeInfo(sourceType).name or nil
+        if (sourceType == "reputation") or (self.IsReputationSource and self:IsReputationSource(s)) then
+            tag = "Rep"
+        end
+        if tag and not seen[tag] then
+            seen[tag] = true
+            table.insert(tags, tag)
+        end
+    end
+
+    if #tags == 0 then
+        table.insert(tags, "Unknown")
+    end
+    return tags
+end
+
+function HC:ItemMatchesCategory(item, categoryID)
+    if not item then return false end
+    if not categoryID or categoryID == "all" then return true end
+    if categoryID == "vendor" then
+        for _, s in ipairs(item.sources or {}) do
+            if (s.sourceType == "vendor") or s.vendor then
+                return true
+            end
+        end
+        return false
+    end
+    return self:GetItemCategoryByName(item.name) == categoryID
+end
+
 function HC:SearchAll(query, filters)
     local results = {}
     local hasQuery = query and query:gsub("%s+", "") ~= ""
+    local queryNumber = nil
     if hasQuery then query = query:lower() end
+    if hasQuery then queryNumber = tonumber(query) end
     filters = filters or {}
     local seenNameKeys = {}
     local seenItemIDs = {}
@@ -627,10 +899,16 @@ function HC:SearchAll(query, filters)
                 end
             end
 
+            if passes and filters.itemCategory and filters.itemCategory ~= "all" then
+                passes = self:ItemMatchesCategory(item, filters.itemCategory)
+            end
+
             if passes then
                 local wpMapID, wpX, wpY, wpTitle = self:GetBestWaypointForItem(item)
-                local collected = self:IsDecorCollected(name)
+                local collected = self:IsItemCollected(item.itemID, name)
                 local resolvedItemID = item.itemID or self:ResolveItemIDByName(item.name)
+                local itemCategory = self:GetItemCategoryByName(item.name)
+                local sourceTags = self:GetSourceTags(item.sources)
                 if resolvedItemID then
                     item.itemID = resolvedItemID
                     self:EnsureItemCached(resolvedItemID)
@@ -645,6 +923,8 @@ function HC:SearchAll(query, filters)
                         vendorData = primaryVendorData,
                         faction = primaryFaction,
                         standing = primaryStanding,
+                        itemCategory = itemCategory,
+                        sourceTags = sourceTags,
                         waypoint = (wpMapID and wpX and wpY) and { mapID = wpMapID, x = wpX, y = wpY, title = wpTitle } or nil,
                     },
                     name = item.name,
@@ -656,6 +936,8 @@ function HC:SearchAll(query, filters)
                     faction = primaryFaction,
                     sourceCount = #(item.sources or {}),
                     vendorData = primaryVendorData,
+                    itemCategory = itemCategory,
+                    sourceTags = sourceTags,
                     collected = collected,
                 })
                 local itemNameKey = self:NormalizeItemName(item.name)
@@ -674,7 +956,7 @@ function HC:SearchAll(query, filters)
         local matches = (not hasQuery) or
             (vendor.name and vendor.name:lower():find(query, 1, true)) or
             (vendor.zone and vendor.zone:lower():find(query, 1, true))
-        if matches and self:PassesFilters(vendor, filters, "vendor") then
+        if (not filters.hideVendorEntries) and matches and self:PassesFilters(vendor, filters, "vendor") then
             table.insert(results, {
                 type = "vendor",
                 data = vendor,
@@ -686,6 +968,8 @@ function HC:SearchAll(query, filters)
                 cost = nil,
                 sourceCount = 1,
                 vendorData = vendor,
+                itemCategory = "vendor",
+                sourceTags = { "Vendor" },
                 collected = false,
             })
         end
@@ -694,18 +978,21 @@ function HC:SearchAll(query, filters)
     -- Include additional known items from AllItems cache as unknown entries.
     -- This lets newly-known itemIDs be searchable/previewable before sources are curated.
     for itemID, itemData in pairs(self.allItemCache or {}) do
-        local cachedName = itemData and itemData.name
-        if cachedName and not seenItemIDs[itemID] then
-            local key = self:NormalizeItemName(cachedName)
-            if key and not seenNameKeys[key] then
-                local match = (not hasQuery) or (cachedName:lower():find(query, 1, true) ~= nil)
-                if match and self:PassesFilters({ expansion = nil, faction = nil }, filters, "unknown") then
-                    local unknown = self:GetUnknownItemResult(itemID, cachedName)
-                    unknown.sourceCount = 0
-                    table.insert(results, unknown)
-                    seenNameKeys[key] = true
-                    seenItemIDs[itemID] = true
-                end
+        if not seenItemIDs[itemID] then
+            local cachedName = itemData and itemData.name
+            local displayName = cachedName or ("Item #" .. tostring(itemID))
+            local key = self:NormalizeItemName(displayName)
+            local match = (not hasQuery)
+                or (cachedName and cachedName:lower():find(query, 1, true) ~= nil)
+                or (queryNumber and itemID == queryNumber)
+
+            if key and (not seenNameKeys[key]) and match and self:PassesFilters({ expansion = nil, faction = nil }, filters, "unknown") then
+                local unknown = self:GetUnknownItemResult(itemID, displayName)
+                unknown.source = cachedName and "Currently Unknown" or "Unresolved Item Data"
+                unknown.sourceCount = 0
+                table.insert(results, unknown)
+                seenNameKeys[key] = true
+                seenItemIDs[itemID] = true
             end
         end
     end
@@ -977,51 +1264,118 @@ function HC:GetStatistics()
     local stats = {
         totalItems = 0,
         collected = 0,
+        knownTotal = 0,
+        trackableTotal = 0,
+        collectedTrackable = 0,
+        collectedKnown = 0,
+        unknownSourceItems = 0,
         bySource = {},
         byExpansion = {},
     }
-    
-    -- Count all items
-    local allItems = {}
-    
-    for _, item in ipairs(HC.AchievementItems or {}) do
-        allItems[item.name] = { type = "achievement", data = item }
+
+    if (not self.ItemList) or (#self.ItemList == 0) then
+        self:BuildItemIndex(true)
     end
-    for _, item in ipairs(HC.QuestItems or {}) do
-        allItems[item.name] = { type = "quest", data = item }
-    end
-    for _, item in ipairs(HC.ReputationItems or {}) do
-        allItems[item.name] = { type = "reputation", data = item }
-    end
-    for _, item in ipairs(HC.ProfessionItems or {}) do
-        allItems[item.name] = { type = "profession", data = item }
-    end
-    
-    for name, item in pairs(allItems) do
-        stats.totalItems = stats.totalItems + 1
-        
-        local collected = self:IsDecorCollected(name)
+
+    local knownIDKeys = {}
+    local knownNameKeysFromIDs = {}
+    local trackableIDKeys = {}
+    local trackableNoIDNameKeys = {}
+    local allTrackableNameKeys = {}
+    local collectionExtraNameKeys = {}
+
+    local function addStatRow(sourceType, expansion, collected)
+        local sourceKey = sourceType or "unknown"
+        stats.bySource[sourceKey] = stats.bySource[sourceKey] or { total = 0, collected = 0 }
+        stats.bySource[sourceKey].total = stats.bySource[sourceKey].total + 1
         if collected then
-            stats.collected = stats.collected + 1
+            stats.bySource[sourceKey].collected = stats.bySource[sourceKey].collected + 1
         end
-        
-        -- Count by source
-        local sourceType = item.type
-        stats.bySource[sourceType] = stats.bySource[sourceType] or { total = 0, collected = 0 }
-        stats.bySource[sourceType].total = stats.bySource[sourceType].total + 1
+
+        local expansionKey = expansion or "unknown"
+        stats.byExpansion[expansionKey] = stats.byExpansion[expansionKey] or { total = 0, collected = 0 }
+        stats.byExpansion[expansionKey].total = stats.byExpansion[expansionKey].total + 1
         if collected then
-            stats.bySource[sourceType].collected = stats.bySource[sourceType].collected + 1
-        end
-        
-        -- Count by expansion
-        local expansion = item.data.expansion or "unknown"
-        stats.byExpansion[expansion] = stats.byExpansion[expansion] or { total = 0, collected = 0 }
-        stats.byExpansion[expansion].total = stats.byExpansion[expansion].total + 1
-        if collected then
-            stats.byExpansion[expansion].collected = stats.byExpansion[expansion].collected + 1
+            stats.byExpansion[expansionKey].collected = stats.byExpansion[expansionKey].collected + 1
         end
     end
-    
+
+    -- Known universe from all item IDs cache.
+    for itemID, itemData in pairs(self.allItemCache or {}) do
+        if not knownIDKeys[itemID] then
+            knownIDKeys[itemID] = true
+            stats.knownTotal = stats.knownTotal + 1
+
+            local collected = self:IsItemCollected(itemID, itemData and itemData.name)
+            if collected then
+                stats.collectedKnown = stats.collectedKnown + 1
+            end
+
+            local cachedName = itemData and itemData.name
+            if cachedName and cachedName ~= "" then
+                local key = self:NormalizeItemName(cachedName)
+                if key then
+                    knownNameKeysFromIDs[key] = true
+                end
+            end
+        end
+    end
+
+    -- Trackable universe from curated/imported item index.
+    for _, item in ipairs(self.ItemList or {}) do
+        local primary = (item.sources and item.sources[1]) or {}
+        local collected = self:IsItemCollected(item.itemID, item.name)
+        addStatRow(primary.sourceType or "unknown", primary.expansion, collected)
+
+        local key = self:NormalizeItemName(item.name)
+        if key then
+            allTrackableNameKeys[key] = true
+        end
+
+        if item.itemID then
+            if not trackableIDKeys[item.itemID] then
+                trackableIDKeys[item.itemID] = true
+                stats.trackableTotal = stats.trackableTotal + 1
+                if collected then
+                    stats.collectedTrackable = stats.collectedTrackable + 1
+                end
+            end
+        elseif key and not trackableNoIDNameKeys[key] then
+            trackableNoIDNameKeys[key] = true
+            stats.trackableTotal = stats.trackableTotal + 1
+            if collected then
+                stats.collectedTrackable = stats.collectedTrackable + 1
+            end
+
+            -- Source-known no-ID items should still count as known when absent from known ID name set.
+            if not knownNameKeysFromIDs[key] then
+                stats.knownTotal = stats.knownTotal + 1
+                if collected then
+                    stats.collectedKnown = stats.collectedKnown + 1
+                end
+            end
+        end
+    end
+
+    -- Player-collected names not present in known IDs nor trackable index.
+    for nameKey, info in pairs(self.collectionNameCache or {}) do
+        if not knownNameKeysFromIDs[nameKey] and not allTrackableNameKeys[nameKey] and not collectionExtraNameKeys[nameKey] then
+            collectionExtraNameKeys[nameKey] = true
+            stats.knownTotal = stats.knownTotal + 1
+            if info and info.collected then
+                stats.collectedKnown = stats.collectedKnown + 1
+            end
+
+            addStatRow("unknown", nil, info and info.collected)
+        end
+    end
+
+    stats.unknownSourceItems = math.max(0, stats.knownTotal - stats.trackableTotal)
+
+    -- Legacy fields retained for compatibility.
+    stats.totalItems = stats.trackableTotal
+    stats.collected = stats.collectedTrackable
+
     return stats
 end
 
@@ -1068,6 +1422,7 @@ function HC:ResolveAllItems()
 end
 
 function HC:GetUnknownItemResult(itemID, itemName)
+    local collected = self:IsItemCollected(itemID, itemName or ("Item " .. tostring(itemID)))
     return {
         type = "unknown",
         data = {
@@ -1083,6 +1438,6 @@ function HC:GetUnknownItemResult(itemID, itemName)
         cost = nil,
         expansion = nil,
         faction = nil,
-        collected = self:IsDecorCollected(itemName or ("Item " .. tostring(itemID))),
+        collected = collected,
     }
 end

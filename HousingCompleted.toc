@@ -2,7 +2,7 @@
 ## Title: |cff00ff99Housing|r |cffffffffCompleted|r
 ## Notes: Complete housing decor collection tracker - Find all items, vendors, achievements, and more!
 ## Author: Korivash
-## Version: 1.3.5
+## Version: 1.3.6
 ## SavedVariables: HousingCompletedDB
 ## OptionalDeps: TomTom
 ## IconTexture: Interface\Icons\INV_Misc_Key_14

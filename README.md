@@ -1,6 +1,6 @@
 # Housing Completed
 
-![Version](https://img.shields.io/badge/version-1.0.0-green)
+![Version](https://img.shields.io/badge/version-1.3.6-green)
 ![WoW Version](https://img.shields.io/badge/WoW-12.0.1%20Midnight-blue)
 ![License](https://img.shields.io/badge/license-MIT-orange)
 
@@ -22,11 +22,13 @@ A comprehensive World of Warcraft addon for tracking and collecting all housing 
 - **Real-time Search**: Find items by name, vendor, or zone instantly
 - **Collection Tracking**: Visual indicators for collected/uncollected items
 - **Progress Stats**: Track your overall collection completion
+- **Split Progress Metrics**: `Collected/Trackable`, `Trackable/Known`, and `Unknown Sources`
 - **REP Requirement Badge**: Shows when an item has a reputation requirement
 - **REP Tooltip**: Hover badge to see faction/standing or requirement notes
 - **Preview Fallbacks**: Housing preview, Dressing Room, then modified-click fallback
 
 ### 🗺️ Waypoint Integration
+- **One-Click Set Waypoint Button**: Select an item, then click `Set Waypoint`
 - **TomTom Support**: One-click waypoints to any vendor
 - **Blizzard Map Pins**: Native map pin support
 - **Configurable**: Choose TomTom, Blizzard, or both
@@ -61,11 +63,14 @@ Search for "Housing Completed" in your addon manager.
 1. **Search Box**: Type to filter results in real-time
 2. **Category Tabs**: Click to filter by source type
 3. **Filter Checkboxes**: Show/hide collected or uncollected items
-4. **Waypoint Button**: Click the pin icon to set a waypoint to the vendor
-5. **REP Badge Hover**: Hover `REP` on a row for exact reputation requirement details
+4. **Select a Row**: Click the item you want to track
+5. **Set Waypoint Button**: Click `Set Waypoint` in the footer to route to that item's best known source
+6. **Row Map Icon**: Optional quick action per row using the map icon button
+7. **REP Badge Hover**: Hover `REP` on a row for exact reputation requirement details
 
 ### Waypoints
-- Click the map pin icon on any item row to set a waypoint
+- Preferred flow: click an item row, then click `Set Waypoint` at the bottom of the results panel
+- Quick flow: click the map icon on an item row
 - Works with TomTom (if installed) or Blizzard's native map pins
 - Configure your preferred waypoint system in Settings
 

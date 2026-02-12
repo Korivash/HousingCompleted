@@ -28,12 +28,14 @@ local COLORS = {
     row = {0.08, 0.08, 0.12, 0.8},
     rowHover = {0.12, 0.12, 0.18, 1},
     rowSelected = {0.15, 0.25, 0.2, 1},
+    border = {0.14, 0.22, 0.26, 1},
 }
 
 local currentPage = 1
 local totalPages = 1
 local currentResults = {}
 local currentTab = "all"
+local currentItemCategory = "all"
 local selectedItem = nil
 
 local function GetButtonText(button)
@@ -100,7 +102,7 @@ function HC:CreateUI()
         edgeSize = 2,
     })
     frame:SetBackdropColor(unpack(COLORS.background))
-    frame:SetBackdropBorderColor(0.15, 0.15, 0.2, 1)
+    frame:SetBackdropBorderColor(unpack(COLORS.border))
     frame:SetMovable(true)
     frame:EnableMouse(true)
     frame:SetClampedToScreen(true)
@@ -124,7 +126,6 @@ function HC:CreateUI()
     
     self:CreateHeader(frame)
     self:CreateSidebar(frame)
-    self:CreatePreviewPanel(frame)
     self:CreateContent(frame)
     self:CreateSettingsPanel(frame)
     
@@ -138,6 +139,12 @@ function HC:CreateHeader(parent)
     header:SetHeight(HEADER_HEIGHT)
     header:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8" })
     header:SetBackdropColor(unpack(COLORS.headerBg))
+
+    local bottomBorder = header:CreateTexture(nil, "BORDER")
+    bottomBorder:SetPoint("BOTTOMLEFT", 0, 0)
+    bottomBorder:SetPoint("BOTTOMRIGHT", 0, 0)
+    bottomBorder:SetHeight(1)
+    bottomBorder:SetColorTexture(unpack(COLORS.border))
     
     local title = header:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     title:SetPoint("LEFT", 20, 8)
@@ -173,8 +180,13 @@ function HC:CreateSidebar(parent)
     sidebar:SetPoint("TOPLEFT", 0, -HEADER_HEIGHT)
     sidebar:SetPoint("BOTTOMLEFT", 0, 0)
     sidebar:SetWidth(SIDEBAR_WIDTH)
-    sidebar:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8" })
+    sidebar:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
     sidebar:SetBackdropColor(unpack(COLORS.sidebar))
+    sidebar:SetBackdropBorderColor(unpack(COLORS.border))
     
     local y = -15
     
@@ -190,8 +202,33 @@ function HC:CreateSidebar(parent)
     end)
     self.searchBox = searchBox.editBox
     y = y - 50
-    
-    local tabLabel = sidebar:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+
+    local scrollFrame = CreateFrame("ScrollFrame", nil, sidebar, "UIPanelScrollFrameTemplate")
+    scrollFrame:SetPoint("TOPLEFT", 6, y)
+    scrollFrame:SetPoint("BOTTOMRIGHT", -28, 10)
+    scrollFrame:EnableMouseWheel(true)
+    self.sidebarScrollFrame = scrollFrame
+
+    local scrollChild = CreateFrame("Frame", nil, scrollFrame)
+    scrollChild:SetSize(SIDEBAR_WIDTH - 36, 500)
+    scrollFrame:SetScrollChild(scrollChild)
+
+    scrollFrame:SetScript("OnMouseWheel", function(self, delta)
+        local current = self:GetVerticalScroll() or 0
+        local step = 28
+        local minVal, maxVal = 0, 0
+        if self.ScrollBar and self.ScrollBar.GetMinMaxValues then
+            minVal, maxVal = self.ScrollBar:GetMinMaxValues()
+        end
+        local nextVal = current - (delta * step)
+        if nextVal < minVal then nextVal = minVal end
+        if nextVal > maxVal then nextVal = maxVal end
+        self:SetVerticalScroll(nextVal)
+    end)
+
+    y = -8
+
+    local tabLabel = scrollChild:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     tabLabel:SetPoint("TOPLEFT", 15, y)
     tabLabel:SetText("CATEGORIES")
     tabLabel:SetTextColor(unpack(COLORS.accentAlt))
@@ -199,6 +236,7 @@ function HC:CreateSidebar(parent)
     
     -- Category tabs with correct icons
     local tabs = {
+        { id = "items", name = "Items", icon = "Interface\\Icons\\INV_Misc_Bag_10_Blue" },
         { id = "all", name = "All Items", icon = "Interface\\Icons\\INV_Misc_Bag_10" },
         { id = "vendor", name = "Vendors", icon = "Interface\\Icons\\INV_Misc_Coin_01" },
         { id = "achievement", name = "Achievements", icon = "Interface\\Icons\\Achievement_General_100kQuests" },
@@ -210,8 +248,8 @@ function HC:CreateSidebar(parent)
     
     self.tabButtons = {}
     for _, tabInfo in ipairs(tabs) do
-        local btn = CreateFrame("Button", nil, sidebar)
-        btn:SetSize(SIDEBAR_WIDTH - 20, 26)
+        local btn = CreateFrame("Button", nil, scrollChild)
+        btn:SetSize(SIDEBAR_WIDTH - 44, 26)
         btn:SetPoint("TOP", 0, y)
         btn.tabID = tabInfo.id
         
@@ -248,19 +286,19 @@ function HC:CreateSidebar(parent)
     end
     y = y - 12
     
-    local divider = sidebar:CreateTexture(nil, "ARTWORK")
-    divider:SetSize(SIDEBAR_WIDTH - 30, 1)
+    local divider = scrollChild:CreateTexture(nil, "ARTWORK")
+    divider:SetSize(SIDEBAR_WIDTH - 52, 1)
     divider:SetPoint("TOP", 0, y)
     divider:SetColorTexture(0.2, 0.2, 0.25, 1)
     y = y - 15
     
-    local filterLabel = sidebar:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    local filterLabel = scrollChild:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     filterLabel:SetPoint("TOPLEFT", 15, y)
     filterLabel:SetText("FILTERS")
     filterLabel:SetTextColor(unpack(COLORS.accentAlt))
     y = y - 22
     
-    local collectedCb = CreateFrame("CheckButton", nil, sidebar, "UICheckButtonTemplate")
+    local collectedCb = CreateFrame("CheckButton", nil, scrollChild, "UICheckButtonTemplate")
     collectedCb:SetPoint("TOPLEFT", 10, y)
     collectedCb:SetSize(24, 24)
     SetButtonText(collectedCb, "Collected", 0.7, 0.7, 0.7)
@@ -269,34 +307,91 @@ function HC:CreateSidebar(parent)
     self.collectedCb = collectedCb
     y = y - 24
     
-    local uncollectedCb = CreateFrame("CheckButton", nil, sidebar, "UICheckButtonTemplate")
+    local uncollectedCb = CreateFrame("CheckButton", nil, scrollChild, "UICheckButtonTemplate")
     uncollectedCb:SetPoint("TOPLEFT", 10, y)
     uncollectedCb:SetSize(24, 24)
     SetButtonText(uncollectedCb, "Uncollected", 0.7, 0.7, 0.7)
     uncollectedCb:SetChecked(true)
     uncollectedCb:SetScript("OnClick", function() HC:DoSearch() end)
     self.uncollectedCb = uncollectedCb
-    y = y - 35
+    y = y - 30
+
+    local itemCategoryLabel = scrollChild:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    itemCategoryLabel:SetPoint("TOPLEFT", 15, y)
+    itemCategoryLabel:SetText("ITEM TYPES")
+    itemCategoryLabel:SetTextColor(unpack(COLORS.accentAlt))
+    self.itemCategoryLabel = itemCategoryLabel
+    y = y - 20
+
+    self.itemCategoryButtons = {}
+    local categories = self.GetItemCategories and self:GetItemCategories() or {
+        { id = "all", name = "All Item Types" },
+    }
+    for _, cat in ipairs(categories) do
+        local btn = CreateFrame("Button", nil, scrollChild)
+        btn:SetSize(SIDEBAR_WIDTH - 44, 18)
+        btn:SetPoint("TOPLEFT", 10, y)
+        btn.categoryID = cat.id
+
+        local bg = btn:CreateTexture(nil, "BACKGROUND")
+        bg:SetAllPoints()
+        bg:SetColorTexture(0, 0, 0, 0)
+        btn.bg = bg
+
+        local label = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        label:SetPoint("LEFT", 8, 0)
+        label:SetText(cat.name)
+        label:SetTextColor(0.7, 0.7, 0.7)
+        btn.label = label
+
+        btn:SetScript("OnEnter", function(self)
+            if currentItemCategory ~= self.categoryID then
+                self.bg:SetColorTexture(0.12, 0.12, 0.18, 1)
+            end
+        end)
+        btn:SetScript("OnLeave", function(self)
+            if currentItemCategory ~= self.categoryID then
+                self.bg:SetColorTexture(0, 0, 0, 0)
+            end
+        end)
+        btn:SetScript("OnClick", function(self)
+            currentItemCategory = self.categoryID
+            HC:UpdateItemCategoryButtons()
+            HC:DoSearch()
+        end)
+
+        self.itemCategoryButtons[cat.id] = btn
+        y = y - 18
+    end
+    y = y - 12
     
-    local progressLabel = sidebar:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    local progressLabel = scrollChild:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     progressLabel:SetPoint("TOPLEFT", 15, y)
     progressLabel:SetText("PROGRESS")
     progressLabel:SetTextColor(unpack(COLORS.accentAlt))
     y = y - 20
     
-    local progressText = sidebar:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    local progressText = scrollChild:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     progressText:SetPoint("TOPLEFT", 15, y)
     progressText:SetText("0 / 0")
     progressText:SetTextColor(0.7, 0.7, 0.7)
     self.progressText = progressText
     
+    scrollChild:SetHeight(math.max(520, -y + 30))
+    if scrollFrame.ScrollBar and scrollFrame.ScrollBar.SetValueStep then
+        scrollFrame.ScrollBar:SetValueStep(20)
+    end
+
     self.sidebar = sidebar
+    self:UpdateItemCategoryButtons()
 end
 
 function HC:CreateContent(parent)
-    local content = CreateFrame("Frame", nil, parent)
+    local content = CreateFrame("Frame", nil, parent, "BackdropTemplate")
     content:SetPoint("TOPLEFT", SIDEBAR_WIDTH, -HEADER_HEIGHT)
-    content:SetPoint("BOTTOMRIGHT", -PREVIEW_WIDTH, 0)
+    content:SetPoint("BOTTOMRIGHT", 0, 0)
+    content:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8" })
+    content:SetBackdropColor(0.045, 0.045, 0.07, 0.9)
     
     local resultsFrame = CreateFrame("Frame", nil, content, "BackdropTemplate")
     resultsFrame:SetPoint("TOPLEFT", 15, -15)
@@ -341,6 +436,16 @@ function HC:CreateContent(parent)
         if currentPage < totalPages then currentPage = currentPage + 1; HC:UpdateResults() end
     end)
     self.nextBtn = nextBtn
+
+    local setWaypointBtn = CreateFrame("Button", nil, pagination, "UIPanelButtonTemplate")
+    setWaypointBtn:SetSize(130, 26)
+    setWaypointBtn:SetPoint("RIGHT", nextBtn, "LEFT", -10, 0)
+    setWaypointBtn:SetText("Set Waypoint")
+    setWaypointBtn:SetScript("OnClick", function()
+        HC:SetResultWaypoint(selectedItem)
+        HC:UpdateSetWaypointButton()
+    end)
+    self.setWaypointBtn = setWaypointBtn
     
     local pageText = pagination:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     pageText:SetPoint("CENTER")
@@ -353,6 +458,7 @@ function HC:CreateContent(parent)
     statusText:SetText("0 results")
     statusText:SetTextColor(unpack(COLORS.textDim))
     self.statusText = statusText
+    self:UpdateSetWaypointButton()
     
     self.content = content
 end
@@ -383,8 +489,8 @@ function HC:CreateResultRow(parent, index)
     end)
     row:SetScript("OnClick", function(self)
         selectedItem = self.itemData
-        HC:UpdatePreview(self.itemData)
         HC:UpdateRowSelection()
+        HC:UpdateSetWaypointButton()
 
         -- If this entry has an itemID, open the Blizzard preview (DecorVendor-style)
         local itemID = HC:GetResolvedItemID(self.itemData)
@@ -428,19 +534,13 @@ function HC:CreateResultRow(parent, index)
     local waypointBtn = CreateFrame("Button", nil, row)
     waypointBtn:SetSize(28, 28)
     waypointBtn:SetPoint("RIGHT", -10, 0)
-    waypointBtn:SetNormalTexture("Interface\\Minimap\\Tracking\\TrivialQuests")
+    waypointBtn:SetNormalTexture("Interface\\Icons\\INV_Misc_Map07")
     waypointBtn:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
     waypointBtn:SetScript("OnClick", function()
-        if row.itemData and row.itemData.type == "vendor" and row.itemData.data then
-            local v = row.itemData.data
-            if v and v.mapID and v.x and v.y then
-                HC:SetSmartWaypoint(v.x, v.y, v.mapID, v.name)
-            end
-            return
-        end
-        if row.itemData and row.itemData.data then
-            HC:SetItemWaypoint(row.itemData.data)
-        end
+        HC:SetResultWaypoint(row.itemData)
+        selectedItem = row.itemData
+        HC:UpdateRowSelection()
+        HC:UpdateSetWaypointButton()
     end)
     row.waypointBtn = waypointBtn
     
@@ -558,6 +658,16 @@ function HC:GetReputationRequirements(resultData)
     end
 
     return reqs
+end
+
+function HC:GetItemCategoryName(categoryID)
+    if not self.GetItemCategories then return categoryID or "Misc" end
+    for _, cat in ipairs(self:GetItemCategories()) do
+        if cat.id == categoryID then
+            return cat.name
+        end
+    end
+    return "Misc"
 end
 
 function HC:CreatePreviewPanel(parent)
@@ -898,6 +1008,15 @@ function HC:UpdateRowSelection()
     end
 end
 
+function HC:UpdateSetWaypointButton()
+    if not self.setWaypointBtn then return end
+
+    local hasSelection = selectedItem ~= nil
+    local canWaypoint = hasSelection and self.ResultHasWaypoint and self:ResultHasWaypoint(selectedItem)
+    self.setWaypointBtn:SetEnabled(canWaypoint and true or false)
+    self.setWaypointBtn:SetAlpha(canWaypoint and 1 or 0.45)
+end
+
 function HC:CreateSettingsPanel(parent)
     local settings = CreateFrame("Frame", nil, parent, "BackdropTemplate")
     settings:SetPoint("TOPLEFT", SIDEBAR_WIDTH, -HEADER_HEIGHT)
@@ -999,7 +1118,10 @@ function HC:DoSearch()
         showUncollected = self.uncollectedCb and self.uncollectedCb:GetChecked(),
         faction = self:GetPlayerFaction(),
     }
-    if currentTab ~= "all" then 
+    if currentTab == "items" then
+        filters.itemCategory = currentItemCategory
+        filters.hideVendorEntries = true
+    elseif currentTab ~= "all" then 
         filters.sourceTypes = { [currentTab] = true } 
     end
     
@@ -1019,7 +1141,7 @@ function HC:DoSearch()
     
     self:UpdateResults()
     self:UpdateStats()
-    self:UpdatePreview(nil)
+    self:UpdateSetWaypointButton()
 end
 
 function HC:UpdateResults()
@@ -1077,6 +1199,9 @@ function HC:UpdateResults()
             row.collectedIcon:SetShown(data.collected)
             
             local sourceText = data.source or ""
+            if currentTab == "items" then
+                sourceText = "Category: " .. self:GetItemCategoryName(data.itemCategory or (data.data and data.data.itemCategory))
+            end
             if data.type == "vendor" and data.data then
                 sourceText = data.zone or ""
                 if data.data.subzone then sourceText = sourceText .. " - " .. data.data.subzone end
@@ -1094,6 +1219,13 @@ function HC:UpdateResults()
                 if infoText ~= "" then infoText = infoText .. " - " end
                 infoText = infoText .. data.vendor
             end
+            if data.sourceTags and #data.sourceTags > 0 then
+                local tagText = table.concat(data.sourceTags, ", ")
+                if infoText ~= "" then
+                    infoText = infoText .. " |cff666666| |r"
+                end
+                infoText = infoText .. "|cff999999Tags:|r " .. tagText
+            end
             row.infoText:SetText(infoText)
             
             row.typeBadge:SetText(sourceInfo.name)
@@ -1108,7 +1240,7 @@ function HC:UpdateResults()
             row.vendorData = data.type == "vendor" and data.data or nil
             row.vendorName = data.vendor
             
-            local hasCoords = (data.type == "vendor" and data.data and data.data.mapID and data.data.x and data.data.y) or (data.data and data.data.waypoint and data.data.waypoint.mapID and data.data.waypoint.x and data.data.waypoint.y)
+            local hasCoords = self.ResultHasWaypoint and self:ResultHasWaypoint(data)
             row.waypointBtn:SetEnabled(hasCoords and true or false)
             row.waypointBtn:SetAlpha(hasCoords and 1 or 0.3)
             
@@ -1123,6 +1255,7 @@ function HC:UpdateResults()
     if self.prevBtn then self.prevBtn:SetEnabled(currentPage > 1) end
     if self.nextBtn then self.nextBtn:SetEnabled(currentPage < totalPages) end
     if self.statusText then self.statusText:SetText(string.format("%d results", #currentResults)) end
+    self:UpdateSetWaypointButton()
 end
 
 function HC:UpdateTabButtons()
@@ -1135,16 +1268,44 @@ function HC:UpdateTabButtons()
             btn.label:SetTextColor(0.7, 0.7, 0.7)
         end
     end
+    self:UpdateItemCategoryButtons()
+end
+
+function HC:UpdateItemCategoryButtons()
+    local showCategories = currentTab == "items"
+    if self.itemCategoryLabel then
+        self.itemCategoryLabel:SetShown(showCategories)
+    end
+    for catID, btn in pairs(self.itemCategoryButtons or {}) do
+        btn:SetShown(showCategories)
+        if showCategories and catID == currentItemCategory then
+            btn.bg:SetColorTexture(0.1, 0.3, 0.2, 1)
+            btn.label:SetTextColor(unpack(COLORS.accent))
+        else
+            btn.bg:SetColorTexture(0, 0, 0, 0)
+            btn.label:SetTextColor(0.7, 0.7, 0.7)
+        end
+    end
 end
 
 function HC:UpdateStats()
     local stats = self:GetStatistics()
     if self.statsText then
-        local pct = stats.totalItems > 0 and math.floor((stats.collected / stats.totalItems) * 100) or 0
-        self.statsText:SetText(string.format("Collection: %d / %d (%d%%)", stats.collected, stats.totalItems, pct))
+        local pctCollectedTrackable = stats.trackableTotal > 0 and math.floor((stats.collectedTrackable / stats.trackableTotal) * 100) or 0
+        local pctTrackableKnown = stats.knownTotal > 0 and math.floor((stats.trackableTotal / stats.knownTotal) * 100) or 0
+        self.statsText:SetText(string.format(
+            "Collected/Trackable: %d/%d (%d%%)  |  Trackable/Known: %d/%d (%d%%)",
+            stats.collectedTrackable, stats.trackableTotal, pctCollectedTrackable,
+            stats.trackableTotal, stats.knownTotal, pctTrackableKnown
+        ))
     end
     if self.progressText then
-        self.progressText:SetText(string.format("Collected: %d / %d", stats.collected, stats.totalItems))
+        self.progressText:SetText(string.format(
+            "C/T: %d/%d  |  T/K: %d/%d  |  Unknown Sources: %d",
+            stats.collectedTrackable, stats.trackableTotal,
+            stats.trackableTotal, stats.knownTotal,
+            stats.unknownSourceItems
+        ))
     end
 end
 
@@ -1156,7 +1317,9 @@ function HC:ToggleUI()
         self.mainFrame:Show()
         if self.settingsPanel then self.settingsPanel:Hide() end
         if self.content then self.content:Show() end
-        if self.previewPanel then self.previewPanel:Show() end
+        if self.CacheCollection and not self.catalogReady then
+            self:CacheCollection()
+        end
         self:UpdateTabButtons()
         self:DoSearch()
     end
@@ -1167,11 +1330,9 @@ function HC:ToggleSettings()
     if self.settingsPanel:IsShown() then
         self.settingsPanel:Hide()
         if self.content then self.content:Show() end
-        if self.previewPanel then self.previewPanel:Show() end
     else
         self.settingsPanel:Show()
         if self.content then self.content:Hide() end
-        if self.previewPanel then self.previewPanel:Hide() end
     end
 end
 
@@ -1180,5 +1341,4 @@ function HC:OpenSettings()
     self.mainFrame:Show()
     if self.settingsPanel then self.settingsPanel:Show() end
     if self.content then self.content:Hide() end
-    if self.previewPanel then self.previewPanel:Hide() end
 end

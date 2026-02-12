@@ -5,6 +5,21 @@ All notable changes to Housing Completed will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.6] - 2026-02-12
+
+### Added
+- Broader catalog collection scan across multiple housing catalog roots, with safe fallback to legacy root scan.
+- New collection lookup caches by normalized item name and by itemID for more reliable collected detection.
+- New primary `Set Waypoint` button in the results footer (select item first, then click once).
+
+### Changed
+- Statistics now count the full indexed item universe (curated + imported + `AllItems` cache + uncatalogued collected names), not only curated source tables.
+- Collection stats UI now shows three metrics: `Collected/Trackable`, `Trackable/Known`, and `Unknown Sources`.
+- Unknown-item search now includes unresolved IDs from the full all-item cache, so tracking is no longer capped to a small subset.
+- Collected detection now checks both item name and itemID where available.
+- Row waypoint icons now use a map icon (instead of quest-style icon) to reduce navigation confusion.
+- Waypoint routing logic is now unified for row buttons and the footer button, with consistent fallback behavior.
+
 ## [1.3.5] - 2026-02-12
 
 ### Added
