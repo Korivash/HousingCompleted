@@ -22,6 +22,9 @@ A comprehensive World of Warcraft addon for tracking and collecting all housing 
 - **Real-time Search**: Find items by name, vendor, or zone instantly
 - **Collection Tracking**: Visual indicators for collected/uncollected items
 - **Progress Stats**: Track your overall collection completion
+- **REP Requirement Badge**: Shows when an item has a reputation requirement
+- **REP Tooltip**: Hover badge to see faction/standing or requirement notes
+- **Preview Fallbacks**: Housing preview, Dressing Room, then modified-click fallback
 
 ### 🗺️ Waypoint Integration
 - **TomTom Support**: One-click waypoints to any vendor
@@ -59,6 +62,7 @@ Search for "Housing Completed" in your addon manager.
 2. **Category Tabs**: Click to filter by source type
 3. **Filter Checkboxes**: Show/hide collected or uncollected items
 4. **Waypoint Button**: Click the pin icon to set a waypoint to the vendor
+5. **REP Badge Hover**: Hover `REP` on a row for exact reputation requirement details
 
 ### Waypoints
 - Click the map pin icon on any item row to set a waypoint
@@ -148,6 +152,7 @@ This writes:
 - `Data/ImportedAllItems.lua`
 
 Imported rows are automatically merged at runtime with curated data.
+Items from your collection and cache can also appear as fallback searchable rows even before source curation is complete.
 
 ### Data File Formats
 

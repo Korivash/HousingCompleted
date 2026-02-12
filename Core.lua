@@ -6,7 +6,7 @@
 local addonName, HC = ...
 _G["HousingCompleted"] = HC
 
-HC.version = "1.3.4"
+HC.version = "1.3.5"
 HC.searchResults = {}
 HC.collectionCache = {}
 
