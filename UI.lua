@@ -432,7 +432,7 @@ function HC:CreateResultRow(parent, index)
         if row.itemData and row.itemData.type == "vendor" and row.itemData.data then
             local v = row.itemData.data
             if v and v.mapID and v.x and v.y then
-                HC:SetWaypoint(v.x, v.y, v.mapID, v.name)
+                HC:SetSmartWaypoint(v.x, v.y, v.mapID, v.name)
             end
             return
         end
@@ -602,11 +602,11 @@ function HC:CreatePreviewPanel(parent)
         if selectedItem then
             local data = selectedItem.data
             if selectedItem.type == "vendor" and data and data.x and data.y and data.mapID then
-                HC:SetWaypoint(data.x, data.y, data.mapID, data.name)
+                HC:SetSmartWaypoint(data.x, data.y, data.mapID, data.name)
             elseif selectedItem.vendor then
                 local v = HC:GetVendorByName(selectedItem.vendor)
                 if v and v.x and v.y and v.mapID then
-                    HC:SetWaypoint(v.x, v.y, v.mapID, v.name)
+                    HC:SetSmartWaypoint(v.x, v.y, v.mapID, v.name)
                 end
             end
         end
@@ -753,30 +753,58 @@ function HC:CreateSettingsPanel(parent)
     
     local waypointLabel = settings:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     waypointLabel:SetPoint("TOPLEFT", 20, y)
-    waypointLabel:SetText("Waypoints: Blizzard (SuperTrack)")
+    waypointLabel:SetText("Waypoints: Blizzard or TomTom (if enabled)")
     y = y - 35
 
+
+    -- Force TomTom routing toggle
+    local forceTomTomCheck = CreateFrame("CheckButton", nil, settings, "InterfaceOptionsCheckButtonTemplate")
+    forceTomTomCheck:SetPoint("TOPLEFT", 20, y)
+    forceTomTomCheck.Text:SetText("Force TomTom Routing (recommended)")
+    forceTomTomCheck:SetChecked(HousingCompletedDB and HousingCompletedDB.navigation and HousingCompletedDB.navigation.forceTomTom)
+
+    forceTomTomCheck:SetScript("OnClick", function(selfBtn)
+        if not HousingCompletedDB.navigation then HousingCompletedDB.navigation = {} end
+        HousingCompletedDB.navigation.forceTomTom = selfBtn:GetChecked() and true or false
+
+        if HousingCompletedDB.navigation.forceTomTom and not _G.TomTom then
+            print("|cff00ff99Housing Completed|r: |cffffff00TomTom|r not detected. Install/enable TomTom for advanced navigation.")
+        end
+    end)
+    y = y - 40
     local scaleLabel = settings:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     scaleLabel:SetPoint("TOPLEFT", 20, y)
     scaleLabel:SetText("UI Scale:")
     y = y - 28
     
     local scaleSlider = CreateFrame("Slider", nil, settings, "OptionsSliderTemplate")
-    scaleSlider:SetPoint("TOPLEFT", 30, y)
-    scaleSlider:SetWidth(180)
-    scaleSlider:SetMinMaxValues(0.5, 1.5)
-    scaleSlider:SetValueStep(0.05)
-    scaleSlider:SetValue(HousingCompletedDB.scale or 1.0)
-    scaleSlider.Low:SetText("50%")
-    scaleSlider.High:SetText("150%")
-    scaleSlider:SetScript("OnValueChanged", function(self, value)
-        value = math.floor(value * 20 + 0.5) / 20
-        HousingCompletedDB.scale = value
-        local text = GetButtonText(self)
-        if text then text:SetText(string.format("%.0f%%", value * 100)) end
-        if HC.mainFrame then HC.mainFrame:SetScale(value) end
-    end)
-    y = y - 45
+scaleSlider:SetPoint("TOPLEFT", 30, y)
+scaleSlider:SetWidth(320)
+
+scaleSlider:SetMinMaxValues(0.5, 1.5)
+scaleSlider:SetValueStep(0.01)
+scaleSlider:SetObeyStepOnDrag(true)
+
+scaleSlider:SetValue(HousingCompletedDB.scale or 1.0)
+
+scaleSlider.Low:SetText("50%")
+scaleSlider.High:SetText("150%")
+
+scaleSlider:SetScript("OnValueChanged", function(self, value)
+    value = tonumber(string.format("%.2f", value))
+    HousingCompletedDB.scale = value
+
+    if self.Text then
+        self.Text:SetText(string.format("%.0f%%", value * 100))
+    end
+
+    if HC.mainFrame then
+        HC.mainFrame:SetScale(value)
+    end
+end)
+
+y = y - 45
+
     
     local minimapCb = CreateFrame("CheckButton", nil, settings, "UICheckButtonTemplate")
     minimapCb:SetPoint("TOPLEFT", 20, y)

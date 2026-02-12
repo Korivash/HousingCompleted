@@ -6,7 +6,7 @@
 local addonName, HC = ...
 _G["HousingCompleted"] = HC
 
-HC.version = "1.3.2"
+HC.version = "1.3.4"
 HC.searchResults = {}
 HC.collectionCache = {}
 
@@ -16,6 +16,9 @@ local defaults = {
     showMinimapButton = true,
 scale = 1.0,
     windowPos = nil,
+    navigation = {
+        forceTomTom = true,
+    },
     filters = {
         showCollected = true,
         showUncollected = true,
@@ -69,6 +72,15 @@ function HC:InitSavedVars()
             end
         end
         HousingCompletedDB._initedDefaults = true
+    end
+
+
+    -- Navigation settings (repair for existing DBs)
+    if type(HousingCompletedDB.navigation) ~= "table" then
+        HousingCompletedDB.navigation = { forceTomTom = true }
+    end
+    if HousingCompletedDB.navigation.forceTomTom == nil then
+        HousingCompletedDB.navigation.forceTomTom = true
     end
 
     -- Item cache (flat at root for fast access)
@@ -420,7 +432,7 @@ function HC:SetItemWaypoint(itemData)
     if not itemData then return end
     local wp = itemData.waypoint
     if wp and wp.mapID and wp.x and wp.y then
-        self:SetWaypoint(wp.x, wp.y, wp.mapID, wp.title)
+        self:SetSmartWaypoint(wp.x, wp.y, wp.mapID, wp.title)
     else
         print("|cff00ff99Housing Completed|r: No waypoint available for this item.")
     end
@@ -605,9 +617,11 @@ function HC:GetVendorByName(vendorName)
 end
 
 ---------------------------------------------------
--- Waypoint Functions
+-- Waypoint Functions (TomTom + Blizzard fallback)
 ---------------------------------------------------
-function HC:SetWaypoint(x, y, mapID, title)
+
+-- Preferred navigation: TomTom (full routing). Falls back to Blizzard user waypoint.
+function HC:SetSmartWaypoint(x, y, mapID, title)
     if not x or not y or not mapID then
         print("|cff00ff99Housing Completed|r: No coordinates available for this location.")
         return
@@ -623,34 +637,132 @@ function HC:SetWaypoint(x, y, mapID, title)
         return
     end
 
-    -- Clear existing SuperTrack content first (helps routing refresh)
-    if C_SuperTrack and C_SuperTrack.ClearSuperTrackedContent then
-        C_SuperTrack.ClearSuperTrackedContent()
+    local forceTomTom = (HousingCompletedDB and HousingCompletedDB.navigation and HousingCompletedDB.navigation.forceTomTom) and true or false
+    local tt = _G.TomTom
+    local hasTomTom = tt and type(tt.AddWaypoint) == "function"
+
+    -- If forced, ALWAYS try TomTom first (warn once if missing)
+    if forceTomTom then
+        if hasTomTom then
+            if self._tomtomWaypoint and type(tt.RemoveWaypoint) == "function" then
+                tt:RemoveWaypoint(self._tomtomWaypoint)
+                self._tomtomWaypoint = nil
+            end
+
+            self._tomtomWaypoint = tt:AddWaypoint(mapID, nx, ny, {
+                title = title or "Housing Destination",
+                persistent = false,
+                minimap = true,
+                world = true,
+            })
+
+            print("|cff00ff99Housing Completed|r: TomTom route set" .. (title and (" for " .. title) or "") .. ".")
+            return
+        else
+            if not self._warnedTomTomMissing then
+                self._warnedTomTomMissing = true
+                print("|cff00ff99Housing Completed|r: |cffffff00TomTom|r not detected. Install/enable TomTom for advanced navigation.")
+            end
+        end
     end
+
+    -- If not forcing, use TomTom when available, otherwise fallback
+    if (not forceTomTom) and hasTomTom then
+        if self._tomtomWaypoint and type(tt.RemoveWaypoint) == "function" then
+            tt:RemoveWaypoint(self._tomtomWaypoint)
+            self._tomtomWaypoint = nil
+        end
+
+        self._tomtomWaypoint = tt:AddWaypoint(mapID, nx, ny, {
+            title = title or "Housing Destination",
+            persistent = false,
+            minimap = true,
+            world = true,
+        })
+
+        print("|cff00ff99Housing Completed|r: TomTom route set" .. (title and (" for " .. title) or "") .. ".")
+        return
+    end
+
+    -- Fallback: Blizzard waypoint (limited routing).
+    self:SetWaypoint(nx, ny, mapID, title)
+end
+
+-- Blizzard user waypoint (fallback). Note: This does NOT provide full quest-style routing.
+function HC:SetWaypoint(x, y, mapID, title)
+    if not x or not y or not mapID then
+        print("|cff00ff99Housing Completed|r: No coordinates available for this location.")
+        return
+    end
+
+    -- Coordinates are expected normalized here (0-1). If caller passes 0-100, normalize.
+    local nx, ny = x, y
+    if nx > 1 or ny > 1 then
+        nx, ny = (x / 100), (y / 100)
+    end
+    if nx <= 0 or ny <= 0 or nx > 1 or ny > 1 then
+        print("|cff00ff99Housing Completed|r: Invalid coordinates for this location.")
+        return
+    end
+
+    -- Some maps don't allow user waypoints; walk up parent chain to find a valid waypoint map.
+    local function FindWaypointMap(startMapID)
+        local cur = startMapID
+        local guard = 0
+        while cur and guard < 15 do
+            if C_Map and C_Map.CanSetUserWaypointOnMap and C_Map.CanSetUserWaypointOnMap(cur) then
+                return cur
+            end
+            local info = C_Map and C_Map.GetMapInfo and C_Map.GetMapInfo(cur)
+            cur = info and info.parentMapID or nil
+            guard = guard + 1
+        end
+        return startMapID
+    end
+
+    local wpMapID = FindWaypointMap(mapID)
+
     if C_Map and C_Map.ClearUserWaypoint then
         C_Map.ClearUserWaypoint()
     end
 
-    local waypoint = UiMapPoint.CreateFromCoordinates(mapID, nx, ny)
-    C_Map.SetUserWaypoint(waypoint)
-    C_SuperTrack.SetSuperTrackedUserWaypoint(true)
+    local waypoint = UiMapPoint.CreateFromCoordinates(wpMapID, nx, ny)
+    if not waypoint then
+        print("|cff00ff99Housing Completed|r: Failed to create waypoint.")
+        return
+    end
+
+    if C_Map and C_Map.SetUserWaypoint then
+        C_Map.SetUserWaypoint(waypoint)
+    end
+    if C_SuperTrack and C_SuperTrack.SetSuperTrackedUserWaypoint then
+        C_SuperTrack.SetSuperTrackedUserWaypoint(true)
+    end
 
     if WorldMapFrame and WorldMapFrame.RefreshAllDataProviders then
         WorldMapFrame:RefreshAllDataProviders()
     end
 
-    if title then
-        print("|cff00ff99Housing Completed|r: Waypoint set for " .. title)
-    else
-        print("|cff00ff99Housing Completed|r: Waypoint set.")
-    end
+    print("|cff00ff99Housing Completed|r: Waypoint set" .. (title and (" for " .. title) or "") .. ".")
 end
 
 function HC:ClearWaypoint()
-    C_Map.ClearUserWaypoint()
-    C_SuperTrack.SetSuperTrackedUserWaypoint(false)
-end
+    -- Clear TomTom waypoint if we created one
+    if TomTom and self._tomtomWaypoint and TomTom.RemoveWaypoint then
+        TomTom:RemoveWaypoint(self._tomtomWaypoint)
+        self._tomtomWaypoint = nil
+    end
 
+    -- Clear Blizzard waypoint too
+    if C_Map and C_Map.ClearUserWaypoint then
+        C_Map.ClearUserWaypoint()
+    end
+    if C_SuperTrack and C_SuperTrack.SetSuperTrackedUserWaypoint then
+        C_SuperTrack.SetSuperTrackedUserWaypoint(false)
+    end
+
+    print("|cff00ff99Housing Completed|r: Waypoint cleared.")
+end
 
 ---------------------------------------------------
 -- Utility Functions

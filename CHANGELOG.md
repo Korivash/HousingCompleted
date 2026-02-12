@@ -1,3 +1,6 @@
+## 1.3.4
+- Added setting to force TomTom routing for navigation (with Blizzard fallback)
+
 # Changelog
 
 All notable changes to Housing Completed will be documented in this file.
