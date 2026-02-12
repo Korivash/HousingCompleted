@@ -402,6 +402,8 @@ function HC:BuildItemIndex(force)
 
     -- Primary combined table (if present)
     for _, entry in ipairs(HC.DecorItems or {}) do addEntry(entry) end
+    -- Imported sources (generated from wowdb exports)
+    for _, entry in ipairs(HC.ImportedDecorItems or {}) do addEntry(entry) end
 
     -- Back-compat tables (many projects still populate these)
     for _, entry in ipairs(HC.AchievementItems or {}) do
@@ -495,11 +497,42 @@ end
 ---------------------------------------------------
 -- Search Functions
 ---------------------------------------------------
+function HC:IsReputationRequirementText(text)
+    if type(text) ~= "string" then return false end
+    local t = text:lower()
+    if not t:find("require", 1, true) then return false end
+    if t:find("friendly", 1, true) then return true end
+    if t:find("honored", 1, true) then return true end
+    if t:find("revered", 1, true) then return true end
+    if t:find("exalted", 1, true) then return true end
+    if t:find("renown", 1, true) then return true end
+    if t:find("rank", 1, true) then return true end
+    return false
+end
+
+function HC:IsReputationSource(source)
+    if not source then return false end
+    if source.sourceType == "reputation" then return true end
+    if source.standing and source.standing ~= "" then return true end
+    if self:IsReputationRequirementText(source.notes) then return true end
+    return false
+end
+
+function HC:SourceMatchesType(source, wantedType)
+    if not source or not wantedType then return false end
+    if wantedType == "reputation" then
+        return self:IsReputationSource(source)
+    end
+    return (source.sourceType or "unknown") == wantedType
+end
+
 function HC:SearchAll(query, filters)
     local results = {}
     local hasQuery = query and query:gsub("%s+", "") ~= ""
     if hasQuery then query = query:lower() end
     filters = filters or {}
+    local seenNameKeys = {}
+    local seenItemIDs = {}
 
     if (not self.ItemList) or (#self.ItemList == 0) then
         self:BuildItemIndex(true)
@@ -517,6 +550,7 @@ function HC:SearchAll(query, filters)
         local primaryZone
         local primaryExpansion
         local primaryFaction
+        local primaryStanding
         local primaryVendorData
 
         for _, s in ipairs(item.sources or {}) do
@@ -537,6 +571,7 @@ function HC:SearchAll(query, filters)
                 primaryZone = s.zone
                 primaryExpansion = s.expansion
                 primaryFaction = s.faction
+                primaryStanding = s.standing
                 primaryVendorData = s.vendorData
             end
         end
@@ -549,8 +584,23 @@ function HC:SearchAll(query, filters)
             if filters.sourceTypes and next(filters.sourceTypes) then
                 passes = false
                 for _, s in ipairs(item.sources or {}) do
-                    if filters.sourceTypes[s.sourceType or "unknown"] then
-                        passes = true
+                    for wantedType in pairs(filters.sourceTypes) do
+                        if self:SourceMatchesType(s, wantedType) then
+                            passes = true
+                            -- Prefer a filter-matching source for row/preview fields.
+                            primaryType = wantedType
+                            primarySource = s.source
+                            primaryVendor = s.vendor
+                            primaryCost = s.cost
+                            primaryZone = s.zone
+                            primaryExpansion = s.expansion
+                            primaryFaction = s.faction
+                            primaryStanding = s.standing
+                            primaryVendorData = s.vendorData
+                            break
+                        end
+                    end
+                    if passes then
                         break
                     end
                 end
@@ -593,6 +643,8 @@ function HC:SearchAll(query, filters)
                         sources = item.sources,
                         sourceCount = #(item.sources or {}),
                         vendorData = primaryVendorData,
+                        faction = primaryFaction,
+                        standing = primaryStanding,
                         waypoint = (wpMapID and wpX and wpY) and { mapID = wpMapID, x = wpX, y = wpY, title = wpTitle } or nil,
                     },
                     name = item.name,
@@ -606,6 +658,13 @@ function HC:SearchAll(query, filters)
                     vendorData = primaryVendorData,
                     collected = collected,
                 })
+                local itemNameKey = self:NormalizeItemName(item.name)
+                if itemNameKey then
+                    seenNameKeys[itemNameKey] = true
+                end
+                if item.itemID then
+                    seenItemIDs[item.itemID] = true
+                end
             end
         end
     end
@@ -629,6 +688,50 @@ function HC:SearchAll(query, filters)
                 vendorData = vendor,
                 collected = false,
             })
+        end
+    end
+
+    -- Include additional known items from AllItems cache as unknown entries.
+    -- This lets newly-known itemIDs be searchable/previewable before sources are curated.
+    for itemID, itemData in pairs(self.allItemCache or {}) do
+        local cachedName = itemData and itemData.name
+        if cachedName and not seenItemIDs[itemID] then
+            local key = self:NormalizeItemName(cachedName)
+            if key and not seenNameKeys[key] then
+                local match = (not hasQuery) or (cachedName:lower():find(query, 1, true) ~= nil)
+                if match and self:PassesFilters({ expansion = nil, faction = nil }, filters, "unknown") then
+                    local unknown = self:GetUnknownItemResult(itemID, cachedName)
+                    unknown.sourceCount = 0
+                    table.insert(results, unknown)
+                    seenNameKeys[key] = true
+                    seenItemIDs[itemID] = true
+                end
+            end
+        end
+    end
+
+    -- Include items already in player's collection that are not in curated/imported data yet.
+    for _, collectionInfo in pairs(self.collectionCache or {}) do
+        local collectedName = collectionInfo and collectionInfo.name
+        if collectedName and collectedName ~= "" then
+            local key = self:NormalizeItemName(collectedName)
+            if key and not seenNameKeys[key] then
+                local match = (not hasQuery) or (collectedName:lower():find(query, 1, true) ~= nil)
+                if match and self:PassesFilters({ expansion = nil, faction = nil }, filters, "unknown") then
+                    local resolvedID = self:ResolveItemIDByName(collectedName)
+                    if (not resolvedID) or (not seenItemIDs[resolvedID]) then
+                        local unknown = self:GetUnknownItemResult(resolvedID, collectedName)
+                        unknown.source = "In Your Collection"
+                        unknown.sourceCount = 1
+                        unknown.collected = true
+                        table.insert(results, unknown)
+                        seenNameKeys[key] = true
+                        if resolvedID then
+                            seenItemIDs[resolvedID] = true
+                        end
+                    end
+                end
+            end
         end
     end
 
@@ -930,9 +1033,19 @@ function HC:ResolveAllItems()
     -- Build a runtime cache of itemID -> name/icon for searching.
     -- Prefer persisted SavedVariables cache so names/icons are instant on login.
     self.allItemCache = self.allItemCache or {}
-    if not (HC.AllItems and HC.AllItems.IDs) then return end
+    local allIDs = {}
+    if HC.AllItems and HC.AllItems.IDs then
+        for _, itemID in ipairs(HC.AllItems.IDs) do
+            allIDs[itemID] = true
+        end
+    end
+    if HC.ImportedAllItems and HC.ImportedAllItems.IDs then
+        for _, itemID in ipairs(HC.ImportedAllItems.IDs) do
+            allIDs[itemID] = true
+        end
+    end
 
-    for _, itemID in ipairs(HC.AllItems.IDs) do
+    for itemID in pairs(allIDs) do
         if not self.allItemCache[itemID] then
             local cachedName, cachedIcon = self:GetCachedItemInfo(itemID)
 

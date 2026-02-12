@@ -19,7 +19,9 @@ Data\Quests.lua
 Data\Reputation.lua
 Data\Professions.lua
 Data\AuctionItems.lua
+Data\ImportedSources.lua
 Data\Sources.lua
+Data\ImportedAllItems.lua
 Data\AllItems.lua
 
 Core.lua

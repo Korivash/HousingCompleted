@@ -447,6 +447,50 @@ function HC:CreateResultRow(parent, index)
     local typeBadge = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     typeBadge:SetPoint("RIGHT", waypointBtn, "LEFT", -10, 0)
     row.typeBadge = typeBadge
+
+    local repBadge = CreateFrame("Button", nil, row, "BackdropTemplate")
+    repBadge:SetSize(34, 16)
+    repBadge:SetPoint("RIGHT", typeBadge, "LEFT", -8, 0)
+    repBadge:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    repBadge:SetBackdropColor(0.30, 0.22, 0.45, 0.95)
+    repBadge:SetBackdropBorderColor(0.55, 0.45, 0.75, 1)
+    repBadge:Hide()
+
+    local repBadgeText = repBadge:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    repBadgeText:SetPoint("CENTER", 0, 0)
+    repBadgeText:SetText("REP")
+    repBadgeText:SetTextColor(0.95, 0.88, 1)
+
+    repBadge:SetScript("OnEnter", function(self)
+        if not self.repRequirements or #self.repRequirements == 0 then return end
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:AddLine("Reputation Required", 0.9, 0.8, 1)
+        for _, req in ipairs(self.repRequirements) do
+            local line
+            if req.faction or req.standing then
+                line = (req.faction or "Reputation") .. " - " .. (req.standing or "Required")
+            elseif req.note then
+                line = req.note
+            else
+                line = "Requirement in source data"
+            end
+            GameTooltip:AddLine(line, 0.85, 0.85, 0.95, true)
+        end
+        GameTooltip:Show()
+    end)
+    repBadge:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
+    repBadge:SetScript("OnClick", function()
+        if row:GetScript("OnClick") then
+            row:GetScript("OnClick")(row)
+        end
+    end)
+    row.repBadge = repBadge
     
     row:Hide()
     return row
@@ -475,6 +519,45 @@ function HC:GetResolvedItemID(resultData)
         end
     end
     return resolvedID
+end
+
+function HC:GetReputationRequirements(resultData)
+    local reqs = {}
+    local seen = {}
+    local sources = resultData and resultData.data and resultData.data.sources
+    if type(sources) ~= "table" then
+        return reqs
+    end
+
+    for _, s in ipairs(sources) do
+        local isRepSource = false
+        if self.IsReputationSource then
+            isRepSource = self:IsReputationSource(s)
+        else
+            isRepSource = (s.sourceType == "reputation") or (s.standing and s.standing ~= "")
+        end
+
+        if isRepSource then
+            local faction = s.faction
+            local standing = s.standing
+            local note = nil
+            if self.IsReputationRequirementText and self:IsReputationRequirementText(s.notes) then
+                note = s.notes
+            end
+
+            local key = tostring(faction or "") .. "|" .. tostring(standing or "") .. "|" .. tostring(note or "")
+            if not seen[key] then
+                seen[key] = true
+                table.insert(reqs, {
+                    faction = faction,
+                    standing = standing,
+                    note = note,
+                })
+            end
+        end
+    end
+
+    return reqs
 end
 
 function HC:CreatePreviewPanel(parent)
@@ -738,7 +821,7 @@ function HC:UpdatePreview(data)
     end
     
     -- Reputation details
-    if data.type == "reputation" and data.data then
+    if data.type == "reputation" and data.data and (data.data.faction or data.data.standing) then
         self.previewRepHeader:Show()
         self.previewRepFaction:Show()
         self.previewRepStanding:Show()
@@ -998,7 +1081,9 @@ function HC:UpdateResults()
                 sourceText = data.zone or ""
                 if data.data.subzone then sourceText = sourceText .. " - " .. data.data.subzone end
             elseif data.type == "reputation" and data.data then
-                sourceText = (data.data.faction or "") .. " (" .. (data.data.standing or "") .. ")"
+                if data.data.faction or data.data.standing then
+                    sourceText = (data.data.faction or "Reputation") .. " (" .. (data.data.standing or "Required") .. ")"
+                end
             end
             row.sourceText:SetText(sourceText)
             row.sourceText:SetTextColor(unpack(sourceInfo.color))
@@ -1013,6 +1098,12 @@ function HC:UpdateResults()
             
             row.typeBadge:SetText(sourceInfo.name)
             row.typeBadge:SetTextColor(unpack(sourceInfo.color))
+
+            local repRequirements = self:GetReputationRequirements(data)
+            if row.repBadge then
+                row.repBadge.repRequirements = repRequirements
+                row.repBadge:SetShown(#repRequirements > 0)
+            end
             
             row.vendorData = data.type == "vendor" and data.data or nil
             row.vendorName = data.vendor

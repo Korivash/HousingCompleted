@@ -136,6 +136,19 @@ Contributions are welcome! Here's how you can help:
 3. Follow the existing format
 4. Submit a pull request
 
+### Bulk Import (wowdb list export)
+Use the importer to generate addon-ready files from a CSV export:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\Import-WowDbDecor.ps1 -InputCsv .\decor-export.csv
+```
+
+This writes:
+- `Data/ImportedSources.lua`
+- `Data/ImportedAllItems.lua`
+
+Imported rows are automatically merged at runtime with curated data.
+
 ### Data File Formats
 
 **Vendors.lua**
