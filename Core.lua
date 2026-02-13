@@ -31,6 +31,7 @@ scale = 1.0,
         lowRiskOnly = false,
     },
     lastTab = "acquire",
+    lastSourceView = "all",
     shoppingList = {},
     mode = "hybrid",
     economy = {
@@ -107,6 +108,9 @@ function HC:InitSavedVars()
     HousingCompletedDB.economy.maxHistory = tonumber(HousingCompletedDB.economy.maxHistory) or 8
     if HousingCompletedDB.mode ~= "collector" and HousingCompletedDB.mode ~= "hybrid" and HousingCompletedDB.mode ~= "goblin" then
         HousingCompletedDB.mode = "hybrid"
+    end
+    if type(HousingCompletedDB.lastSourceView) ~= "string" or HousingCompletedDB.lastSourceView == "" then
+        HousingCompletedDB.lastSourceView = "all"
     end
 
     -- Item cache (flat at root for fast access)
@@ -924,7 +928,6 @@ end
 function HC:GetItemCategories()
     return {
         { id = "all", name = "All Item Types" },
-        { id = "vendor", name = "Vendor" },
         { id = "chair", name = "Chair" },
         { id = "plant", name = "Plant" },
         { id = "table", name = "Table" },

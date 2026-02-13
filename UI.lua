@@ -5,9 +5,9 @@
 ---------------------------------------------------
 local addonName, HC = ...
 
-local FRAME_WIDTH = 1480
-local FRAME_HEIGHT = 860
-local SIDEBAR_WIDTH = 260
+local FRAME_WIDTH = 1620
+local FRAME_HEIGHT = 900
+local SIDEBAR_WIDTH = 340
 local PREVIEW_WIDTH = 360
 local HEADER_HEIGHT = 86
 local ITEM_HEIGHT = 58
@@ -36,6 +36,7 @@ local currentPage = 1
 local totalPages = 1
 local currentResults = {}
 local currentTab = "acquire"
+local currentSourceView = "all"
 local currentItemCategory = "all"
 local selectedItem = nil
 local currentSortKey = "name"
@@ -295,9 +296,20 @@ function HC:CreateSidebar(parent)
     tabLabel:SetPoint("TOPLEFT", 15, y)
     tabLabel:SetText("PLATFORM")
     tabLabel:SetTextColor(unpack(COLORS.accentAlt))
-    y = y - 22
+    y = y - 20
+
+    local navPanel = CreateFrame("Frame", nil, scrollChild, "BackdropTemplate")
+    navPanel:SetPoint("TOPLEFT", 10, y)
+    navPanel:SetSize(SIDEBAR_WIDTH - 44, 188)
+    navPanel:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    navPanel:SetBackdropColor(0.09, 0.08, 0.11, 0.8)
+    navPanel:SetBackdropBorderColor(0.2, 0.18, 0.24, 1)
+    y = y - 194
     
-    -- Platform tabs
     local tabs = {
         { id = "acquire", name = "Acquire", icon = "Interface\\Icons\\INV_Misc_Map_01" },
         { id = "craft", name = "Craft", icon = "Interface\\Icons\\INV_Misc_Gear_01" },
@@ -307,33 +319,50 @@ function HC:CreateSidebar(parent)
     }
     
     self.tabButtons = {}
-    for _, tabInfo in ipairs(tabs) do
-        local btn = CreateFrame("Button", nil, scrollChild)
-        btn:SetSize(SIDEBAR_WIDTH - 44, 26)
-        btn:SetPoint("TOP", 0, y)
+    local tabButtonWidth = SIDEBAR_WIDTH - 60
+    local tabButtonHeight = 30
+    for idx, tabInfo in ipairs(tabs) do
+        local btn = CreateFrame("Button", nil, navPanel, "BackdropTemplate")
+        btn:SetSize(tabButtonWidth, tabButtonHeight)
+        btn:SetPoint("TOPLEFT", 8, -8 - (idx - 1) * (tabButtonHeight + 4))
         btn.tabID = tabInfo.id
-        
+
+        btn:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+        })
+        btn:SetBackdropColor(0.12, 0.11, 0.14, 0.95)
+        btn:SetBackdropBorderColor(0.24, 0.22, 0.28, 1)
+
         local bg = btn:CreateTexture(nil, "BACKGROUND")
         bg:SetAllPoints()
-        bg:SetColorTexture(0, 0, 0, 0)
+        bg:SetColorTexture(0.16, 0.15, 0.19, 0.5)
         btn.bg = bg
-        
+
         local icon = btn:CreateTexture(nil, "ARTWORK")
-        icon:SetSize(18, 18)
-        icon:SetPoint("LEFT", 10, 0)
+        icon:SetSize(16, 16)
+        icon:SetPoint("LEFT", 8, 0)
         icon:SetTexture(tabInfo.icon)
+        btn.icon = icon
         
         local label = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        label:SetPoint("LEFT", icon, "RIGHT", 6, 0)
+        label:SetPoint("LEFT", icon, "RIGHT", 5, 0)
         label:SetText(tabInfo.name)
-        label:SetTextColor(0.75, 0.75, 0.75)
+        label:SetTextColor(0.88, 0.86, 0.82)
         btn.label = label
         
         btn:SetScript("OnEnter", function(self)
-            if currentTab ~= self.tabID then self.bg:SetColorTexture(0.15, 0.15, 0.2, 1) end
+            if currentTab ~= self.tabID then
+                self.bg:SetColorTexture(0.22, 0.2, 0.26, 0.9)
+                self:SetBackdropBorderColor(0.45, 0.36, 0.18, 1)
+            end
         end)
         btn:SetScript("OnLeave", function(self)
-            if currentTab ~= self.tabID then self.bg:SetColorTexture(0, 0, 0, 0) end
+            if currentTab ~= self.tabID then
+                self.bg:SetColorTexture(0.16, 0.15, 0.19, 0.5)
+                self:SetBackdropBorderColor(0.24, 0.22, 0.28, 1)
+            end
         end)
         btn:SetScript("OnClick", function(self)
             currentTab = self.tabID
@@ -349,9 +378,8 @@ function HC:CreateSidebar(parent)
         end)
         
         self.tabButtons[tabInfo.id] = btn
-        y = y - 26
     end
-    y = y - 10
+    y = y - 4
 
     local modeLabel = scrollChild:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     modeLabel:SetPoint("TOPLEFT", 15, y)
@@ -359,20 +387,43 @@ function HC:CreateSidebar(parent)
     modeLabel:SetTextColor(unpack(COLORS.accentAlt))
     y = y - 18
 
+    local modePanel = CreateFrame("Frame", nil, scrollChild, "BackdropTemplate")
+    modePanel:SetPoint("TOPLEFT", 10, y)
+    modePanel:SetSize(SIDEBAR_WIDTH - 44, 50)
+    modePanel:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    modePanel:SetBackdropColor(0.08, 0.07, 0.1, 0.85)
+    modePanel:SetBackdropBorderColor(0.2, 0.18, 0.24, 1)
+    y = y - 56
+
     local modeItems = {
         { key = "collector", text = "Collector Mode" },
         { key = "hybrid", text = "Hybrid Mode" },
         { key = "goblin", text = "Goblin Mode" },
     }
     self.modeButtons = {}
-    for _, m in ipairs(modeItems) do
-        local b = CreateFrame("Button", nil, scrollChild)
-        b:SetSize(SIDEBAR_WIDTH - 44, 18)
-        b:SetPoint("TOPLEFT", 10, y)
+    local modeButtonWidth = math.floor((SIDEBAR_WIDTH - 58) / 2)
+    local modeButtonHeight = 20
+    for idx, m in ipairs(modeItems) do
+        local b = CreateFrame("Button", nil, modePanel, "BackdropTemplate")
+        b:SetSize(modeButtonWidth, modeButtonHeight)
+        local row = math.floor((idx - 1) / 2)
+        local col = (idx - 1) % 2
+        b:SetPoint("TOPLEFT", 4 + col * (modeButtonWidth + 2), -4 - row * (modeButtonHeight + 3))
         b.modeKey = m.key
+        b:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+        })
+        b:SetBackdropColor(0.14, 0.13, 0.16, 0.95)
+        b:SetBackdropBorderColor(0.24, 0.22, 0.28, 1)
         local t = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        t:SetPoint("LEFT", 8, 0)
-        t:SetText(m.text)
+        t:SetPoint("CENTER", 0, 0)
+        t:SetText((m.key == "collector" and "Collector") or (m.key == "hybrid" and "Hybrid") or "Goblin")
         b.text = t
         b:SetScript("OnClick", function(selfBtn)
             HousingCompletedDB.mode = selfBtn.modeKey
@@ -380,9 +431,91 @@ function HC:CreateSidebar(parent)
             HC:DoSearch()
         end)
         self.modeButtons[m.key] = b
-        y = y - 18
     end
-    y = y - 8
+    y = y - 4
+
+    local sourceLabel = scrollChild:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    sourceLabel:SetPoint("TOPLEFT", 15, y)
+    sourceLabel:SetText("SOURCE VIEW")
+    sourceLabel:SetTextColor(unpack(COLORS.accentAlt))
+    y = y - 18
+
+    local sourcePanel = CreateFrame("Frame", nil, scrollChild, "BackdropTemplate")
+    sourcePanel:SetPoint("TOPLEFT", 10, y)
+    sourcePanel:SetSize(SIDEBAR_WIDTH - 44, 318)
+    sourcePanel:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    sourcePanel:SetBackdropColor(0.08, 0.07, 0.1, 0.85)
+    sourcePanel:SetBackdropBorderColor(0.2, 0.18, 0.24, 1)
+    y = y - 324
+
+    local sourceViews = {
+        { id = "all", name = "All Items", icon = "Interface\\Icons\\INV_Misc_Bag_10" },
+        { id = "items", name = "Item Browser", icon = "Interface\\Icons\\INV_Misc_Bag_10_Blue" },
+        { id = "vendor", name = "Vendors", icon = "Interface\\Icons\\INV_Misc_Coin_01" },
+        { id = "profession", name = "Professions", icon = "Interface\\Icons\\INV_Misc_Note_01" },
+        { id = "reputation", name = "Reputation", icon = "Interface\\Icons\\Achievement_Reputation_08" },
+        { id = "achievement", name = "Achievements", icon = "Interface\\Icons\\Achievement_General_100kQuests" },
+        { id = "quest", name = "Quests", icon = "Interface\\Icons\\INV_Misc_Book_07" },
+        { id = "drop", name = "Drops", icon = "Interface\\Icons\\INV_Misc_Bag_10_Blue" },
+        { id = "auction", name = "Auction House", icon = "Interface\\Icons\\INV_Misc_Coin_02" },
+        { id = "promo", name = "Promotions", icon = "Interface\\Icons\\INV_Misc_Gift_05" },
+        { id = "unknown", name = "Unknown", icon = "Interface\\Icons\\INV_Misc_QuestionMark" },
+    }
+
+    self.sourceViewButtons = {}
+    local sourceButtonWidth = SIDEBAR_WIDTH - 60
+    local sourceButtonHeight = 24
+    for idx, sv in ipairs(sourceViews) do
+        local btn = CreateFrame("Button", nil, sourcePanel, "BackdropTemplate")
+        btn:SetSize(sourceButtonWidth, sourceButtonHeight)
+        btn:SetPoint("TOPLEFT", 8, -8 - (idx - 1) * (sourceButtonHeight + 3))
+        btn.sourceID = sv.id
+        btn:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+        })
+        btn:SetBackdropColor(0.14, 0.13, 0.16, 0.95)
+        btn:SetBackdropBorderColor(0.24, 0.22, 0.28, 1)
+        local bg = btn:CreateTexture(nil, "BACKGROUND")
+        bg:SetAllPoints()
+        bg:SetColorTexture(0.16, 0.15, 0.19, 0.5)
+        btn.bg = bg
+        local icon = btn:CreateTexture(nil, "ARTWORK")
+        icon:SetSize(14, 14)
+        icon:SetPoint("LEFT", 6, 0)
+        icon:SetTexture(sv.icon)
+        btn.icon = icon
+        local label = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        label:SetPoint("LEFT", icon, "RIGHT", 4, 0)
+        label:SetText(sv.name)
+        label:SetJustifyH("LEFT")
+        label:SetWidth(sourceButtonWidth - 52)
+        btn.label = label
+
+        local countText = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        countText:SetPoint("RIGHT", -5, 0)
+        countText:SetText("0")
+        countText:SetTextColor(unpack(COLORS.textDim))
+        btn.countText = countText
+        btn:SetScript("OnClick", function(selfBtn)
+            currentSourceView = selfBtn.sourceID
+            if HousingCompletedDB then
+                HousingCompletedDB.lastSourceView = currentSourceView
+            end
+            if currentSourceView == "items" then
+                currentItemCategory = "all"
+            end
+            HC:UpdateSourceViewButtons()
+            HC:DoSearch()
+        end)
+        self.sourceViewButtons[sv.id] = btn
+    end
+    y = y - 2
     
     local divider = scrollChild:CreateTexture(nil, "ARTWORK")
     divider:SetSize(SIDEBAR_WIDTH - 52, 1)
@@ -1942,20 +2075,22 @@ function HC:DoSearch()
         faction = self:GetPlayerFaction(),
         zoneMapID = zoneMapID,
     }
-    if currentTab == "collection" then
-        filters.itemCategory = currentItemCategory
-        filters.hideVendorEntries = true
-    elseif currentTab == "acquire" then
-        -- broad source discovery
-    elseif currentTab == "craft" then
+    if currentTab == "craft" then
         filters.sourceTypes = { profession = true }
     elseif currentTab == "planner" then
         -- planner uses economy-capable rows
-    elseif currentTab == "reputation" then
-        -- Reputation factions are not the same as player faction restrictions.
-        filters.faction = nil
     elseif currentTab == "economy" then
         -- economy uses all sources but filters by economics below
+    end
+
+    if currentSourceView == "items" then
+        filters.itemCategory = currentItemCategory
+        filters.hideVendorEntries = true
+    elseif currentSourceView ~= "all" then
+        filters.sourceTypes = { [currentSourceView] = true }
+    end
+    if currentSourceView == "reputation" then
+        filters.faction = nil
     end
     
     local results = self:SearchAll(query, filters)
@@ -2009,6 +2144,7 @@ function HC:DoSearch()
     self:UpdateAcquireSortHeaderState()
     self:UpdateResults()
     self:UpdateStats()
+    self:UpdateSourceViewButtons()
     self:UpdateSetWaypointButton()
     self:UpdateAddShoppingButton()
     self:UpdateMapAllButton()
@@ -2018,6 +2154,84 @@ function HC:DoSearch()
     if self.UpdatePreview then
         self:UpdatePreview(nil)
     end
+end
+
+function HC:BuildSourceCountFilters()
+    local zoneMapID = nil
+    if self.zoneOnlyCb and self.zoneOnlyCb:GetChecked() then
+        zoneMapID = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player") or nil
+    end
+
+    return {
+        showCollected = self.collectedCb and self.collectedCb:GetChecked(),
+        showUncollected = self.uncollectedCb and self.uncollectedCb:GetChecked(),
+        faction = self:GetPlayerFaction(),
+        zoneMapID = zoneMapID,
+    }
+end
+
+function HC:ResultMatchesSourceView(resultData, sourceView)
+    if not resultData then return false end
+    if sourceView == "all" then return true end
+
+    local resultType = self:NormalizeSourceType(resultData.type or "unknown")
+
+    if sourceView == "items" then
+        if resultType == "vendor" then return false end
+        local cat = currentItemCategory or "all"
+        if cat == "all" then
+            return true
+        end
+        if resultData.data and resultData.data.name then
+            return self:ItemMatchesCategory({ name = resultData.data.name, sources = resultData.data.sources }, cat)
+        end
+        return self:ItemMatchesCategory({ name = resultData.name, sources = (resultData.data and resultData.data.sources) or {} }, cat)
+    end
+
+    if resultType == sourceView then
+        return true
+    end
+
+    local sources = resultData.data and resultData.data.sources
+    if type(sources) == "table" then
+        for _, s in ipairs(sources) do
+            if self:SourceMatchesType(s, sourceView) then
+                return true
+            end
+        end
+    end
+
+    return false
+end
+
+function HC:ApplyEconomyFilters(results)
+    local filtered = {}
+    local minProfit = tonumber(HousingCompletedDB.filters and HousingCompletedDB.filters.minProfit) or 0
+    local minMargin = tonumber(HousingCompletedDB.filters and HousingCompletedDB.filters.minMargin) or 0
+    local craftableOnly = HousingCompletedDB.filters and HousingCompletedDB.filters.craftableOnly
+    local lowRiskOnly = HousingCompletedDB.filters and HousingCompletedDB.filters.lowRiskOnly
+
+    for _, r in ipairs(results or {}) do
+        local econ = self.GetResultEconomics and self:GetResultEconomics(r, { forceRefresh = true }) or nil
+        local keep = econ and econ.ahPrice and econ.totalCost
+        if keep and minProfit > 0 then
+            keep = (econ.profit or 0) >= minProfit
+        end
+        if keep and minMargin > 0 then
+            keep = (econ.margin or 0) >= minMargin
+        end
+        if keep and craftableOnly then
+            keep = (econ.craftCost ~= nil)
+        end
+        if keep and lowRiskOnly then
+            keep = (econ.risk or 100) <= 35
+        end
+        if keep then
+            table.insert(filtered, r)
+        end
+    end
+
+    return filtered
 end
 
 function HC:UpdateResults()
@@ -2075,7 +2289,7 @@ function HC:UpdateResults()
             row.collectedIcon:SetShown(data.collected)
             
             local sourceText = data.source or ""
-            if currentTab == "collection" then
+            if currentSourceView == "items" then
                 sourceText = "Category: " .. self:GetItemCategoryName(data.itemCategory or (data.data and data.data.itemCategory))
             end
             if data.type == "vendor" and data.data then
@@ -2239,25 +2453,86 @@ end
 function HC:UpdateTabButtons()
     for tabID, btn in pairs(self.tabButtons) do
         if tabID == currentTab then
-            btn.bg:SetColorTexture(0.1, 0.3, 0.2, 1)
-            btn.label:SetTextColor(unpack(COLORS.accent))
+            btn.bg:SetColorTexture(0.23, 0.18, 0.07, 0.95)
+            btn:SetBackdropBorderColor(unpack(COLORS.accentAlt))
+            btn.label:SetTextColor(1, 0.95, 0.8)
+            if btn.icon then btn.icon:SetVertexColor(1, 1, 1) end
         else
-            btn.bg:SetColorTexture(0, 0, 0, 0)
-            btn.label:SetTextColor(0.7, 0.7, 0.7)
+            btn.bg:SetColorTexture(0.16, 0.15, 0.19, 0.5)
+            btn:SetBackdropBorderColor(0.24, 0.22, 0.28, 1)
+            btn.label:SetTextColor(0.78, 0.76, 0.72)
+            if btn.icon then btn.icon:SetVertexColor(0.82, 0.82, 0.82) end
         end
     end
     self:UpdateModeButtons()
+    self:UpdateSourceViewButtons()
     self:UpdateItemCategoryButtons()
     self:UpdatePlannerControls()
+end
+
+function HC:UpdateSourceViewButtons()
+    local counts = {}
+    for sourceID in pairs(self.sourceViewButtons or {}) do
+        counts[sourceID] = 0
+    end
+
+    local query = self.searchBox and self.searchBox:GetText() or ""
+    local countFilters = self:BuildSourceCountFilters()
+    local countResults = self:SearchAll(query, countFilters) or {}
+    local visibleResults = {}
+
+    for _, r in ipairs(countResults) do
+        local show = true
+        if r.collected and not countFilters.showCollected then show = false end
+        if not r.collected and not countFilters.showUncollected then show = false end
+        if show then
+            table.insert(visibleResults, r)
+        end
+    end
+
+    if currentTab == "economy" or currentTab == "planner" then
+        visibleResults = self:ApplyEconomyFilters(visibleResults)
+    end
+
+    for _, r in ipairs(visibleResults) do
+        for sourceID in pairs(counts) do
+            if self:ResultMatchesSourceView(r, sourceID) then
+                counts[sourceID] = counts[sourceID] + 1
+            end
+        end
+    end
+
+    for sourceID, btn in pairs(self.sourceViewButtons or {}) do
+        if sourceID == currentSourceView then
+            btn.bg:SetColorTexture(0.23, 0.18, 0.07, 0.95)
+            btn:SetBackdropBorderColor(unpack(COLORS.accentAlt))
+            btn.label:SetTextColor(1, 0.95, 0.8)
+            if btn.icon then btn.icon:SetVertexColor(1, 1, 1) end
+            if btn.countText then btn.countText:SetTextColor(1, 0.95, 0.8) end
+        else
+            btn.bg:SetColorTexture(0.16, 0.15, 0.19, 0.5)
+            btn:SetBackdropBorderColor(0.24, 0.22, 0.28, 1)
+            btn.label:SetTextColor(0.78, 0.76, 0.72)
+            if btn.icon then btn.icon:SetVertexColor(0.82, 0.82, 0.82) end
+            if btn.countText then btn.countText:SetTextColor(unpack(COLORS.textDim)) end
+        end
+        if btn.countText then
+            btn.countText:SetText(tostring(counts[sourceID] or 0))
+        end
+    end
 end
 
 function HC:UpdateModeButtons()
     local active = (HousingCompletedDB and HousingCompletedDB.mode) or "hybrid"
     for modeKey, btn in pairs(self.modeButtons or {}) do
         if modeKey == active then
-            btn.text:SetTextColor(unpack(COLORS.accent))
+            btn:SetBackdropColor(0.25, 0.19, 0.08, 0.95)
+            btn:SetBackdropBorderColor(unpack(COLORS.accentAlt))
+            btn.text:SetTextColor(1, 0.95, 0.84)
         else
-            btn.text:SetTextColor(0.7, 0.7, 0.7)
+            btn:SetBackdropColor(0.14, 0.13, 0.16, 0.95)
+            btn:SetBackdropBorderColor(0.24, 0.22, 0.28, 1)
+            btn.text:SetTextColor(0.72, 0.72, 0.72)
         end
     end
 
@@ -2283,7 +2558,7 @@ function HC:UpdateModeButtons()
 end
 
 function HC:UpdateItemCategoryButtons()
-    local showCategories = currentTab == "collection"
+    local showCategories = currentSourceView == "items"
     if self.itemCategoryLabel then
         self.itemCategoryLabel:SetShown(showCategories)
     end
@@ -2404,6 +2679,9 @@ function HC:ToggleUI()
         self.mainFrame:Show()
         if HousingCompletedDB and HousingCompletedDB.lastTab and self.tabButtons and self.tabButtons[HousingCompletedDB.lastTab] then
             currentTab = HousingCompletedDB.lastTab
+        end
+        if HousingCompletedDB and HousingCompletedDB.lastSourceView and self.sourceViewButtons and self.sourceViewButtons[HousingCompletedDB.lastSourceView] then
+            currentSourceView = HousingCompletedDB.lastSourceView
         end
         if self.settingsPanel then self.settingsPanel:Hide() end
         if self.content then self.content:Show() end
