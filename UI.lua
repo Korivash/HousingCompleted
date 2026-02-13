@@ -35,7 +35,7 @@ local COLORS = {
 local currentPage = 1
 local totalPages = 1
 local currentResults = {}
-local currentTab = "all"
+local currentTab = "acquire"
 local currentItemCategory = "all"
 local selectedItem = nil
 local currentSortKey = "name"
@@ -293,24 +293,17 @@ function HC:CreateSidebar(parent)
 
     local tabLabel = scrollChild:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     tabLabel:SetPoint("TOPLEFT", 15, y)
-    tabLabel:SetText("CATEGORIES")
+    tabLabel:SetText("PLATFORM")
     tabLabel:SetTextColor(unpack(COLORS.accentAlt))
     y = y - 22
     
-    -- Category tabs with correct icons
+    -- Platform tabs
     local tabs = {
-        { id = "items", name = "Items", icon = "Interface\\Icons\\INV_Misc_Bag_10_Blue" },
-        { id = "all", name = "All Items", icon = "Interface\\Icons\\INV_Misc_Bag_10" },
-        { id = "vendor", name = "Vendors", icon = "Interface\\Icons\\INV_Misc_Coin_01" },
-        { id = "achievement", name = "Achievements", icon = "Interface\\Icons\\Achievement_General_100kQuests" },
-        { id = "quest", name = "Quests", icon = "Interface\\Icons\\INV_Misc_Book_07" },
-        { id = "reputation", name = "Reputation", icon = "Interface\\Icons\\Achievement_Reputation_08" },
-        { id = "profession", name = "Professions", icon = "Interface\\Icons\\INV_Misc_Note_01" },
-        { id = "drop", name = "Drops", icon = "Interface\\Icons\\INV_Misc_Bag_10_Blue" },
-        { id = "promo", name = "Promotions", icon = "Interface\\Icons\\INV_Misc_Gift_05" },
-        { id = "unknown", name = "Unknown", icon = "Interface\\Icons\\INV_Misc_QuestionMark" },
-        { id = "auction", name = "Auction House", icon = "Interface\\Icons\\INV_Misc_Coin_02" },
-        { id = "goblin", name = "Goblin Profit", icon = "Interface\\Icons\\INV_Misc_Coin_18" },
+        { id = "acquire", name = "Acquire", icon = "Interface\\Icons\\INV_Misc_Map_01" },
+        { id = "craft", name = "Craft", icon = "Interface\\Icons\\INV_Misc_Gear_01" },
+        { id = "economy", name = "Economy", icon = "Interface\\Icons\\INV_Misc_Coin_18" },
+        { id = "planner", name = "Planner", icon = "Interface\\Icons\\INV_Scroll_03" },
+        { id = "collection", name = "Collection", icon = "Interface\\Icons\\INV_Misc_Bag_10_Blue" },
     }
     
     self.tabButtons = {}
@@ -344,7 +337,10 @@ function HC:CreateSidebar(parent)
         end)
         btn:SetScript("OnClick", function(self)
             currentTab = self.tabID
-            if currentTab == "goblin" then
+            if HousingCompletedDB then
+                HousingCompletedDB.lastTab = currentTab
+            end
+            if currentTab == "economy" or currentTab == "planner" then
                 currentSortKey = "profit"
                 currentSortAscending = false
             end
@@ -355,7 +351,38 @@ function HC:CreateSidebar(parent)
         self.tabButtons[tabInfo.id] = btn
         y = y - 26
     end
-    y = y - 12
+    y = y - 10
+
+    local modeLabel = scrollChild:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    modeLabel:SetPoint("TOPLEFT", 15, y)
+    modeLabel:SetText("MODE")
+    modeLabel:SetTextColor(unpack(COLORS.accentAlt))
+    y = y - 18
+
+    local modeItems = {
+        { key = "collector", text = "Collector Mode" },
+        { key = "hybrid", text = "Hybrid Mode" },
+        { key = "goblin", text = "Goblin Mode" },
+    }
+    self.modeButtons = {}
+    for _, m in ipairs(modeItems) do
+        local b = CreateFrame("Button", nil, scrollChild)
+        b:SetSize(SIDEBAR_WIDTH - 44, 18)
+        b:SetPoint("TOPLEFT", 10, y)
+        b.modeKey = m.key
+        local t = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        t:SetPoint("LEFT", 8, 0)
+        t:SetText(m.text)
+        b.text = t
+        b:SetScript("OnClick", function(selfBtn)
+            HousingCompletedDB.mode = selfBtn.modeKey
+            HC:UpdateTabButtons()
+            HC:DoSearch()
+        end)
+        self.modeButtons[m.key] = b
+        y = y - 18
+    end
+    y = y - 8
     
     local divider = scrollChild:CreateTexture(nil, "ARTWORK")
     divider:SetSize(SIDEBAR_WIDTH - 52, 1)
@@ -395,6 +422,73 @@ function HC:CreateSidebar(parent)
     zoneOnlyCb:SetScript("OnClick", function() HC:DoSearch() end)
     self.zoneOnlyCb = zoneOnlyCb
     y = y - 28
+
+    local econLabel = scrollChild:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    econLabel:SetPoint("TOPLEFT", 15, y)
+    econLabel:SetText("ECON FILTERS")
+    econLabel:SetTextColor(unpack(COLORS.accentAlt))
+    y = y - 18
+
+    local minProfitBox = CreateFrame("EditBox", nil, scrollChild, "InputBoxTemplate")
+    minProfitBox:SetSize(70, 20)
+    minProfitBox:SetPoint("TOPLEFT", 16, y)
+    minProfitBox:SetAutoFocus(false)
+    minProfitBox:SetNumeric(true)
+    minProfitBox:SetMaxLetters(12)
+    minProfitBox:SetNumber((HousingCompletedDB.filters and HousingCompletedDB.filters.minProfit) or 0)
+    minProfitBox:SetScript("OnEnterPressed", function(selfBox)
+        HousingCompletedDB.filters.minProfit = tonumber(selfBox:GetText()) or 0
+        selfBox:ClearFocus()
+        HC:DoSearch()
+    end)
+    self.minProfitBox = minProfitBox
+    local minProfitLabel = scrollChild:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    minProfitLabel:SetPoint("LEFT", minProfitBox, "RIGHT", 6, 0)
+    minProfitLabel:SetText("Min Profit (c)")
+    y = y - 22
+
+    local minMarginBox = CreateFrame("EditBox", nil, scrollChild, "InputBoxTemplate")
+    minMarginBox:SetSize(70, 20)
+    minMarginBox:SetPoint("TOPLEFT", 16, y)
+    minMarginBox:SetAutoFocus(false)
+    minMarginBox:SetNumeric(true)
+    minMarginBox:SetMaxLetters(6)
+    minMarginBox:SetNumber((HousingCompletedDB.filters and HousingCompletedDB.filters.minMargin) or 0)
+    minMarginBox:SetScript("OnEnterPressed", function(selfBox)
+        HousingCompletedDB.filters.minMargin = tonumber(selfBox:GetText()) or 0
+        selfBox:ClearFocus()
+        HC:DoSearch()
+    end)
+    self.minMarginBox = minMarginBox
+    local minMarginLabel = scrollChild:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    minMarginLabel:SetPoint("LEFT", minMarginBox, "RIGHT", 6, 0)
+    minMarginLabel:SetText("Min Margin %")
+    y = y - 22
+
+    local craftableOnlyCb = CreateFrame("CheckButton", nil, scrollChild, "UICheckButtonTemplate")
+    craftableOnlyCb:SetPoint("TOPLEFT", 10, y)
+    SetButtonText(craftableOnlyCb, "Craftable only", 0.7, 0.7, 0.7)
+    craftableOnlyCb:SetChecked(HousingCompletedDB.filters and HousingCompletedDB.filters.craftableOnly)
+    craftableOnlyCb:SetScript("OnClick", function(selfBtn)
+        HousingCompletedDB.filters.craftableOnly = selfBtn:GetChecked() and true or false
+        HC:DoSearch()
+    end)
+    self.craftableOnlyCb = craftableOnlyCb
+    y = y - 22
+
+    local lowRiskOnlyCb = CreateFrame("CheckButton", nil, scrollChild, "UICheckButtonTemplate")
+    lowRiskOnlyCb:SetPoint("TOPLEFT", 10, y)
+    SetButtonText(lowRiskOnlyCb, "Low risk only", 0.7, 0.7, 0.7)
+    lowRiskOnlyCb:SetChecked(HousingCompletedDB.filters and HousingCompletedDB.filters.lowRiskOnly)
+    lowRiskOnlyCb:SetScript("OnClick", function(selfBtn)
+        HousingCompletedDB.filters.lowRiskOnly = selfBtn:GetChecked() and true or false
+        HC:DoSearch()
+    end)
+    self.lowRiskOnlyCb = lowRiskOnlyCb
+    y = y - 24
+    self.econFilterWidgets = {
+        econLabel, minProfitBox, minProfitLabel, minMarginBox, minMarginLabel, craftableOnlyCb, lowRiskOnlyCb,
+    }
 
     local itemCategoryLabel = scrollChild:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     itemCategoryLabel:SetPoint("TOPLEFT", 15, y)
@@ -514,12 +608,14 @@ function HC:CreateContent(parent)
 
     local marginHeader = CreateSortHeader("Margin", "margin")
     local profitHeader = CreateSortHeader("Profit", "profit", marginHeader, -8)
-    local craftHeader = CreateSortHeader("Craft Cost", "craftCost", profitHeader, -8)
+    local cvbHeader = CreateSortHeader("Craft/Buy", "craftVsBuyRank", profitHeader, -8)
+    local craftHeader = CreateSortHeader("Craft Cost", "craftCost", cvbHeader, -8)
     local ahHeader = CreateSortHeader("AH Price", "ahPrice", craftHeader, -8)
 
     self.acquireSortHeaders = {
         ahPrice = ahHeader,
         craftCost = craftHeader,
+        craftVsBuyRank = cvbHeader,
         profit = profitHeader,
         margin = marginHeader,
     }
@@ -624,10 +720,39 @@ function HC:CreateContent(parent)
     statusText:SetText("0 results")
     statusText:SetTextColor(unpack(COLORS.textDim))
     self.statusText = statusText
+
+    local plannerBudgetBox = CreateFrame("EditBox", nil, pagination, "InputBoxTemplate")
+    plannerBudgetBox:SetSize(110, 20)
+    plannerBudgetBox:SetPoint("LEFT", nextBtn, "RIGHT", 14, 0)
+    plannerBudgetBox:SetAutoFocus(false)
+    plannerBudgetBox:SetNumeric(true)
+    plannerBudgetBox:SetText("100000")
+    plannerBudgetBox:Hide()
+    self.plannerBudgetBox = plannerBudgetBox
+
+    local plannerRunBtn = CreateFrame("Button", nil, pagination, "UIPanelButtonTemplate")
+    plannerRunBtn:SetSize(72, 22)
+    plannerRunBtn:SetPoint("LEFT", plannerBudgetBox, "RIGHT", 6, 0)
+    plannerRunBtn:SetText("Plan")
+    plannerRunBtn:SetScript("OnClick", function()
+        HC:RunPlanner()
+    end)
+    plannerRunBtn:Hide()
+    self.plannerRunBtn = plannerRunBtn
+
+    local plannerSummary = pagination:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    plannerSummary:SetPoint("LEFT", plannerRunBtn, "RIGHT", 8, 0)
+    plannerSummary:SetPoint("RIGHT", setWaypointBtn, "LEFT", -8, 0)
+    plannerSummary:SetJustifyH("LEFT")
+    plannerSummary:SetTextColor(unpack(COLORS.textMuted))
+    plannerSummary:Hide()
+    self.plannerSummaryText = plannerSummary
+
     self:UpdateSetWaypointButton()
     self:UpdateAddShoppingButton()
     self:UpdateMapAllButton()
     self:UpdateAcquireSortHeaderState()
+    self:UpdatePlannerControls()
     
     self.content = content
 end
@@ -730,8 +855,14 @@ function HC:CreateResultRow(parent, index)
     profitText:SetJustifyH("RIGHT")
     row.profitText = profitText
 
+    local craftVsBuyText = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    craftVsBuyText:SetPoint("RIGHT", profitText, "LEFT", -8, 0)
+    craftVsBuyText:SetWidth(76)
+    craftVsBuyText:SetJustifyH("RIGHT")
+    row.craftVsBuyText = craftVsBuyText
+
     local craftCostText = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    craftCostText:SetPoint("RIGHT", profitText, "LEFT", -8, 0)
+    craftCostText:SetPoint("RIGHT", craftVsBuyText, "LEFT", -8, 0)
     craftCostText:SetWidth(82)
     craftCostText:SetJustifyH("RIGHT")
     row.craftCostText = craftCostText
@@ -878,6 +1009,13 @@ function HC:AppendPricingTooltip(tooltip, resultData)
     tooltip:AddLine("AH Price: " .. FormatMoneyValue(econ.ahPrice), 0.95, 0.95, 0.95)
     tooltip:AddLine("Vendor Price: " .. FormatMoneyValue(econ.vendorCost), 0.95, 0.95, 0.95)
     tooltip:AddLine("Total Cost: " .. FormatMoneyValue(econ.totalCost), 0.95, 0.95, 0.95)
+    if econ.trend then
+        tooltip:AddLine(string.format("Trend: %s %.1f%%", econ.trend.arrow or "->", econ.trend.changePct or 0), 0.9, 0.9, 0.95)
+        tooltip:AddLine(string.format("Risk Score: %d / 100", econ.risk or 50), 0.9, 0.9, 0.95)
+    end
+    if econ.auctionAgeSeconds then
+        tooltip:AddLine(string.format("Scan Age: %ds", econ.auctionAgeSeconds), 0.8, 0.8, 0.9)
+    end
 
     if econ.profit then
         local prefix = econ.profit >= 0 and "|cff40ff40" or "|cffff5555"
@@ -1276,6 +1414,11 @@ function HC:UpdatePreview(data)
             self.previewMargin:SetText("-")
         end
     end
+    if self.previewSources and currentTab == "planner" and economics then
+        local rec = economics.craftVsBuy or "Unknown"
+        local risk = economics.risk or 50
+        self.previewSources:SetText(string.format("Plan: %s | Risk %d", rec, risk))
+    end
 
     local itemID = self:GetResolvedItemID(data)
     if self.previewItemID then
@@ -1432,7 +1575,7 @@ end
 
 function HC:BuildResultsCSV(results)
     local lines = {
-        "Name,Type,Source,Vendor,Zone,Cost,AHPrice,CraftCost,Profit,MarginPct,Expansion,Faction,Collected,ItemID,SourceCount",
+        "Name,Type,Source,Vendor,Zone,Cost,AHPrice,CraftCost,CraftVsBuy,Profit,MarginPct,TrendPct,Risk,Expansion,Faction,Collected,ItemID,SourceCount",
     }
 
     for _, r in ipairs(results or {}) do
@@ -1446,8 +1589,11 @@ function HC:BuildResultsCSV(results)
             EscapeCSV(r.cost or ""),
             EscapeCSV(econ and econ.ahPrice or ""),
             EscapeCSV(econ and econ.craftCost or ""),
+            EscapeCSV(econ and econ.craftVsBuy or ""),
             EscapeCSV(econ and econ.profit or ""),
             EscapeCSV(econ and econ.margin and string.format("%.2f", econ.margin) or ""),
+            EscapeCSV(econ and econ.trend and string.format("%.2f", econ.trend.changePct or 0) or ""),
+            EscapeCSV(econ and econ.risk or ""),
             EscapeCSV(r.expansion or ""),
             EscapeCSV(r.faction or ""),
             EscapeCSV(r.collected and "Yes" or "No"),
@@ -1796,16 +1942,20 @@ function HC:DoSearch()
         faction = self:GetPlayerFaction(),
         zoneMapID = zoneMapID,
     }
-    if currentTab == "items" then
+    if currentTab == "collection" then
         filters.itemCategory = currentItemCategory
         filters.hideVendorEntries = true
+    elseif currentTab == "acquire" then
+        -- broad source discovery
+    elseif currentTab == "craft" then
+        filters.sourceTypes = { profession = true }
+    elseif currentTab == "planner" then
+        -- planner uses economy-capable rows
     elseif currentTab == "reputation" then
         -- Reputation factions are not the same as player faction restrictions.
         filters.faction = nil
-    elseif currentTab == "goblin" then
-        -- Goblin tab is profitability-focused across all item sources.
-    elseif currentTab ~= "all" then 
-        filters.sourceTypes = { [currentTab] = true } 
+    elseif currentTab == "economy" then
+        -- economy uses all sources but filters by economics below
     end
     
     local results = self:SearchAll(query, filters)
@@ -1817,11 +1967,28 @@ function HC:DoSearch()
         if show then table.insert(filtered, r) end
     end
     
-    if currentTab == "goblin" then
+    if currentTab == "economy" or currentTab == "planner" then
         local profitable = {}
+        local minProfit = tonumber(HousingCompletedDB.filters and HousingCompletedDB.filters.minProfit) or 0
+        local minMargin = tonumber(HousingCompletedDB.filters and HousingCompletedDB.filters.minMargin) or 0
+        local craftableOnly = HousingCompletedDB.filters and HousingCompletedDB.filters.craftableOnly
+        local lowRiskOnly = HousingCompletedDB.filters and HousingCompletedDB.filters.lowRiskOnly
         for _, r in ipairs(filtered) do
             local econ = self.GetResultEconomics and self:GetResultEconomics(r, { forceRefresh = true }) or nil
-            if econ and econ.ahPrice and econ.totalCost then
+            local keep = econ and econ.ahPrice and econ.totalCost
+            if keep and minProfit > 0 then
+                keep = (econ.profit or 0) >= minProfit
+            end
+            if keep and minMargin > 0 then
+                keep = (econ.margin or 0) >= minMargin
+            end
+            if keep and craftableOnly then
+                keep = (econ.craftCost ~= nil)
+            end
+            if keep and lowRiskOnly then
+                keep = (econ.risk or 100) <= 35
+            end
+            if keep then
                 table.insert(profitable, r)
             end
         end
@@ -1845,6 +2012,9 @@ function HC:DoSearch()
     self:UpdateSetWaypointButton()
     self:UpdateAddShoppingButton()
     self:UpdateMapAllButton()
+    if currentTab == "planner" then
+        self:RunPlanner()
+    end
     if self.UpdatePreview then
         self:UpdatePreview(nil)
     end
@@ -1905,7 +2075,7 @@ function HC:UpdateResults()
             row.collectedIcon:SetShown(data.collected)
             
             local sourceText = data.source or ""
-            if currentTab == "items" then
+            if currentTab == "collection" then
                 sourceText = "Category: " .. self:GetItemCategoryName(data.itemCategory or (data.data and data.data.itemCategory))
             end
             if data.type == "vendor" and data.data then
@@ -1939,6 +2109,16 @@ function HC:UpdateResults()
             row.craftCostText:SetText(FormatMoneyValue(economics and economics.craftCost))
             row.profitText:SetText(FormatMoneyValue(economics and economics.profit and math.abs(economics.profit) or nil))
             row.marginText:SetText(FormatMarginValue(economics and economics.margin))
+            local cvb = economics and economics.craftVsBuy or "-"
+            if cvb == "BuyAH" then cvb = "Buy (AH)"
+            elseif cvb == "BuyVendor" then cvb = "Buy (V)"
+            end
+            row.craftVsBuyText:SetText(cvb or "-")
+
+            if economics and economics.trend and economics.trend.arrow then
+                local trendText = string.format(" |cff666666| |rTrend: %s %.1f%%  Risk: %d", economics.trend.arrow, economics.trend.changePct or 0, economics.risk or 0)
+                row.infoText:SetText((row.infoText:GetText() or "") .. trendText)
+            end
 
             if economics and economics.profit then
                 if economics.profit >= 0 then
@@ -1956,6 +2136,7 @@ function HC:UpdateResults()
             end
             row.ahPriceText:SetTextColor(unpack(COLORS.textMuted))
             row.craftCostText:SetTextColor(unpack(COLORS.textMuted))
+            row.craftVsBuyText:SetTextColor(unpack(COLORS.textMuted))
             
             row.typeBadge:SetText(sourceInfo.name)
             row.typeBadge:SetTextColor(unpack(sourceInfo.color))
@@ -2000,7 +2181,7 @@ function HC:RefreshVisiblePricingData()
         end
     end
 
-    if currentTab == "goblin" then
+    if currentTab == "economy" or currentTab == "planner" then
         local filtered = {}
         for _, r in ipairs(currentResults) do
             local econ = self.GetResultEconomics and self:GetResultEconomics(r) or nil
@@ -2021,6 +2202,38 @@ function HC:RefreshVisiblePricingData()
     if selectedItem and self.UpdatePreview then
         self:UpdatePreview(selectedItem)
     end
+    self:UpdatePlannerControls()
+end
+
+function HC:RunPlanner()
+    local budget = tonumber(self.plannerBudgetBox and self.plannerBudgetBox:GetText()) or 0
+    local plan = self.BuildCapitalAllocationPlan and self:BuildCapitalAllocationPlan(currentResults, budget, {
+        minProfit = tonumber(HousingCompletedDB.filters and HousingCompletedDB.filters.minProfit) or 0,
+        minMargin = tonumber(HousingCompletedDB.filters and HousingCompletedDB.filters.minMargin) or 0,
+        maxPerItem = 3,
+    }) or nil
+    if not plan then
+        if self.plannerSummaryText then
+            self.plannerSummaryText:SetText("Planner unavailable.")
+        end
+        return
+    end
+
+    local bottlenecks = self.DetectSupplyBottlenecks and self:DetectSupplyBottlenecks(plan) or {}
+    local bottleneckText = ""
+    if bottlenecks[1] then
+        bottleneckText = string.format(" Bottleneck: %s x%d", bottlenecks[1].name or "Unknown", bottlenecks[1].totalQty or 0)
+    end
+    if self.plannerSummaryText then
+        self.plannerSummaryText:SetText(plan.summary .. bottleneckText)
+    end
+end
+
+function HC:UpdatePlannerControls()
+    local show = currentTab == "planner"
+    if self.plannerBudgetBox then self.plannerBudgetBox:SetShown(show) end
+    if self.plannerRunBtn then self.plannerRunBtn:SetShown(show) end
+    if self.plannerSummaryText then self.plannerSummaryText:SetShown(show) end
 end
 
 function HC:UpdateTabButtons()
@@ -2033,11 +2246,44 @@ function HC:UpdateTabButtons()
             btn.label:SetTextColor(0.7, 0.7, 0.7)
         end
     end
+    self:UpdateModeButtons()
     self:UpdateItemCategoryButtons()
+    self:UpdatePlannerControls()
+end
+
+function HC:UpdateModeButtons()
+    local active = (HousingCompletedDB and HousingCompletedDB.mode) or "hybrid"
+    for modeKey, btn in pairs(self.modeButtons or {}) do
+        if modeKey == active then
+            btn.text:SetTextColor(unpack(COLORS.accent))
+        else
+            btn.text:SetTextColor(0.7, 0.7, 0.7)
+        end
+    end
+
+    local visibleTabs = {
+        acquire = true, craft = true, economy = true, planner = true, collection = true,
+    }
+    if active == "collector" then
+        visibleTabs.economy = false
+        visibleTabs.planner = false
+    elseif active == "goblin" then
+        visibleTabs.collection = false
+    end
+
+    for tabID, btn in pairs(self.tabButtons or {}) do
+        btn:SetShown(visibleTabs[tabID] and true or false)
+    end
+    if not visibleTabs[currentTab] then
+        currentTab = active == "goblin" and "economy" or "acquire"
+    end
+    for _, w in ipairs(self.econFilterWidgets or {}) do
+        w:SetShown(active ~= "collector")
+    end
 end
 
 function HC:UpdateItemCategoryButtons()
-    local showCategories = currentTab == "items"
+    local showCategories = currentTab == "collection"
     if self.itemCategoryLabel then
         self.itemCategoryLabel:SetShown(showCategories)
     end
@@ -2059,6 +2305,7 @@ function HC:UpdateAcquireSortHeaderState()
             local arrow = currentSortAscending and " ^" or " v"
             btn.text:SetText((key == "ahPrice" and "AH Price")
                 or (key == "craftCost" and "Craft Cost")
+                or (key == "craftVsBuyRank" and "Craft/Buy")
                 or (key == "profit" and "Profit")
                 or "Margin")
             btn.text:SetTextColor(unpack(COLORS.accent))
@@ -2068,6 +2315,8 @@ function HC:UpdateAcquireSortHeaderState()
                 btn.text:SetText("AH Price")
             elseif key == "craftCost" then
                 btn.text:SetText("Craft Cost")
+            elseif key == "craftVsBuyRank" then
+                btn.text:SetText("Craft/Buy")
             elseif key == "profit" then
                 btn.text:SetText("Profit")
             else
@@ -2094,6 +2343,11 @@ function HC:SortCurrentResults()
         local be = self.GetResultEconomics and self:GetResultEconomics(b) or nil
         local av = ae and ae[currentSortKey] or nil
         local bv = be and be[currentSortKey] or nil
+        if currentSortKey == "craftVsBuyRank" then
+            local rankMap = { Craft = 3, BuyVendor = 2, BuyAH = 1, Unknown = 0 }
+            av = rankMap[ae and ae.craftVsBuy or "Unknown"] or 0
+            bv = rankMap[be and be.craftVsBuy or "Unknown"] or 0
+        end
         if av == bv then
             local an = (a.name or ""):lower()
             local bn = (b.name or ""):lower()
@@ -2148,6 +2402,9 @@ function HC:ToggleUI()
         if self.shoppingListPanel then self.shoppingListPanel:Hide() end
     else
         self.mainFrame:Show()
+        if HousingCompletedDB and HousingCompletedDB.lastTab and self.tabButtons and self.tabButtons[HousingCompletedDB.lastTab] then
+            currentTab = HousingCompletedDB.lastTab
+        end
         if self.settingsPanel then self.settingsPanel:Hide() end
         if self.content then self.content:Show() end
         if self.previewPanel then self.previewPanel:Show() end

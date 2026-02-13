@@ -131,6 +131,38 @@ function HC:InitializeAuctionatorPricingProvider()
         return nil
     end
 
+    function provider:GetAuctionAge(itemLink, itemID)
+        if not self:IsEnabled() then return nil end
+        local api = self.api
+        if not api then return nil end
+
+        if type(itemLink) == "string" and itemLink ~= "" and type(api.GetAuctionAgeByItemLink) == "function" then
+            local ok, age = pcall(api.GetAuctionAgeByItemLink, self.callerID, itemLink)
+            if ok and type(age) == "number" and age >= 0 then
+                return age
+            end
+        end
+        if type(itemID) == "number" and type(api.GetAuctionAgeByItemID) == "function" then
+            local ok, age = pcall(api.GetAuctionAgeByItemID, self.callerID, itemID)
+            if ok and type(age) == "number" and age >= 0 then
+                return age
+            end
+        end
+        return nil
+    end
+
+    function provider:GetAuctionInfo(itemLink, itemID)
+        local price = self:GetAuctionPrice(itemLink, itemID)
+        if not price then
+            return nil
+        end
+        local age = self:GetAuctionAge(itemLink, itemID)
+        return {
+            price = price,
+            age = age,
+        }
+    end
+
     function provider:GetVendorPrice(itemLink, itemID)
         if not self:IsEnabled() then
             return nil

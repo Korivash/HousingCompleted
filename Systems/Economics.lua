@@ -29,6 +29,12 @@ local function MinPositive(a, b)
     return a or b
 end
 
+local function Clamp(v, lo, hi)
+    if v < lo then return lo end
+    if v > hi then return hi end
+    return v
+end
+
 local function PushReagent(output, itemID, reagentData)
     if type(reagentData) ~= "table" then
         reagentData = { qty = reagentData }
@@ -190,7 +196,116 @@ function HC:GetAuctionPriceForResult(resultData)
         itemLink = C_Item.GetItemLinkByID(itemID)
     end
 
-    return self.PricingProvider:GetAuctionPrice(itemLink, itemID)
+    if self.PricingProvider.GetAuctionInfo then
+        local info = self.PricingProvider:GetAuctionInfo(itemLink, itemID)
+        if info and info.price then
+            return info.price, info
+        end
+    end
+    return self.PricingProvider:GetAuctionPrice(itemLink, itemID), nil
+end
+
+function HC:RecordPriceHistory(itemID, price, auctionAgeSeconds)
+    if not itemID or not price or price <= 0 then return end
+    if not HousingCompletedDB or type(HousingCompletedDB.economy) ~= "table" then return end
+
+    local histDB = HousingCompletedDB.economy.priceHistory
+    if type(histDB) ~= "table" then
+        histDB = {}
+        HousingCompletedDB.economy.priceHistory = histDB
+    end
+    local maxHistory = tonumber(HousingCompletedDB.economy.maxHistory) or 8
+    maxHistory = math.max(4, math.min(20, maxHistory))
+
+    local itemHist = histDB[itemID]
+    if type(itemHist) ~= "table" then
+        itemHist = {}
+        histDB[itemID] = itemHist
+    end
+
+    local now = time()
+    local last = itemHist[#itemHist]
+    if last and last.price == price and (now - (last.t or 0)) < 60 then
+        last.age = auctionAgeSeconds or last.age
+        return
+    end
+
+    table.insert(itemHist, {
+        t = now,
+        price = price,
+        age = auctionAgeSeconds,
+    })
+    while #itemHist > maxHistory do
+        table.remove(itemHist, 1)
+    end
+end
+
+function HC:GetPriceHistory(itemID)
+    if not itemID or not HousingCompletedDB or not HousingCompletedDB.economy then
+        return {}
+    end
+    local hist = HousingCompletedDB.economy.priceHistory and HousingCompletedDB.economy.priceHistory[itemID]
+    if type(hist) ~= "table" then
+        return {}
+    end
+    return hist
+end
+
+function HC:GetPriceTrendInfo(itemID, currentPrice)
+    local hist = self:GetPriceHistory(itemID)
+    if #hist == 0 then
+        return {
+            direction = "flat",
+            changePct = 0,
+            variance = 0,
+            risk = 50,
+            stability = 50,
+            sampleSize = 0,
+            arrow = "->",
+        }
+    end
+
+    local n = #hist
+    local first = hist[1].price or currentPrice
+    local last = currentPrice or hist[n].price
+    local mean = 0
+    for _, p in ipairs(hist) do
+        mean = mean + (p.price or 0)
+    end
+    mean = mean / math.max(1, n)
+
+    local variance = 0
+    for _, p in ipairs(hist) do
+        local d = (p.price or 0) - mean
+        variance = variance + (d * d)
+    end
+    variance = variance / math.max(1, n)
+    local stddev = math.sqrt(variance)
+    local relVol = mean > 0 and (stddev / mean) or 0
+    local changePct = first and first > 0 and (((last - first) / first) * 100) or 0
+
+    local direction = "flat"
+    local arrow = "->"
+    if changePct > 3 then
+        direction = "up"
+        arrow = "^"
+    elseif changePct < -3 then
+        direction = "down"
+        arrow = "v"
+    end
+
+    local risk = Clamp(math.floor(relVol * 200 + 0.5), 0, 100)
+    local stability = 100 - risk
+    return {
+        direction = direction,
+        changePct = changePct,
+        variance = variance,
+        stddev = stddev,
+        risk = risk,
+        stability = stability,
+        sampleSize = n,
+        arrow = arrow,
+    }
 end
 
 function HC:GetReagentUnitCost(reagent)
@@ -286,7 +401,13 @@ end
 function HC:BuildEconomicsSnapshot(resultData)
     if not resultData then return nil end
 
-    local ahPrice = self:GetAuctionPriceForResult(resultData)
+    local itemID = (self.GetResolvedItemID and self:GetResolvedItemID(resultData))
+        or resultData.itemID
+        or (resultData.data and resultData.data.itemID)
+    local ahPrice, auctionInfo = self:GetAuctionPriceForResult(resultData)
+    if itemID and ahPrice then
+        self:RecordPriceHistory(itemID, ahPrice, auctionInfo and auctionInfo.age)
+    end
     local vendorCost = self:GetVendorAcquisitionCost(resultData)
     local craftCost, missingMaterials, reagents = self:ComputeCraftCostForResult(resultData)
     local totalCost = MinPositive(vendorCost, craftCost)
@@ -298,13 +419,31 @@ function HC:BuildEconomicsSnapshot(resultData)
         margin = (profit / totalCost) * 100
     end
 
+    local craftVsBuy = "Unknown"
+    if craftCost and ahPrice then
+        craftVsBuy = (craftCost <= ahPrice) and "Craft" or "BuyAH"
+    elseif vendorCost and ahPrice then
+        craftVsBuy = (vendorCost <= ahPrice) and "BuyVendor" or "BuyAH"
+    elseif craftCost then
+        craftVsBuy = "Craft"
+    elseif vendorCost then
+        craftVsBuy = "BuyVendor"
+    end
+
+    local trend = self:GetPriceTrendInfo(itemID, ahPrice)
+
     return {
         ahPrice = ahPrice,
+        auctionAgeSeconds = auctionInfo and auctionInfo.age or nil,
         vendorCost = vendorCost,
         craftCost = craftCost,
         totalCost = totalCost,
         profit = profit,
         margin = margin,
+        craftVsBuy = craftVsBuy,
+        trend = trend,
+        risk = trend and trend.risk or 50,
+        stability = trend and trend.stability or 50,
         missingMaterials = missingMaterials or {},
         reagents = reagents or {},
     }
@@ -442,4 +581,37 @@ function HC:GetGoblinProfitRows(results)
         end
     end
     return rows
+end
+
+function HC:SimulateBulkCraft(resultData, qty)
+    local q = math.max(1, math.floor((tonumber(qty) or 1) + 0.5))
+    local econ = self:GetResultEconomics(resultData, { forceRefresh = true })
+    if not econ then return nil end
+
+    local shortages = {}
+    for _, missing in ipairs(econ.missingMaterials or {}) do
+        table.insert(shortages, {
+            itemID = missing.itemID,
+            name = missing.name,
+            quantity = (missing.quantity or 1) * q,
+        })
+    end
+
+    local totalCost = econ.totalCost and (econ.totalCost * q) or nil
+    local totalRevenue = econ.ahPrice and (econ.ahPrice * q) or nil
+    local totalProfit = (totalRevenue and totalCost) and (totalRevenue - totalCost) or nil
+    local recommendation = econ.craftVsBuy
+    if shortages[1] then
+        recommendation = "BuyAH"
+    end
+
+    return {
+        quantity = q,
+        unit = econ,
+        totalCost = totalCost,
+        totalRevenue = totalRevenue,
+        totalProfit = totalProfit,
+        shortages = shortages,
+        recommendation = recommendation,
+    }
 end

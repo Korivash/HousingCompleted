@@ -22,12 +22,21 @@ scale = 1.0,
     filters = {
         showCollected = true,
         showUncollected = true,
-                showUnknownOnly = false,
-sourceTypes = {},
+        showUnknownOnly = false,
+        sourceTypes = {},
         expansions = {},
+        minProfit = 0,
+        minMargin = 0,
+        craftableOnly = false,
+        lowRiskOnly = false,
     },
-    lastTab = "all",
+    lastTab = "acquire",
     shoppingList = {},
+    mode = "hybrid",
+    economy = {
+        priceHistory = {},
+        maxHistory = 8,
+    },
 }
 
 ---------------------------------------------------
@@ -87,6 +96,17 @@ function HC:InitSavedVars()
 
     if type(HousingCompletedDB.shoppingList) ~= "table" then
         HousingCompletedDB.shoppingList = {}
+    end
+
+    if type(HousingCompletedDB.economy) ~= "table" then
+        HousingCompletedDB.economy = { priceHistory = {}, maxHistory = 8 }
+    end
+    if type(HousingCompletedDB.economy.priceHistory) ~= "table" then
+        HousingCompletedDB.economy.priceHistory = {}
+    end
+    HousingCompletedDB.economy.maxHistory = tonumber(HousingCompletedDB.economy.maxHistory) or 8
+    if HousingCompletedDB.mode ~= "collector" and HousingCompletedDB.mode ~= "hybrid" and HousingCompletedDB.mode ~= "goblin" then
+        HousingCompletedDB.mode = "hybrid"
     end
 
     -- Item cache (flat at root for fast access)
