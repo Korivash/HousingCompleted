@@ -839,14 +839,48 @@ end
 function HC:IsReputationRequirementText(text)
     if type(text) ~= "string" then return false end
     local t = text:lower()
-    if not t:find("require", 1, true) then return false end
     if t:find("friendly", 1, true) then return true end
     if t:find("honored", 1, true) then return true end
     if t:find("revered", 1, true) then return true end
     if t:find("exalted", 1, true) then return true end
     if t:find("renown", 1, true) then return true end
     if t:find("rank", 1, true) then return true end
+    if t:find("reputation", 1, true) then return true end
+    if t:find("require", 1, true) then return true end
     return false
+end
+
+function HC:ExtractReputationRequirement(text, fallbackFaction, fallbackStanding)
+    local faction = fallbackFaction
+    local standing = fallbackStanding
+    if type(text) ~= "string" or text == "" then
+        return faction, standing
+    end
+
+    local t = text
+    if not standing or standing == "" then
+        standing = t:match("([Rr]enown%s*%d+)")
+            or t:match("([Rr]ank%s*%d+)")
+            or t:match("([Ee]xalted)")
+            or t:match("([Rr]evered)")
+            or t:match("([Hh]onored)")
+            or t:match("([Ff]riendly)")
+    end
+
+    if not faction or faction == "" then
+        faction = t:match("[Ww]ith%s+([^,%.]+)")
+        if faction then
+            faction = faction:gsub("^%s+", ""):gsub("%s+$", "")
+        end
+    end
+
+    return faction, standing
+end
+
+function HC:IsPlayerFactionRestricted(itemFaction)
+    if type(itemFaction) ~= "string" then return false end
+    local f = itemFaction:lower()
+    return f == "alliance" or f == "horde" or f == "neutral"
 end
 
 function HC:IsReputationSource(source)
@@ -1046,7 +1080,7 @@ function HC:SearchAll(query, filters)
             if passes and filters.faction then
                 for _, s in ipairs(item.sources or {}) do
                     local f = s.faction
-                    if f and f ~= "neutral" and f ~= filters.faction then
+                    if self:IsPlayerFactionRestricted(f) and f ~= "neutral" and f ~= filters.faction then
                         passes = false
                         break
                     end
@@ -1213,7 +1247,7 @@ function HC:PassesFilters(item, filters, sourceType)
     -- Check faction filter
     if filters.faction then
         local itemFaction = item.faction
-        if itemFaction and itemFaction ~= "neutral" and itemFaction ~= filters.faction then
+        if self:IsPlayerFactionRestricted(itemFaction) and itemFaction ~= "neutral" and itemFaction ~= filters.faction then
             return false
         end
     end

@@ -230,6 +230,22 @@ end
 function HC:ComputeCraftCostForResult(resultData)
     local reagents = self:GetCraftReagents(resultData)
     if #reagents == 0 then
+        local sourceType = self.NormalizeSourceType and self:NormalizeSourceType(resultData.type or "unknown") or (resultData.type or "unknown")
+        if sourceType == "profession" then
+            local bestFallback = self:ParseMoneyToCopper(resultData.cost)
+            local sources = resultData.data and resultData.data.sources
+            if type(sources) == "table" then
+                for _, s in ipairs(sources) do
+                    local sType = self.NormalizeSourceType and self:NormalizeSourceType(s.sourceType or "unknown") or (s.sourceType or "unknown")
+                    if sType == "profession" then
+                        bestFallback = MinPositive(bestFallback, self:ParseMoneyToCopper(s.cost))
+                    end
+                end
+            end
+            if bestFallback then
+                return bestFallback, {}, {}
+            end
+        end
         return nil, {}, {}
     end
 

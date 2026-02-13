@@ -769,8 +769,12 @@ function HC:CreateResultRow(parent, index)
         GameTooltip:AddLine("Reputation Required", 0.9, 0.8, 1)
         for _, req in ipairs(self.repRequirements) do
             local line
-            if req.faction or req.standing then
-                line = (req.faction or "Reputation") .. " - " .. (req.standing or "Required")
+            if req.faction and req.standing then
+                line = "Requires " .. req.standing .. " with " .. req.faction
+            elseif req.standing then
+                line = "Requires " .. req.standing
+            elseif req.faction then
+                line = "Requires reputation with " .. req.faction
             elseif req.note then
                 line = req.note
             else
@@ -841,6 +845,9 @@ function HC:GetReputationRequirements(resultData)
             local note = nil
             if self.IsReputationRequirementText and self:IsReputationRequirementText(s.notes) then
                 note = s.notes
+            end
+            if self.ExtractReputationRequirement then
+                faction, standing = self:ExtractReputationRequirement((s.notes or s.source or ""), faction, standing)
             end
 
             local key = tostring(faction or "") .. "|" .. tostring(standing or "") .. "|" .. tostring(note or "")
@@ -1281,14 +1288,16 @@ function HC:UpdatePreview(data)
     end
     
     -- Reputation details
-    if data.type == "reputation" and data.data and (data.data.faction or data.data.standing) then
+    local repReqs = self.GetReputationRequirements and self:GetReputationRequirements(data) or {}
+    if #repReqs > 0 then
+        local req = repReqs[1]
         self.previewRepHeader:Show()
         self.previewRepFaction:Show()
         self.previewRepStanding:Show()
         
-        self.previewRepFaction:SetText(data.data.faction or "Unknown Faction")
+        self.previewRepFaction:SetText(req.faction or "Reputation Requirement")
         
-        local standing = data.data.standing or "Unknown"
+        local standing = req.standing or "Unknown"
         local standingColors = {
             ["Exalted"] = {0.2, 1, 0.2},
             ["Revered"] = {0.2, 0.8, 1},
@@ -1790,6 +1799,9 @@ function HC:DoSearch()
     if currentTab == "items" then
         filters.itemCategory = currentItemCategory
         filters.hideVendorEntries = true
+    elseif currentTab == "reputation" then
+        -- Reputation factions are not the same as player faction restrictions.
+        filters.faction = nil
     elseif currentTab == "goblin" then
         -- Goblin tab is profitability-focused across all item sources.
     elseif currentTab ~= "all" then 
