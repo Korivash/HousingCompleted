@@ -18,7 +18,9 @@ A comprehensive World of Warcraft addon for tracking and collecting all housing 
 
 ### 🎯 Modern Interface
 - Clean, dark theme with intuitive navigation
-- **Category Tabs**: All Items, Vendors, Achievements, Quests, Reputation, Professions, Goblin Profit
+- **Platform Tabs**: Acquire, Craft, Economy, Planner, Collection
+- **Source Views**: All Items, Item Browser, Vendors, Professions, Reputation, Achievements, Quests, Drops, Auction House, Promotions, Unknown
+- **Mode Toggle**: Collector, Hybrid, Goblin
 - **Real-time Search**: Find items by name, vendor, or zone instantly
 - **Collection Tracking**: Visual indicators for collected/uncollected items
 - **Progress Stats**: Track your overall collection completion
@@ -70,14 +72,28 @@ Search for "Housing Completed" in your addon manager.
 
 ### Navigation
 1. **Search Box**: Type to filter results in real-time
-2. **Category Tabs**: Click to filter by source type
-3. **Filter Checkboxes**: Show/hide collected or uncollected items
-4. **Select a Row**: Click the item you want to track
-5. **Set Waypoint Button**: Click `Set Waypoint` in the footer to route to that item's best known source
-6. **Row Map Icon**: Optional quick action per row using the map icon button
-7. **REP Badge Hover**: Hover `REP` on a row for exact reputation requirement details
-8. **Economics Sort**: Click `AH Price`, `Craft Cost`, `Profit`, or `Margin` column headers
-9. **Goblin Profit**: Use the `Goblin Profit` tab for profitability-focused browsing
+2. **Platform Tabs**: Switch between Acquire, Craft, Economy, Planner, and Collection
+3. **Source View Rail**: Filter by source type with per-view counts
+4. **Mode Toggle**: Choose Collector, Hybrid, or Goblin behavior
+5. **Item Types**: In `Item Browser`, filter decor item categories
+6. **Filter Checkboxes**: Show/hide collected or uncollected items
+7. **Select a Row**: Click the item you want to track
+8. **Set Waypoint Button**: Click `Set Waypoint` in the footer to route to that item's best known source
+9. **Row Map Icon**: Optional quick action per row using the map icon button
+10. **REP Badge Hover**: Hover `REP` on a row for exact reputation requirement details
+11. **Economics Sort**: Click `AH Price`, `Craft Cost`, `Profit`, or `Margin` column headers
+12. **Economy + Planner**: Use these tabs for profitability and planning workflows
+
+### Mode Differences
+- **Collector Mode**
+  - Hides `Economy` and `Planner` platform tabs.
+  - Keeps focus on acquisition, sources, and completion tracking.
+- **Hybrid Mode** (default)
+  - Shows all platform tabs.
+  - Balanced workflow for collection plus economy insights.
+- **Goblin Mode**
+  - Hides `Collection` platform tab.
+  - Prioritizes economy filters, profit views, and planning tools.
 
 ### Waypoints
 - Preferred flow: click an item row, then click `Set Waypoint` at the bottom of the results panel

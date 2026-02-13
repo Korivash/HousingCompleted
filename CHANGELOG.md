@@ -17,12 +17,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - New `Goblin Profit` tab view focused on profitability-ranked results.
 - Addon-local tooltip enrichment for AH price, vendor price, total cost, profit, and margin.
 - Shopping list action to export missing crafting materials to Auctionator shopping lists.
+- New platform navigation model: `Acquire`, `Craft`, `Economy`, `Planner`, and `Collection`.
+- New source-view rail with live per-view result counts.
+- New mode selector with three behavior presets:
+  - `Collector Mode`: hides economy-heavy tabs (`Economy`, `Planner`) for completion-focused play.
+  - `Hybrid Mode` (default): enables all tabs for mixed collection + economy workflows.
+  - `Goblin Mode`: hides `Collection` and emphasizes profitability/planning workflows.
 
 ### Changed
 - Refactored pricing and profitability calculations to use centralized reusable functions instead of duplicated row-level logic.
 - Acquire-equivalent result rendering now computes and displays live economics values without requiring a full table rebuild.
 - CSV export now includes `AHPrice`, `CraftCost`, `Profit`, and `MarginPct` columns.
 - Shopping list rows now show economics summaries when available.
+- Sidebar and navigation layout overhauled for clearer organization, less crowding, and faster access to all source categories.
+- Legacy browsing views (`All Items`, `Vendors`, etc.) retained and reorganized alongside the new platform tabs.
 
 ### Compatibility
 - SavedVariables schema remains backward compatible.
