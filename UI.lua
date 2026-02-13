@@ -187,7 +187,7 @@ function HC:CreateHeader(parent)
 
     local subtitle = header:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     subtitle:SetPoint("LEFT", 20, -12)
-    subtitle:SetText("Estate Collection Ledger")
+    subtitle:SetText("By Korivash")
     subtitle:SetTextColor(0.82, 0.72, 0.56)
     
     local version = header:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
