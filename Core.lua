@@ -6,7 +6,7 @@
 local addonName, HC = ...
 _G["HousingCompleted"] = HC
 
-HC.version = "1.3.7"
+HC.version = "1.4.0"
 HC.searchResults = {}
 HC.collectionCache = {}
 
@@ -36,6 +36,7 @@ sourceTypes = {},
 HC.cacheVersion = 1
 HC.pendingItemLoads = HC.pendingItemLoads or {}
 HC._uiRefreshQueued = false
+HC._pricingRefreshQueued = false
 
 function HC:InitSavedVars()
     -- Root table
@@ -303,6 +304,29 @@ function HC:ScheduleUIRefresh()
     end)
 end
 
+function HC:SchedulePricingRefresh()
+    if self._pricingRefreshQueued then return end
+    self._pricingRefreshQueued = true
+    C_Timer.After(0.15, function()
+        self._pricingRefreshQueued = false
+        if not (self.mainFrame and self.mainFrame:IsShown()) then
+            return
+        end
+        if self.RefreshVisiblePricingData then
+            self:RefreshVisiblePricingData()
+        elseif self.DoSearch then
+            self:DoSearch()
+        end
+    end)
+end
+
+function HC:OnPricingDataUpdated(reason)
+    self:SchedulePricingRefresh()
+    if self.shoppingListPanel and self.shoppingListPanel:IsShown() and self.RefreshShoppingListPanel then
+        self:RefreshShoppingListPanel()
+    end
+end
+
 function HC:NormalizeItemName(name)
     if type(name) ~= "string" then return nil end
     local normalized = name
@@ -365,6 +389,10 @@ frame:SetScript("OnEvent", function(self, event, ...)
     local arg1, arg2 = ...
     if event == "ADDON_LOADED" and arg1 == addonName then
         HC:Initialize()
+    elseif event == "ADDON_LOADED" and arg1 == "Auctionator" then
+        if HC.TryEnableAuctionatorIntegration then
+            HC:TryEnableAuctionatorIntegration()
+        end
     elseif event == "PLAYER_ENTERING_WORLD" then
         C_Timer.After(2, function()
             HC:CacheCollection()
@@ -387,6 +415,11 @@ function HC:Initialize()
 
     -- Prime master item list (names/icons load over time via client cache)
     self:ResolveAllItems()
+
+    if self.InitializeAuctionatorPricingProvider then
+        self:InitializeAuctionatorPricingProvider()
+        self:TryEnableAuctionatorIntegration()
+    end
     
     -- Register slash commands
     SLASH_HOUSINGCOMPLETED1 = "/hc"

@@ -12,6 +12,7 @@ local PREVIEW_WIDTH = 360
 local HEADER_HEIGHT = 86
 local ITEM_HEIGHT = 58
 local ITEMS_PER_PAGE = 10
+local RESULTS_HEADER_HEIGHT = 22
 
 local COLORS = {
     background = {0.07, 0.055, 0.035, 0.98},
@@ -37,6 +38,8 @@ local currentResults = {}
 local currentTab = "all"
 local currentItemCategory = "all"
 local selectedItem = nil
+local currentSortKey = "name"
+local currentSortAscending = true
 
 local function EscapeCSV(value)
     if value == nil then return "" end
@@ -58,6 +61,26 @@ local function SetButtonText(button, text, r, g, b)
         textObj:SetText(text)
         if r then textObj:SetTextColor(r, g, b) end
     end
+end
+
+local function FormatMoneyValue(copper)
+    if HC and HC.FormatMoney then
+        return HC:FormatMoney(copper)
+    end
+    if not copper or copper <= 0 then return "-" end
+    local g = math.floor(copper / 10000)
+    local s = math.floor((copper % 10000) / 100)
+    if g > 0 then
+        return string.format("%dg %02ds", g, s)
+    end
+    return string.format("%ds", s)
+end
+
+local function FormatMarginValue(margin)
+    if not margin then
+        return "-"
+    end
+    return string.format("%.1f%%", margin)
 end
 
 local function CreateSearchBox(parent, width)
@@ -287,6 +310,7 @@ function HC:CreateSidebar(parent)
         { id = "promo", name = "Promotions", icon = "Interface\\Icons\\INV_Misc_Gift_05" },
         { id = "unknown", name = "Unknown", icon = "Interface\\Icons\\INV_Misc_QuestionMark" },
         { id = "auction", name = "Auction House", icon = "Interface\\Icons\\INV_Misc_Coin_02" },
+        { id = "goblin", name = "Goblin Profit", icon = "Interface\\Icons\\INV_Misc_Coin_18" },
     }
     
     self.tabButtons = {}
@@ -320,6 +344,10 @@ function HC:CreateSidebar(parent)
         end)
         btn:SetScript("OnClick", function(self)
             currentTab = self.tabID
+            if currentTab == "goblin" then
+                currentSortKey = "profit"
+                currentSortAscending = false
+            end
             HC:UpdateTabButtons()
             HC:DoSearch()
         end)
@@ -455,12 +483,52 @@ function HC:CreateContent(parent)
     })
     resultsFrame:SetBackdropColor(0.06, 0.06, 0.09, 1)
     resultsFrame:SetBackdropBorderColor(0.15, 0.15, 0.2, 1)
+
+    local function CreateSortHeader(label, sortKey, anchorTo, offsetX)
+        local btn = CreateFrame("Button", nil, resultsFrame)
+        btn:SetHeight(RESULTS_HEADER_HEIGHT)
+        btn:SetWidth(86)
+        if anchorTo then
+            btn:SetPoint("RIGHT", anchorTo, "LEFT", offsetX or -8, 0)
+        else
+            btn:SetPoint("TOPRIGHT", -42, -2)
+        end
+        btn.sortKey = sortKey
+
+        local txt = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        txt:SetPoint("CENTER", 0, 0)
+        txt:SetText(label)
+        btn.text = txt
+
+        btn:SetScript("OnClick", function(selfBtn)
+            HC:SetAcquireSort(selfBtn.sortKey)
+        end)
+        btn:SetScript("OnEnter", function(selfBtn)
+            selfBtn.text:SetTextColor(unpack(COLORS.accentAlt))
+        end)
+        btn:SetScript("OnLeave", function(selfBtn)
+            HC:UpdateAcquireSortHeaderState()
+        end)
+        return btn
+    end
+
+    local marginHeader = CreateSortHeader("Margin", "margin")
+    local profitHeader = CreateSortHeader("Profit", "profit", marginHeader, -8)
+    local craftHeader = CreateSortHeader("Craft Cost", "craftCost", profitHeader, -8)
+    local ahHeader = CreateSortHeader("AH Price", "ahPrice", craftHeader, -8)
+
+    self.acquireSortHeaders = {
+        ahPrice = ahHeader,
+        craftCost = craftHeader,
+        profit = profitHeader,
+        margin = marginHeader,
+    }
     
     self.resultRows = {}
     for i = 1, ITEMS_PER_PAGE do
         local row = self:CreateResultRow(resultsFrame, i)
-        row:SetPoint("TOPLEFT", 5, -5 - (i-1) * ITEM_HEIGHT)
-        row:SetPoint("TOPRIGHT", -5, -5 - (i-1) * ITEM_HEIGHT)
+        row:SetPoint("TOPLEFT", 5, -5 - RESULTS_HEADER_HEIGHT - (i-1) * ITEM_HEIGHT)
+        row:SetPoint("TOPRIGHT", -5, -5 - RESULTS_HEADER_HEIGHT - (i-1) * ITEM_HEIGHT)
         self.resultRows[i] = row
     end
     
@@ -559,6 +627,7 @@ function HC:CreateContent(parent)
     self:UpdateSetWaypointButton()
     self:UpdateAddShoppingButton()
     self:UpdateMapAllButton()
+    self:UpdateAcquireSortHeaderState()
     
     self.content = content
 end
@@ -578,6 +647,7 @@ function HC:CreateResultRow(parent, index)
         if itemID then
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
             GameTooltip:SetItemByID(itemID)
+            HC:AppendPricingTooltip(GameTooltip, self.itemData)
             GameTooltip:Show()
         end
     end)
@@ -617,20 +687,20 @@ function HC:CreateResultRow(parent, index)
     
     local nameText = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     nameText:SetPoint("TOPLEFT", typeIcon, "TOPRIGHT", 10, -2)
-    nameText:SetPoint("RIGHT", -150, 0)
+    nameText:SetPoint("RIGHT", -470, 0)
     nameText:SetJustifyH("LEFT")
     row.nameText = nameText
     
     local sourceText = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     sourceText:SetPoint("TOPLEFT", nameText, "BOTTOMLEFT", 0, -2)
-    sourceText:SetPoint("RIGHT", -150, 0)
+    sourceText:SetPoint("RIGHT", -470, 0)
     sourceText:SetJustifyH("LEFT")
     sourceText:SetTextColor(unpack(COLORS.textMuted))
     row.sourceText = sourceText
     
     local infoText = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     infoText:SetPoint("TOPLEFT", sourceText, "BOTTOMLEFT", 0, -2)
-    infoText:SetPoint("RIGHT", -150, 0)
+    infoText:SetPoint("RIGHT", -470, 0)
     infoText:SetJustifyH("LEFT")
     infoText:SetTextColor(unpack(COLORS.textDim))
     row.infoText = infoText
@@ -647,9 +717,33 @@ function HC:CreateResultRow(parent, index)
         HC:UpdateSetWaypointButton()
     end)
     row.waypointBtn = waypointBtn
+
+    local marginText = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    marginText:SetPoint("RIGHT", waypointBtn, "LEFT", -8, 0)
+    marginText:SetWidth(64)
+    marginText:SetJustifyH("RIGHT")
+    row.marginText = marginText
+
+    local profitText = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    profitText:SetPoint("RIGHT", marginText, "LEFT", -8, 0)
+    profitText:SetWidth(82)
+    profitText:SetJustifyH("RIGHT")
+    row.profitText = profitText
+
+    local craftCostText = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    craftCostText:SetPoint("RIGHT", profitText, "LEFT", -8, 0)
+    craftCostText:SetWidth(82)
+    craftCostText:SetJustifyH("RIGHT")
+    row.craftCostText = craftCostText
+
+    local ahPriceText = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    ahPriceText:SetPoint("RIGHT", craftCostText, "LEFT", -8, 0)
+    ahPriceText:SetWidth(82)
+    ahPriceText:SetJustifyH("RIGHT")
+    row.ahPriceText = ahPriceText
     
     local typeBadge = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    typeBadge:SetPoint("RIGHT", waypointBtn, "LEFT", -10, 0)
+    typeBadge:SetPoint("RIGHT", ahPriceText, "LEFT", -10, 0)
     row.typeBadge = typeBadge
 
     local repBadge = CreateFrame("Button", nil, row, "BackdropTemplate")
@@ -762,6 +856,30 @@ function HC:GetReputationRequirements(resultData)
     end
 
     return reqs
+end
+
+function HC:AppendPricingTooltip(tooltip, resultData)
+    if not tooltip or not resultData or not self.GetResultEconomics then
+        return
+    end
+
+    local econ = self:GetResultEconomics(resultData)
+    if not econ then return end
+
+    tooltip:AddLine(" ")
+    tooltip:AddLine("|cff00ff99Housing Completed|r")
+    tooltip:AddLine("AH Price: " .. FormatMoneyValue(econ.ahPrice), 0.95, 0.95, 0.95)
+    tooltip:AddLine("Vendor Price: " .. FormatMoneyValue(econ.vendorCost), 0.95, 0.95, 0.95)
+    tooltip:AddLine("Total Cost: " .. FormatMoneyValue(econ.totalCost), 0.95, 0.95, 0.95)
+
+    if econ.profit then
+        local prefix = econ.profit >= 0 and "|cff40ff40" or "|cffff5555"
+        tooltip:AddLine("Profit: " .. prefix .. FormatMoneyValue(math.abs(econ.profit)) .. "|r", 0.95, 0.95, 0.95)
+        tooltip:AddLine("Margin: " .. prefix .. FormatMarginValue(econ.margin) .. "|r", 0.95, 0.95, 0.95)
+    else
+        tooltip:AddLine("Profit: -", 0.95, 0.95, 0.95)
+        tooltip:AddLine("Margin: -", 0.95, 0.95, 0.95)
+    end
 end
 
 function HC:GetItemCategoryName(categoryID)
@@ -921,6 +1039,50 @@ function HC:CreatePreviewPanel(parent)
     self.previewCost = costValue
     dy = dy - 16
 
+    local ahLabel = detailsFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    ahLabel:SetPoint("TOPLEFT", 0, dy)
+    ahLabel:SetText("|cff888888AH:|r")
+    local ahValue = detailsFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    ahValue:SetPoint("TOPLEFT", 55, dy)
+    ahValue:SetPoint("RIGHT", 0, 0)
+    ahValue:SetJustifyH("LEFT")
+    ahValue:SetText("-")
+    self.previewAHPrice = ahValue
+    dy = dy - 16
+
+    local totalCostLabel = detailsFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    totalCostLabel:SetPoint("TOPLEFT", 0, dy)
+    totalCostLabel:SetText("|cff888888Total:|r")
+    local totalCostValue = detailsFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    totalCostValue:SetPoint("TOPLEFT", 55, dy)
+    totalCostValue:SetPoint("RIGHT", 0, 0)
+    totalCostValue:SetJustifyH("LEFT")
+    totalCostValue:SetText("-")
+    self.previewTotalCost = totalCostValue
+    dy = dy - 16
+
+    local profitLabel = detailsFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    profitLabel:SetPoint("TOPLEFT", 0, dy)
+    profitLabel:SetText("|cff888888Profit:|r")
+    local profitValue = detailsFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    profitValue:SetPoint("TOPLEFT", 55, dy)
+    profitValue:SetPoint("RIGHT", 0, 0)
+    profitValue:SetJustifyH("LEFT")
+    profitValue:SetText("-")
+    self.previewProfit = profitValue
+    dy = dy - 16
+
+    local marginLabel = detailsFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    marginLabel:SetPoint("TOPLEFT", 0, dy)
+    marginLabel:SetText("|cff888888Margin:|r")
+    local marginValue = detailsFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    marginValue:SetPoint("TOPLEFT", 55, dy)
+    marginValue:SetPoint("RIGHT", 0, 0)
+    marginValue:SetJustifyH("LEFT")
+    marginValue:SetText("-")
+    self.previewMargin = marginValue
+    dy = dy - 16
+
     -- Item ID
     local itemIDLabel = detailsFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     itemIDLabel:SetPoint("TOPLEFT", 0, dy)
@@ -1025,6 +1187,10 @@ function HC:UpdatePreview(data)
         self.previewVendor:SetText("-")
         self.previewLocation:SetText("-")
         self.previewCost:SetText("-")
+        if self.previewAHPrice then self.previewAHPrice:SetText("-") end
+        if self.previewTotalCost then self.previewTotalCost:SetText("-") end
+        if self.previewProfit then self.previewProfit:SetText("-") end
+        if self.previewMargin then self.previewMargin:SetText("-") end
         if self.previewItemID then self.previewItemID:SetText("-") end
         if self.previewSources then self.previewSources:SetText("-") end
         if self.modelFrame.ClearModel then self.modelFrame:ClearModel() end
@@ -1071,6 +1237,37 @@ function HC:UpdatePreview(data)
         self.previewCost:SetText("|cffffd700" .. data.cost .. "|r")
     else
         self.previewCost:SetText("-")
+    end
+
+    local economics = self.GetResultEconomics and self:GetResultEconomics(data) or nil
+    if self.previewAHPrice then
+        self.previewAHPrice:SetText(FormatMoneyValue(economics and economics.ahPrice))
+    end
+    if self.previewTotalCost then
+        self.previewTotalCost:SetText(FormatMoneyValue(economics and economics.totalCost))
+    end
+    if self.previewProfit then
+        if economics and economics.profit then
+            local absProfit = FormatMoneyValue(math.abs(economics.profit))
+            if economics.profit >= 0 then
+                self.previewProfit:SetText("|cff40ff40+" .. absProfit .. "|r")
+            else
+                self.previewProfit:SetText("|cffff5555-" .. absProfit .. "|r")
+            end
+        else
+            self.previewProfit:SetText("-")
+        end
+    end
+    if self.previewMargin then
+        if economics and economics.margin then
+            if economics.margin >= 0 then
+                self.previewMargin:SetText("|cff40ff40" .. FormatMarginValue(economics.margin) .. "|r")
+            else
+                self.previewMargin:SetText("|cffff5555" .. FormatMarginValue(economics.margin) .. "|r")
+            end
+        else
+            self.previewMargin:SetText("-")
+        end
     end
 
     local itemID = self:GetResolvedItemID(data)
@@ -1226,10 +1423,11 @@ end
 
 function HC:BuildResultsCSV(results)
     local lines = {
-        "Name,Type,Source,Vendor,Zone,Cost,Expansion,Faction,Collected,ItemID,SourceCount",
+        "Name,Type,Source,Vendor,Zone,Cost,AHPrice,CraftCost,Profit,MarginPct,Expansion,Faction,Collected,ItemID,SourceCount",
     }
 
     for _, r in ipairs(results or {}) do
+        local econ = self.GetResultEconomics and self:GetResultEconomics(r) or nil
         local row = {
             EscapeCSV(r.name or (r.data and r.data.name) or ""),
             EscapeCSV(r.type or ""),
@@ -1237,6 +1435,10 @@ function HC:BuildResultsCSV(results)
             EscapeCSV(r.vendor or ""),
             EscapeCSV(r.zone or ""),
             EscapeCSV(r.cost or ""),
+            EscapeCSV(econ and econ.ahPrice or ""),
+            EscapeCSV(econ and econ.craftCost or ""),
+            EscapeCSV(econ and econ.profit or ""),
+            EscapeCSV(econ and econ.margin and string.format("%.2f", econ.margin) or ""),
             EscapeCSV(r.expansion or ""),
             EscapeCSV(r.faction or ""),
             EscapeCSV(r.collected and "Yes" or "No"),
@@ -1359,6 +1561,20 @@ function HC:CreateShoppingListPanel(parent)
     end)
     frame.clearBtn = clearBtn
 
+    local sendMissingBtn = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    sendMissingBtn:SetSize(180, 24)
+    sendMissingBtn:SetPoint("RIGHT", clearBtn, "LEFT", -8, 0)
+    sendMissingBtn:SetText("Send Missing Mats")
+    sendMissingBtn:SetScript("OnClick", function()
+        local ok, count, msg = HC:SendCraftingQueueMissingToAuctionator("HousingCompleted Missing Mats", true)
+        if msg then
+            print("|cff00ff99Housing Completed|r: " .. msg)
+        elseif ok then
+            print("|cff00ff99Housing Completed|r: Exported " .. tostring(count or 0) .. " materials to Auctionator.")
+        end
+    end)
+    frame.sendMissingBtn = sendMissingBtn
+
     local scroll = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
     scroll:SetPoint("TOPLEFT", 12, -62)
     scroll:SetPoint("BOTTOMRIGHT", -30, 12)
@@ -1384,6 +1600,11 @@ function HC:RefreshShoppingListPanel()
     panel.mapBtn:SetAlpha(#list > 0 and 1 or 0.45)
     panel.clearBtn:SetEnabled(#list > 0)
     panel.clearBtn:SetAlpha(#list > 0 and 1 or 0.45)
+    local hasPricingProvider = self.PricingProvider and self.PricingProvider.IsEnabled and self.PricingProvider:IsEnabled()
+    if panel.sendMissingBtn then
+        panel.sendMissingBtn:SetEnabled((#list > 0) and hasPricingProvider)
+        panel.sendMissingBtn:SetAlpha(((#list > 0) and hasPricingProvider) and 1 or 0.45)
+    end
 
     for _, row in ipairs(panel.rows) do
         row:Hide()
@@ -1429,7 +1650,17 @@ function HC:RefreshShoppingListPanel()
         row:SetPoint("TOPRIGHT", -8, y)
         local vendorPart = entry.vendor and entry.vendor ~= "" and (" |cffaaaaaa- " .. entry.vendor .. "|r") or ""
         local zonePart = entry.zone and entry.zone ~= "" and (" |cff888888(" .. entry.zone .. ")|r") or ""
-        row.text:SetText((entry.name or "Unknown") .. vendorPart .. zonePart)
+        local econ = self.GetResultEconomics and self:GetResultEconomics(self:BuildResultFromQueueEntry(entry), { forceRefresh = true }) or nil
+        local econPart = ""
+        if econ and econ.totalCost then
+            econPart = " |cff888888| |rCost: " .. FormatMoneyValue(econ.totalCost)
+            if econ.profit then
+                local pSign = econ.profit >= 0 and "+" or "-"
+                local pColor = econ.profit >= 0 and "|cff40ff40" or "|cffff5555"
+                econPart = econPart .. "  " .. pColor .. "P/L: " .. pSign .. FormatMoneyValue(math.abs(econ.profit)) .. "|r"
+            end
+        end
+        row.text:SetText((entry.name or "Unknown") .. vendorPart .. zonePart .. econPart)
         row.deleteBtn.rowIndex = i
         row:Show()
 
@@ -1559,6 +1790,8 @@ function HC:DoSearch()
     if currentTab == "items" then
         filters.itemCategory = currentItemCategory
         filters.hideVendorEntries = true
+    elseif currentTab == "goblin" then
+        -- Goblin tab is profitability-focused across all item sources.
     elseif currentTab ~= "all" then 
         filters.sourceTypes = { [currentTab] = true } 
     end
@@ -1572,11 +1805,29 @@ function HC:DoSearch()
         if show then table.insert(filtered, r) end
     end
     
+    if currentTab == "goblin" then
+        local profitable = {}
+        for _, r in ipairs(filtered) do
+            local econ = self.GetResultEconomics and self:GetResultEconomics(r, { forceRefresh = true }) or nil
+            if econ and econ.ahPrice and econ.totalCost then
+                table.insert(profitable, r)
+            end
+        end
+        filtered = profitable
+    end
+
     currentResults = filtered
+    for _, r in ipairs(currentResults) do
+        if self.GetResultEconomics then
+            self:GetResultEconomics(r, { forceRefresh = false })
+        end
+    end
+    self:SortCurrentResults()
     currentPage = 1
     totalPages = math.max(1, math.ceil(#currentResults / ITEMS_PER_PAGE))
     selectedItem = nil
     
+    self:UpdateAcquireSortHeaderState()
     self:UpdateResults()
     self:UpdateStats()
     self:UpdateSetWaypointButton()
@@ -1670,6 +1921,29 @@ function HC:UpdateResults()
                 infoText = infoText .. "|cff999999Tags:|r " .. tagText
             end
             row.infoText:SetText(infoText)
+
+            local economics = self.GetResultEconomics and self:GetResultEconomics(data) or nil
+            row.ahPriceText:SetText(FormatMoneyValue(economics and economics.ahPrice))
+            row.craftCostText:SetText(FormatMoneyValue(economics and economics.craftCost))
+            row.profitText:SetText(FormatMoneyValue(economics and economics.profit and math.abs(economics.profit) or nil))
+            row.marginText:SetText(FormatMarginValue(economics and economics.margin))
+
+            if economics and economics.profit then
+                if economics.profit >= 0 then
+                    row.profitText:SetTextColor(0.3, 1, 0.3)
+                    row.marginText:SetTextColor(0.3, 1, 0.3)
+                    row.profitText:SetText("+" .. row.profitText:GetText())
+                else
+                    row.profitText:SetTextColor(1, 0.35, 0.35)
+                    row.marginText:SetTextColor(1, 0.35, 0.35)
+                    row.profitText:SetText("-" .. row.profitText:GetText())
+                end
+            else
+                row.profitText:SetTextColor(unpack(COLORS.textMuted))
+                row.marginText:SetTextColor(unpack(COLORS.textMuted))
+            end
+            row.ahPriceText:SetTextColor(unpack(COLORS.textMuted))
+            row.craftCostText:SetTextColor(unpack(COLORS.textMuted))
             
             row.typeBadge:SetText(sourceInfo.name)
             row.typeBadge:SetTextColor(unpack(sourceInfo.color))
@@ -1703,6 +1977,40 @@ function HC:UpdateResults()
     self:UpdateMapAllButton()
 end
 
+function HC:RefreshVisiblePricingData()
+    if #currentResults == 0 then
+        return
+    end
+
+    for _, resultData in ipairs(currentResults) do
+        if self.GetResultEconomics then
+            self:GetResultEconomics(resultData, { forceRefresh = true })
+        end
+    end
+
+    if currentTab == "goblin" then
+        local filtered = {}
+        for _, r in ipairs(currentResults) do
+            local econ = self.GetResultEconomics and self:GetResultEconomics(r) or nil
+            if econ and econ.ahPrice and econ.totalCost then
+                table.insert(filtered, r)
+            end
+        end
+        currentResults = filtered
+        totalPages = math.max(1, math.ceil(#currentResults / ITEMS_PER_PAGE))
+        if currentPage > totalPages then
+            currentPage = totalPages
+        end
+    end
+
+    self:SortCurrentResults()
+    self:UpdateAcquireSortHeaderState()
+    self:UpdateResults()
+    if selectedItem and self.UpdatePreview then
+        self:UpdatePreview(selectedItem)
+    end
+end
+
 function HC:UpdateTabButtons()
     for tabID, btn in pairs(self.tabButtons) do
         if tabID == currentTab then
@@ -1731,6 +2039,73 @@ function HC:UpdateItemCategoryButtons()
             btn.label:SetTextColor(0.7, 0.7, 0.7)
         end
     end
+end
+
+function HC:UpdateAcquireSortHeaderState()
+    for key, btn in pairs(self.acquireSortHeaders or {}) do
+        if key == currentSortKey then
+            local arrow = currentSortAscending and " ^" or " v"
+            btn.text:SetText((key == "ahPrice" and "AH Price")
+                or (key == "craftCost" and "Craft Cost")
+                or (key == "profit" and "Profit")
+                or "Margin")
+            btn.text:SetTextColor(unpack(COLORS.accent))
+            btn.text:SetText(btn.text:GetText() .. arrow)
+        else
+            if key == "ahPrice" then
+                btn.text:SetText("AH Price")
+            elseif key == "craftCost" then
+                btn.text:SetText("Craft Cost")
+            elseif key == "profit" then
+                btn.text:SetText("Profit")
+            else
+                btn.text:SetText("Margin")
+            end
+            btn.text:SetTextColor(unpack(COLORS.textMuted))
+        end
+    end
+end
+
+function HC:SortCurrentResults()
+    local nilSentinel = currentSortAscending and math.huge or -math.huge
+    table.sort(currentResults, function(a, b)
+        if currentSortKey == "name" then
+            local av = (a.name or ""):lower()
+            local bv = (b.name or ""):lower()
+            if currentSortAscending then
+                return av < bv
+            end
+            return av > bv
+        end
+
+        local ae = self.GetResultEconomics and self:GetResultEconomics(a) or nil
+        local be = self.GetResultEconomics and self:GetResultEconomics(b) or nil
+        local av = ae and ae[currentSortKey] or nil
+        local bv = be and be[currentSortKey] or nil
+        if av == bv then
+            local an = (a.name or ""):lower()
+            local bn = (b.name or ""):lower()
+            return an < bn
+        end
+        av = av or nilSentinel
+        bv = bv or nilSentinel
+        if currentSortAscending then
+            return av < bv
+        end
+        return av > bv
+    end)
+end
+
+function HC:SetAcquireSort(sortKey)
+    if currentSortKey == sortKey then
+        currentSortAscending = not currentSortAscending
+    else
+        currentSortKey = sortKey
+        currentSortAscending = (sortKey == "name")
+    end
+    self:SortCurrentResults()
+    self:UpdateAcquireSortHeaderState()
+    self:UpdateResults()
 end
 
 function HC:UpdateStats()

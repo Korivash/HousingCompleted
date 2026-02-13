@@ -5,6 +5,29 @@ All notable changes to Housing Completed will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-02-13
+
+### Added
+- Optional Auctionator integration module at `Integrations/Auctionator.lua` with runtime detection and API validation.
+- Pricing provider abstraction used by addon economics logic (no hard dependency on Auctionator).
+- Session-level Auctionator price caching by item link and item ID.
+- Auctionator DB update callback registration (`RegisterForDBUpdate`) to invalidate cached prices and refresh visible pricing.
+- Shared economics system at `Systems/Economics.lua` for vendor cost, craft cost, total cost, profit, and margin calculations.
+- New sortable result columns: `AH Price`, `Craft Cost`, `Profit`, and `Margin`.
+- New `Goblin Profit` tab view focused on profitability-ranked results.
+- Addon-local tooltip enrichment for AH price, vendor price, total cost, profit, and margin.
+- Shopping list action to export missing crafting materials to Auctionator shopping lists.
+
+### Changed
+- Refactored pricing and profitability calculations to use centralized reusable functions instead of duplicated row-level logic.
+- Acquire-equivalent result rendering now computes and displays live economics values without requiring a full table rebuild.
+- CSV export now includes `AHPrice`, `CraftCost`, `Profit`, and `MarginPct` columns.
+- Shopping list rows now show economics summaries when available.
+
+### Compatibility
+- SavedVariables schema remains backward compatible.
+- All pricing features gracefully degrade when Auctionator is missing or unavailable.
+
 ## [1.3.7] - 2026-02-12
 
 ### Added

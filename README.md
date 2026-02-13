@@ -1,6 +1,6 @@
 # Housing Completed
 
-![Version](https://img.shields.io/badge/version-1.3.7-green)
+![Version](https://img.shields.io/badge/version-1.4.0-green)
 ![WoW Version](https://img.shields.io/badge/WoW-12.0.1%20Midnight-blue)
 ![License](https://img.shields.io/badge/license-MIT-orange)
 
@@ -18,7 +18,7 @@ A comprehensive World of Warcraft addon for tracking and collecting all housing 
 
 ### 🎯 Modern Interface
 - Clean, dark theme with intuitive navigation
-- **Category Tabs**: All Items, Vendors, Achievements, Quests, Reputation, Professions
+- **Category Tabs**: All Items, Vendors, Achievements, Quests, Reputation, Professions, Goblin Profit
 - **Real-time Search**: Find items by name, vendor, or zone instantly
 - **Collection Tracking**: Visual indicators for collected/uncollected items
 - **Progress Stats**: Track your overall collection completion
@@ -26,6 +26,15 @@ A comprehensive World of Warcraft addon for tracking and collecting all housing 
 - **REP Requirement Badge**: Shows when an item has a reputation requirement
 - **REP Tooltip**: Hover badge to see faction/standing or requirement notes
 - **Preview Fallbacks**: Housing preview, Dressing Room, then modified-click fallback
+- **Sortable Economics Columns**: `AH Price`, `Craft Cost`, `Profit`, and `Margin`
+
+### Optional Auctionator Integration
+- Automatic Auctionator detection with graceful fallback if unavailable
+- Live AH pricing via Auctionator API v1
+- Session price cache with DB-update invalidation
+- Shared cost/profit engine across results, shopping list, and goblin profitability view
+- In-addon tooltip economics (AH/Vendor/Total/Profit/Margin)
+- Export missing crafting materials to an Auctionator shopping list
 
 ### 🗺️ Waypoint Integration
 - **One-Click Set Waypoint Button**: Select an item, then click `Set Waypoint`
@@ -67,12 +76,21 @@ Search for "Housing Completed" in your addon manager.
 5. **Set Waypoint Button**: Click `Set Waypoint` in the footer to route to that item's best known source
 6. **Row Map Icon**: Optional quick action per row using the map icon button
 7. **REP Badge Hover**: Hover `REP` on a row for exact reputation requirement details
+8. **Economics Sort**: Click `AH Price`, `Craft Cost`, `Profit`, or `Margin` column headers
+9. **Goblin Profit**: Use the `Goblin Profit` tab for profitability-focused browsing
 
 ### Waypoints
 - Preferred flow: click an item row, then click `Set Waypoint` at the bottom of the results panel
 - Quick flow: click the map icon on an item row
 - Works with TomTom (if installed) or Blizzard's native map pins
 - Configure your preferred waypoint system in Settings
+
+### Auctionator Workflow (Optional)
+- Install/enable Auctionator.
+- Browse items normally in Housing Completed.
+- Use pricing columns and preview economics fields to evaluate outcomes.
+- Open `Shopping List` and click `Send Missing Mats` to export missing materials.
+- If the Auction House is open, Auctionator search can be triggered automatically.
 
 ## Data Sources
 
@@ -186,6 +204,11 @@ Items from your collection and cache can also appear as fallback searchable rows
 - Install TomTom for TomTom waypoints
 - Check Settings to ensure your preferred system is selected
 - Some items may not have coordinate data yet
+
+### Pricing columns show "-"
+- Ensure Auctionator is installed and enabled.
+- Ensure Auctionator has price scan data available.
+- Some materials/items may have no market data and will remain unknown.
 
 ### Collection not tracking
 - The Housing Catalog API requires you to open your housing catalog once
