@@ -5,6 +5,31 @@ All notable changes to Housing Completed will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.1] - 2026-02-13
+
+### Added
+- TradeSkillMaster pricing fallback support inside the pricing provider:
+  - AH valuation fallback via `TSM_API.GetCustomPriceValue("first(dbminbuyout, dbmarket, dbregionmarketavg)", itemString)`.
+  - Craft-cost fallback via `TSM_API.GetCustomPriceValue("crafting", itemString)`.
+- New `TradeSkillMaster` addon-load hook to enable pricing fallback as soon as TSM becomes available.
+- New result preview helpers to resolve links by ID or name when opening Dressing Room previews.
+
+### Changed
+- Mode system now supports only `Hybrid` and `Goblin` presets for a cleaner navigation experience.
+- SavedVariables mode repair now forces legacy/invalid modes to `hybrid`.
+- Auction result row click now always attempts preview through the new result-level preview resolver.
+- Dressing Room / model preview now uses resolved item links when item IDs are unavailable, improving Auction House tab previews.
+- Economics snapshot now falls back to pricing-provider craft cost when local reagent data is incomplete.
+- `Craft/Buy` recommendation now defaults to `BuyAH` when only AH price is known.
+- Settings scale slider is tuned for finer/slow adjustment:
+  - Wider slider track.
+  - Smaller drag step (`0.005`).
+  - Higher precision display.
+- TOC optional dependencies now include `TradeSkillMaster`.
+
+### Fixed
+- Prevented TSM-only pricing setups from trying to call Auctionator shopping-list APIs when Auctionator is not loaded.
+
 ## [1.4.0] - 2026-02-13
 
 ### Added

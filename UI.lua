@@ -84,6 +84,104 @@ local function FormatMarginValue(margin)
     return string.format("%.1f%%", margin)
 end
 
+local function BuildSelectionKey(resultData, getItemID)
+    if not resultData then return nil end
+
+    local itemID = getItemID and getItemID(resultData) or nil
+    if itemID then
+        return "id:" .. tostring(itemID)
+    end
+
+    local name = resultData.name or (resultData.data and resultData.data.name)
+    if type(name) == "string" and name ~= "" then
+        return "name:" .. name:lower()
+    end
+
+    return nil
+end
+
+local function FindResultBySelectionKey(results, selectionKey, getItemID)
+    if type(results) ~= "table" or not selectionKey then
+        return nil
+    end
+
+    for _, resultData in ipairs(results) do
+        if BuildSelectionKey(resultData, getItemID) == selectionKey then
+            return resultData
+        end
+    end
+
+    return nil
+end
+
+local function FormatReagentSource(source)
+    if source == "vendor" then
+        return "Vendor"
+    end
+    if source == "auction" then
+        return "AH/TSM"
+    end
+    if source == "fixed" then
+        return "Fixed"
+    end
+    return "Unknown"
+end
+
+local function FormatCraftMaterialsValue(economics)
+    if not economics then
+        return "-"
+    end
+
+    local reagents = economics.reagents or {}
+    local missing = economics.missingMaterials or {}
+    local lines = {}
+
+    if economics.craftCost then
+        table.insert(lines, "Total: " .. FormatMoneyValue(economics.craftCost))
+    end
+
+    local maxShown = 4
+    for idx = 1, math.min(maxShown, #reagents) do
+        local reagent = reagents[idx]
+        local qty = math.max(1, math.floor((tonumber(reagent.qty) or 1) + 0.5))
+        local reagentName = reagent.name
+            or (reagent.itemID and ("Item #" .. tostring(reagent.itemID)))
+            or "Unknown Reagent"
+        local lineCost = FormatMoneyValue(reagent.totalCost)
+        local sourceText = FormatReagentSource(reagent.source)
+        table.insert(lines, string.format("%dx %s (%s, %s)", qty, reagentName, lineCost, sourceText))
+    end
+
+    if #reagents > maxShown then
+        table.insert(lines, string.format("+%d more reagents", #reagents - maxShown))
+    end
+
+    if #missing > 0 then
+        local previewMissing = {}
+        local maxMissingShown = 2
+        for idx = 1, math.min(maxMissingShown, #missing) do
+            local mat = missing[idx]
+            local qty = math.max(1, math.floor((tonumber(mat.quantity) or 1) + 0.5))
+            local matName = mat.name or (mat.itemID and ("Item #" .. tostring(mat.itemID))) or "Unknown"
+            table.insert(previewMissing, string.format("%dx %s", qty, matName))
+        end
+        local missingText = table.concat(previewMissing, ", ")
+        if #missing > maxMissingShown then
+            missingText = missingText .. string.format(" (+%d more)", #missing - maxMissingShown)
+        end
+        table.insert(lines, "Missing: " .. missingText)
+    end
+
+    if #lines == 0 then
+        if economics.craftCost then
+            return "Total: " .. FormatMoneyValue(economics.craftCost) .. " (no reagent breakdown)"
+        end
+        return "-"
+    end
+
+    return table.concat(lines, "\n")
+end
+
 local function CreateSearchBox(parent, width)
     local container = CreateFrame("Frame", nil, parent, "BackdropTemplate")
     container:SetSize(width, 32)
@@ -400,7 +498,6 @@ function HC:CreateSidebar(parent)
     y = y - 56
 
     local modeItems = {
-        { key = "collector", text = "Collector Mode" },
         { key = "hybrid", text = "Hybrid Mode" },
         { key = "goblin", text = "Goblin Mode" },
     }
@@ -423,9 +520,12 @@ function HC:CreateSidebar(parent)
         b:SetBackdropBorderColor(0.24, 0.22, 0.28, 1)
         local t = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
         t:SetPoint("CENTER", 0, 0)
-        t:SetText((m.key == "collector" and "Collector") or (m.key == "hybrid" and "Hybrid") or "Goblin")
+        t:SetText((m.key == "hybrid" and "Hybrid") or "Goblin")
         b.text = t
         b:SetScript("OnClick", function(selfBtn)
+            if selfBtn.modeKey ~= "hybrid" and selfBtn.modeKey ~= "goblin" then
+                return
+            end
             HousingCompletedDB.mode = selfBtn.modeKey
             HC:UpdateTabButtons()
             HC:DoSearch()
@@ -923,12 +1023,7 @@ function HC:CreateResultRow(parent, index)
         if HC.UpdatePreview then
             HC:UpdatePreview(self.itemData)
         end
-
-        -- If this entry has an itemID, open the Blizzard preview (DecorVendor-style)
-        local itemID = HC:GetResolvedItemID(self.itemData)
-        if itemID then
-            HC:OpenItemPreview(itemID)
-        end
+        HC:OpenResultPreview(self.itemData)
     end)
     
     local typeIcon = row:CreateTexture(nil, "ARTWORK")
@@ -1085,6 +1180,33 @@ function HC:GetResolvedItemID(resultData)
         end
     end
     return resolvedID
+end
+
+function HC:GetResultItemLink(resultData)
+    if not resultData then return nil, nil end
+
+    local resolvedItemID = self:GetResolvedItemID(resultData)
+    if resolvedItemID and C_Item and C_Item.GetItemLinkByID then
+        local link = C_Item.GetItemLinkByID(resolvedItemID)
+        if link and link ~= "" then
+            return link, resolvedItemID
+        end
+    end
+
+    local itemName = resultData.name or (resultData.data and resultData.data.name)
+    if itemName and itemName ~= "" and GetItemInfo then
+        local itemLink = select(2, GetItemInfo(itemName))
+        if itemLink and itemLink ~= "" then
+            local itemID = GetItemInfoInstant and select(1, GetItemInfoInstant(itemName)) or resolvedItemID
+            return itemLink, itemID
+        end
+    end
+
+    if resolvedItemID then
+        return "item:" .. tostring(resolvedItemID), resolvedItemID
+    end
+
+    return nil, nil
 end
 
 function HC:GetReputationRequirements(resultData)
@@ -1277,7 +1399,7 @@ function HC:CreatePreviewPanel(parent)
     local detailsFrame = CreateFrame("Frame", nil, preview)
     detailsFrame:SetPoint("TOPLEFT", 15, y)
     detailsFrame:SetPoint("TOPRIGHT", -15, y)
-    detailsFrame:SetHeight(220)
+    detailsFrame:SetHeight(270)
     
     local dy = 0
     
@@ -1383,7 +1505,22 @@ function HC:CreatePreviewPanel(parent)
     sourcesValue:SetJustifyH("LEFT")
     sourcesValue:SetText("-")
     self.previewSources = sourcesValue
-    dy = dy - 20
+    dy = dy - 16
+
+    local matsLabel = detailsFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    matsLabel:SetPoint("TOPLEFT", 0, dy)
+    matsLabel:SetText("|cff888888Mats:|r")
+    local matsValue = detailsFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    matsValue:SetPoint("TOPLEFT", 55, dy)
+    matsValue:SetPoint("RIGHT", 0, 0)
+    matsValue:SetJustifyH("LEFT")
+    matsValue:SetJustifyV("TOP")
+    if matsValue.SetWordWrap then
+        matsValue:SetWordWrap(true)
+    end
+    matsValue:SetText("-")
+    self.previewMaterials = matsValue
+    dy = dy - 50
     
     -- Reputation section
     local repHeader = detailsFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -1471,6 +1608,7 @@ function HC:UpdatePreview(data)
         if self.previewMargin then self.previewMargin:SetText("-") end
         if self.previewItemID then self.previewItemID:SetText("-") end
         if self.previewSources then self.previewSources:SetText("-") end
+        if self.previewMaterials then self.previewMaterials:SetText("-") end
         if self.modelFrame.ClearModel then self.modelFrame:ClearModel() end
         if self.modelFallbackIcon then self.modelFallbackIcon:Show() end
         if self.previewAddShoppingBtn then
@@ -1554,6 +1692,7 @@ function HC:UpdatePreview(data)
     end
 
     local itemID = self:GetResolvedItemID(data)
+    local resolvedItemLink = self.GetResultItemLink and select(1, self:GetResultItemLink(data)) or nil
     if self.previewItemID then
         self.previewItemID:SetText(itemID and tostring(itemID) or "-")
     end
@@ -1561,6 +1700,9 @@ function HC:UpdatePreview(data)
     if self.previewSources then
         local sourceCount = (data.data and data.data.sourceCount) or (data.sourceCount) or ((data.data and data.data.sources and #data.data.sources) or nil)
         self.previewSources:SetText(sourceCount and tostring(sourceCount) or "-")
+    end
+    if self.previewMaterials then
+        self.previewMaterials:SetText(FormatCraftMaterialsValue(economics))
     end
     
     -- Reputation details
@@ -1589,7 +1731,7 @@ function HC:UpdatePreview(data)
     -- Model - dressing-room style try-on first, with safe fallbacks.
     if self.modelFrame then
         local showedModel = false
-        if itemID then
+        if itemID or resolvedItemLink then
             if self.modelFrame.SetUnit then
                 pcall(self.modelFrame.SetUnit, self.modelFrame, "player")
             end
@@ -1597,7 +1739,10 @@ function HC:UpdatePreview(data)
                 pcall(self.modelFrame.Undress, self.modelFrame)
             end
 
-            local itemLink = (C_Item and C_Item.GetItemLinkByID and C_Item.GetItemLinkByID(itemID)) or ("item:" .. itemID)
+            local itemLink = resolvedItemLink
+            if not itemLink and itemID then
+                itemLink = (C_Item and C_Item.GetItemLinkByID and C_Item.GetItemLinkByID(itemID)) or ("item:" .. itemID)
+            end
             if self.modelFrame.TryOn then
                 local ok = pcall(self.modelFrame.TryOn, self.modelFrame, itemLink)
                 showedModel = ok and true or false
@@ -1635,11 +1780,28 @@ function HC:UpdatePreview(data)
     end
 end
 
-function HC:OpenItemPreview(itemID)
-    if not itemID then return false end
+function HC:OpenItemPreview(itemRef)
+    if not itemRef then return false end
+
+    local itemID = tonumber(itemRef)
+    local itemLink = nil
+    if type(itemRef) == "string" then
+        if itemRef:find("item:", 1, true) then
+            itemLink = itemRef
+        elseif tonumber(itemRef) then
+            itemID = tonumber(itemRef)
+        end
+    elseif type(itemRef) == "number" then
+        itemID = itemRef
+    end
+
+    if itemID and C_Item and C_Item.GetItemLinkByID then
+        itemLink = itemLink or C_Item.GetItemLinkByID(itemID)
+    end
+    itemLink = itemLink or (itemID and ("item:" .. itemID)) or nil
 
     -- Housing-native preview if available
-    if C_HousingCatalog and C_HousingCatalog.OpenToItemID then
+    if itemID and C_HousingCatalog and C_HousingCatalog.OpenToItemID then
         local ok = pcall(C_HousingCatalog.OpenToItemID, itemID)
         if ok then
             return true
@@ -1647,21 +1809,35 @@ function HC:OpenItemPreview(itemID)
     end
 
     -- Fallback: Dressing Room
-    if DressUpItemLink then
-        local ok = pcall(DressUpItemLink, "item:" .. itemID)
+    if itemLink and DressUpItemLink then
+        local ok = pcall(DressUpItemLink, itemLink)
         if ok then
             return true
         end
     end
 
     -- Last fallback: use modified-click handler when available.
-    if HandleModifiedItemClick then
-        local ok = pcall(HandleModifiedItemClick, "item:" .. itemID)
+    if itemLink and HandleModifiedItemClick then
+        local ok = pcall(HandleModifiedItemClick, itemLink)
         if ok then
             return true
         end
     end
 
+    return false
+end
+
+function HC:OpenResultPreview(resultData)
+    if not resultData then return false end
+    local itemLink, itemID = self:GetResultItemLink(resultData)
+    if itemID then
+        if self:OpenItemPreview(itemID) then
+            return true
+        end
+    end
+    if itemLink then
+        return self:OpenItemPreview(itemLink)
+    end
     return false
 end
 
@@ -2012,32 +2188,32 @@ function HC:CreateSettingsPanel(parent)
     y = y - 28
     
     local scaleSlider = CreateFrame("Slider", nil, settings, "OptionsSliderTemplate")
-scaleSlider:SetPoint("TOPLEFT", 30, y)
-scaleSlider:SetWidth(320)
+    scaleSlider:SetPoint("TOPLEFT", 30, y)
+    scaleSlider:SetWidth(420)
 
-scaleSlider:SetMinMaxValues(0.5, 1.5)
-scaleSlider:SetValueStep(0.01)
-scaleSlider:SetObeyStepOnDrag(true)
+    scaleSlider:SetMinMaxValues(0.5, 1.5)
+    scaleSlider:SetValueStep(0.005)
+    scaleSlider:SetObeyStepOnDrag(true)
 
-scaleSlider:SetValue(HousingCompletedDB.scale or 1.0)
+    scaleSlider:SetValue(HousingCompletedDB.scale or 1.0)
 
-scaleSlider.Low:SetText("50%")
-scaleSlider.High:SetText("150%")
+    scaleSlider.Low:SetText("50%")
+    scaleSlider.High:SetText("150%")
 
-scaleSlider:SetScript("OnValueChanged", function(self, value)
-    value = tonumber(string.format("%.2f", value))
-    HousingCompletedDB.scale = value
+    scaleSlider:SetScript("OnValueChanged", function(self, value)
+        value = tonumber(string.format("%.3f", value))
+        HousingCompletedDB.scale = value
 
-    if self.Text then
-        self.Text:SetText(string.format("%.0f%%", value * 100))
-    end
+        if self.Text then
+            self.Text:SetText(string.format("%.1f%%", value * 100))
+        end
 
-    if HC.mainFrame then
-        HC.mainFrame:SetScale(value)
-    end
-end)
+        if HC.mainFrame then
+            HC.mainFrame:SetScale(value)
+        end
+    end)
 
-y = y - 45
+    y = y - 45
 
     
     local minimapCb = CreateFrame("CheckButton", nil, settings, "UICheckButtonTemplate")
@@ -2063,7 +2239,18 @@ local backBtn = CreateFrame("Button", nil, settings, "UIPanelButtonTemplate")
 end
 
 
-function HC:DoSearch()
+function HC:DoSearch(opts)
+    opts = opts or {}
+    local preservePage = opts.preservePage == true
+    local preserveSelection = opts.preserveSelection == true
+    local previousPage = currentPage
+    local previousSelectionKey = nil
+    if preserveSelection and selectedItem then
+        previousSelectionKey = BuildSelectionKey(selectedItem, function(resultData)
+            return self:GetResolvedItemID(resultData)
+        end)
+    end
+
     local query = self.searchBox and self.searchBox:GetText() or ""
     local zoneMapID = nil
     if self.zoneOnlyCb and self.zoneOnlyCb:GetChecked() then
@@ -2137,9 +2324,20 @@ function HC:DoSearch()
         end
     end
     self:SortCurrentResults()
-    currentPage = 1
     totalPages = math.max(1, math.ceil(#currentResults / ITEMS_PER_PAGE))
-    selectedItem = nil
+    if preservePage then
+        currentPage = math.min(math.max(previousPage, 1), totalPages)
+    else
+        currentPage = 1
+    end
+
+    if preserveSelection and previousSelectionKey then
+        selectedItem = FindResultBySelectionKey(currentResults, previousSelectionKey, function(resultData)
+            return self:GetResolvedItemID(resultData)
+        end)
+    else
+        selectedItem = nil
+    end
     
     self:UpdateAcquireSortHeaderState()
     self:UpdateResults()
@@ -2152,7 +2350,7 @@ function HC:DoSearch()
         self:RunPlanner()
     end
     if self.UpdatePreview then
-        self:UpdatePreview(nil)
+        self:UpdatePreview(selectedItem)
     end
 end
 
@@ -2524,6 +2722,12 @@ end
 
 function HC:UpdateModeButtons()
     local active = (HousingCompletedDB and HousingCompletedDB.mode) or "hybrid"
+    if active ~= "hybrid" and active ~= "goblin" then
+        active = "hybrid"
+        if HousingCompletedDB then
+            HousingCompletedDB.mode = active
+        end
+    end
     for modeKey, btn in pairs(self.modeButtons or {}) do
         if modeKey == active then
             btn:SetBackdropColor(0.25, 0.19, 0.08, 0.95)
@@ -2539,10 +2743,7 @@ function HC:UpdateModeButtons()
     local visibleTabs = {
         acquire = true, craft = true, economy = true, planner = true, collection = true,
     }
-    if active == "collector" then
-        visibleTabs.economy = false
-        visibleTabs.planner = false
-    elseif active == "goblin" then
+    if active == "goblin" then
         visibleTabs.collection = false
     end
 
@@ -2553,7 +2754,7 @@ function HC:UpdateModeButtons()
         currentTab = active == "goblin" and "economy" or "acquire"
     end
     for _, w in ipairs(self.econFilterWidgets or {}) do
-        w:SetShown(active ~= "collector")
+        w:SetShown(true)
     end
 end
 

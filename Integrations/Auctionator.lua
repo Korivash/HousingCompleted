@@ -5,6 +5,8 @@
 local addonName, HC = ...
 
 local CALLER_ID = "HousingCompleted"
+local TSM_CUSTOM_PRICE_AH = "first(dbminbuyout, dbmarket, dbregionmarketavg)"
+local TSM_CUSTOM_PRICE_CRAFT = "crafting"
 
 local function WipeTable(t)
     if type(t) == "table" then
@@ -32,6 +34,20 @@ local function GetAuctionatorAPI()
     return api
 end
 
+local function GetTradeSkillMasterAPI()
+    if not (C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("TradeSkillMaster")) then
+        return nil
+    end
+    local api = _G.TSM_API
+    if type(api) ~= "table" then
+        return nil
+    end
+    if type(api.GetCustomPriceValue) ~= "function" then
+        return nil
+    end
+    return api
+end
+
 function HC:InitializeAuctionatorPricingProvider()
     if self.PricingProvider and self.PricingProvider._initialized then
         return self.PricingProvider
@@ -43,10 +59,13 @@ function HC:InitializeAuctionatorPricingProvider()
         callerID = CALLER_ID,
         enabled = false,
         api = nil,
+        tsmAPI = nil,
         dbCallbackRegistered = false,
         generation = 0,
         cacheByItemLink = {},
         cacheByItemID = {},
+        tsmAuctionCacheByItemString = {},
+        tsmCraftCacheByItemString = {},
     }
 
     function provider:GetGeneration()
@@ -60,17 +79,20 @@ function HC:InitializeAuctionatorPricingProvider()
     function provider:InvalidateCache()
         WipeTable(self.cacheByItemLink)
         WipeTable(self.cacheByItemID)
+        WipeTable(self.tsmAuctionCacheByItemString)
+        WipeTable(self.tsmCraftCacheByItemString)
         self.generation = (self.generation or 0) + 1
     end
 
     function provider:TryEnable()
         self.api = GetAuctionatorAPI()
-        self.enabled = self.api ~= nil
+        self.tsmAPI = GetTradeSkillMasterAPI()
+        self.enabled = (self.api ~= nil) or (self.tsmAPI ~= nil)
         if not self.enabled then
             return false
         end
 
-        if (not self.dbCallbackRegistered) and type(self.api.RegisterForDBUpdate) == "function" then
+        if self.api and (not self.dbCallbackRegistered) and type(self.api.RegisterForDBUpdate) == "function" then
             local ok = pcall(self.api.RegisterForDBUpdate, self.callerID, function()
                 self:InvalidateCache()
                 if HC and HC.OnPricingDataUpdated then
@@ -85,17 +107,31 @@ function HC:InitializeAuctionatorPricingProvider()
         return true
     end
 
+    function provider:GetTSMItemString(itemLink, itemID)
+        local tsm = self.tsmAPI
+        if not tsm then
+            return nil
+        end
+        if type(itemID) == "number" then
+            return "i:" .. tostring(itemID)
+        end
+        if type(itemLink) == "string" and itemLink ~= "" and type(tsm.ToItemString) == "function" then
+            local ok, itemString = pcall(tsm.ToItemString, itemLink)
+            if ok and type(itemString) == "string" and itemString ~= "" then
+                return itemString
+            end
+        end
+        return nil
+    end
+
     function provider:GetAuctionPrice(itemLink, itemID)
         if not self:IsEnabled() then
             return nil
         end
 
         local api = self.api
-        if not api then
-            return nil
-        end
 
-        if type(itemLink) == "string" and itemLink ~= "" then
+        if api and type(itemLink) == "string" and itemLink ~= "" then
             local cached = self.cacheByItemLink[itemLink]
             if cached ~= nil then
                 return cached or nil
@@ -113,7 +149,7 @@ function HC:InitializeAuctionatorPricingProvider()
             self.cacheByItemLink[itemLink] = false
         end
 
-        if type(itemID) == "number" then
+        if api and type(itemID) == "number" then
             local cached = self.cacheByItemID[itemID]
             if cached ~= nil then
                 return cached or nil
@@ -126,6 +162,26 @@ function HC:InitializeAuctionatorPricingProvider()
             end
 
             self.cacheByItemID[itemID] = false
+        end
+
+        local tsm = self.tsmAPI
+        if tsm then
+            local itemString = self:GetTSMItemString(itemLink, itemID)
+            if itemString then
+                local cached = self.tsmAuctionCacheByItemString[itemString]
+                if cached ~= nil then
+                    return cached or nil
+                end
+
+                local ok, price = pcall(tsm.GetCustomPriceValue, TSM_CUSTOM_PRICE_AH, itemString)
+                if ok and type(price) == "number" and price > 0 then
+                    local rounded = math.floor(price + 0.5)
+                    self.tsmAuctionCacheByItemString[itemString] = rounded
+                    return rounded
+                end
+
+                self.tsmAuctionCacheByItemString[itemString] = false
+            end
         end
 
         return nil
@@ -190,12 +246,45 @@ function HC:InitializeAuctionatorPricingProvider()
         return nil
     end
 
+    function provider:GetCraftPrice(itemLink, itemID)
+        if not self:IsEnabled() then
+            return nil
+        end
+        local tsm = self.tsmAPI
+        if not tsm then
+            return nil
+        end
+
+        local itemString = self:GetTSMItemString(itemLink, itemID)
+        if not itemString then
+            return nil
+        end
+
+        local cached = self.tsmCraftCacheByItemString[itemString]
+        if cached ~= nil then
+            return cached or nil
+        end
+
+        local ok, value = pcall(tsm.GetCustomPriceValue, TSM_CUSTOM_PRICE_CRAFT, itemString)
+        if ok and type(value) == "number" and value > 0 then
+            local rounded = math.floor(value + 0.5)
+            self.tsmCraftCacheByItemString[itemString] = rounded
+            return rounded
+        end
+
+        self.tsmCraftCacheByItemString[itemString] = false
+        return nil
+    end
+
     function provider:SendMissingMaterialsToShoppingList(materials, shoppingListName, triggerSearch)
         if not self:IsEnabled() then
             return false, 0, "Auctionator is not available."
         end
 
         local api = self.api
+        if type(api) ~= "table" then
+            return false, 0, "Auctionator shopping list API not available."
+        end
         if type(api.ConvertToSearchString) ~= "function" or type(api.CreateShoppingList) ~= "function" then
             return false, 0, "Auctionator shopping list API not available."
         end
@@ -274,6 +363,16 @@ function HC:TryEnableAuctionatorIntegration()
     local isEnabled = provider:TryEnable()
     if isEnabled and not wasEnabled and self.OnPricingDataUpdated then
         self:OnPricingDataUpdated("auctionator_loaded")
+    end
+    return isEnabled
+end
+
+function HC:TryEnableTradeSkillMasterIntegration()
+    local provider = self:InitializeAuctionatorPricingProvider()
+    local wasEnabled = provider:IsEnabled()
+    local isEnabled = provider:TryEnable()
+    if isEnabled and not wasEnabled and self.OnPricingDataUpdated then
+        self:OnPricingDataUpdated("tsm_loaded")
     end
     return isEnabled
 end

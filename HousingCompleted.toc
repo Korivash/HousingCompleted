@@ -2,9 +2,9 @@
 ## Title: |cff00ff99Housing|r |cffffffffCompleted|r
 ## Notes: Complete housing decor collection tracker - Find all items, vendors, achievements, and more!
 ## Author: Korivash
-## Version: 1.4.0
+## Version: 1.4.1
 ## SavedVariables: HousingCompletedDB
-## OptionalDeps: TomTom, Auctionator
+## OptionalDeps: TomTom, Auctionator, TradeSkillMaster
 ## IconTexture: Interface\Icons\INV_Misc_Key_14
 
 Libs\LibStub.lua

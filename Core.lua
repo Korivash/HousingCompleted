@@ -6,7 +6,7 @@
 local addonName, HC = ...
 _G["HousingCompleted"] = HC
 
-HC.version = "1.4.0"
+HC.version = "1.4.1"
 HC.searchResults = {}
 HC.collectionCache = {}
 
@@ -106,7 +106,7 @@ function HC:InitSavedVars()
         HousingCompletedDB.economy.priceHistory = {}
     end
     HousingCompletedDB.economy.maxHistory = tonumber(HousingCompletedDB.economy.maxHistory) or 8
-    if HousingCompletedDB.mode ~= "collector" and HousingCompletedDB.mode ~= "hybrid" and HousingCompletedDB.mode ~= "goblin" then
+    if HousingCompletedDB.mode ~= "hybrid" and HousingCompletedDB.mode ~= "goblin" then
         HousingCompletedDB.mode = "hybrid"
     end
     if type(HousingCompletedDB.lastSourceView) ~= "string" or HousingCompletedDB.lastSourceView == "" then
@@ -323,7 +323,7 @@ function HC:ScheduleUIRefresh()
     C_Timer.After(0.2, function()
         self._uiRefreshQueued = false
         if self.mainFrame and self.mainFrame:IsShown() and self.DoSearch then
-            self:DoSearch()
+            self:DoSearch({ preservePage = true, preserveSelection = true })
         end
     end)
 end
@@ -417,6 +417,10 @@ frame:SetScript("OnEvent", function(self, event, ...)
         if HC.TryEnableAuctionatorIntegration then
             HC:TryEnableAuctionatorIntegration()
         end
+    elseif event == "ADDON_LOADED" and arg1 == "TradeSkillMaster" then
+        if HC.TryEnableTradeSkillMasterIntegration then
+            HC:TryEnableTradeSkillMasterIntegration()
+        end
     elseif event == "PLAYER_ENTERING_WORLD" then
         C_Timer.After(2, function()
             HC:CacheCollection()
@@ -443,6 +447,9 @@ function HC:Initialize()
     if self.InitializeAuctionatorPricingProvider then
         self:InitializeAuctionatorPricingProvider()
         self:TryEnableAuctionatorIntegration()
+    end
+    if self.TryEnableTradeSkillMasterIntegration then
+        self:TryEnableTradeSkillMasterIntegration()
     end
     
     -- Register slash commands

@@ -404,12 +404,19 @@ function HC:BuildEconomicsSnapshot(resultData)
     local itemID = (self.GetResolvedItemID and self:GetResolvedItemID(resultData))
         or resultData.itemID
         or (resultData.data and resultData.data.itemID)
+    local itemLink = nil
+    if itemID and C_Item and C_Item.GetItemLinkByID then
+        itemLink = C_Item.GetItemLinkByID(itemID)
+    end
     local ahPrice, auctionInfo = self:GetAuctionPriceForResult(resultData)
     if itemID and ahPrice then
         self:RecordPriceHistory(itemID, ahPrice, auctionInfo and auctionInfo.age)
     end
     local vendorCost = self:GetVendorAcquisitionCost(resultData)
     local craftCost, missingMaterials, reagents = self:ComputeCraftCostForResult(resultData)
+    if (not craftCost) and self.PricingProvider and self.PricingProvider.GetCraftPrice then
+        craftCost = self.PricingProvider:GetCraftPrice(itemLink, itemID, resultData)
+    end
     local totalCost = MinPositive(vendorCost, craftCost)
 
     local profit = nil
@@ -428,6 +435,8 @@ function HC:BuildEconomicsSnapshot(resultData)
         craftVsBuy = "Craft"
     elseif vendorCost then
         craftVsBuy = "BuyVendor"
+    elseif ahPrice then
+        craftVsBuy = "BuyAH"
     end
 
     local trend = self:GetPriceTrendInfo(itemID, ahPrice)
