@@ -6,7 +6,7 @@
 local addonName, HC = ...
 _G["HousingCompleted"] = HC
 
-HC.version = "1.4.1"
+HC.version = "1.5.0"
 HC.searchResults = {}
 HC.collectionCache = {}
 
@@ -1389,6 +1389,231 @@ function HC:GetVendorByName(vendorName)
         end
     end
     return nil
+end
+
+local function NormalizeVendorKey(name)
+    if type(name) ~= "string" then return nil end
+    local v = name:lower()
+    v = v:gsub("[\"']", "")
+    v = v:gsub("%s+", " ")
+    v = v:match("^%s*(.-)%s*$")
+    return v
+end
+
+local function FormatHDGCurrencyTuple(tuple)
+    if type(tuple) ~= "table" then return nil end
+    local t, id, amount = tuple[1], tuple[2], tuple[3]
+    if not amount or amount <= 0 then return nil end
+
+    if t == "c" and C_CurrencyInfo and C_CurrencyInfo.GetCurrencyInfo then
+        local info = C_CurrencyInfo.GetCurrencyInfo(id)
+        local name = info and info.name or ("Currency #" .. tostring(id))
+        return tostring(amount) .. " " .. tostring(name)
+    end
+    if t == "i" then
+        local name = (C_Item and C_Item.GetItemNameByID and C_Item.GetItemNameByID(id)) or ("Item #" .. tostring(id))
+        return tostring(amount) .. " " .. tostring(name)
+    end
+
+    return nil
+end
+
+function HC:BuildVendorItemResult(vendorData, itemID, itemEntry)
+    local itemName = (C_Item and C_Item.GetItemNameByID and C_Item.GetItemNameByID(itemID)) or ("Item #" .. tostring(itemID))
+    local sourceType = "vendor"
+    local mapID = vendorData and vendorData.mapID
+    local coords = (vendorData and vendorData.x and vendorData.y) and { vendorData.x, vendorData.y } or nil
+    local faction = vendorData and vendorData.faction
+    local costText = nil
+    local notes = nil
+
+    if type(itemEntry) == "table" then
+        local goldCost = tonumber(itemEntry[1]) or 0
+        local factionID = tonumber(itemEntry[2]) or 0
+        local minRep = tonumber(itemEntry[3]) or 0
+        local factionName = itemEntry[4]
+        local currencyCosts = itemEntry[5]
+        local reqQuest = tonumber(itemEntry[6]) or 0
+        local reqAch = tonumber(itemEntry[7]) or 0
+
+        local costParts = {}
+        if goldCost > 0 then
+            table.insert(costParts, self:FormatMoney(goldCost))
+        end
+        if type(currencyCosts) == "table" then
+            for _, tuple in ipairs(currencyCosts) do
+                local token = FormatHDGCurrencyTuple(tuple)
+                if token then
+                    table.insert(costParts, token)
+                end
+            end
+        end
+        costText = (#costParts > 0) and table.concat(costParts, " + ") or nil
+
+        local reqParts = {}
+        if factionID > 0 and minRep > 0 then
+            if minRep >= 9 then
+                table.insert(reqParts, string.format("Requires Renown %d with %s", minRep, tostring(factionName or ("Faction #" .. factionID))))
+            else
+                local standingNames = { [4] = "Neutral", [5] = "Friendly", [6] = "Honored", [7] = "Revered", [8] = "Exalted" }
+                table.insert(reqParts, string.format("Requires %s with %s", standingNames[minRep] or ("Standing " .. minRep), tostring(factionName or ("Faction #" .. factionID))))
+            end
+        end
+        if reqQuest > 0 then
+            table.insert(reqParts, "Requires quest #" .. reqQuest)
+        end
+        if reqAch > 0 then
+            table.insert(reqParts, "Requires achievement #" .. reqAch)
+        end
+        notes = (#reqParts > 0) and table.concat(reqParts, "; ") or nil
+    end
+
+    local collected = self:IsItemCollected(itemID, itemName)
+    local sourceRow = {
+        sourceType = sourceType,
+        source = vendorData and vendorData.zone or "Vendor",
+        vendor = vendorData and vendorData.name or nil,
+        cost = costText,
+        zone = vendorData and vendorData.zone or nil,
+        coords = coords,
+        mapID = mapID,
+        faction = faction,
+        expansion = vendorData and vendorData.expansion or nil,
+        notes = notes,
+        vendorData = vendorData,
+    }
+
+    return {
+        type = "vendor",
+        name = itemName,
+        source = sourceRow.source,
+        vendor = sourceRow.vendor,
+        zone = sourceRow.zone,
+        cost = sourceRow.cost,
+        expansion = sourceRow.expansion,
+        faction = sourceRow.faction,
+        sourceCount = 1,
+        vendorData = vendorData,
+        itemCategory = self.GetItemCategoryByName and self:GetItemCategoryByName(itemName) or "misc",
+        sourceTags = { "Vendor" },
+        collected = collected,
+        data = {
+            name = itemName,
+            itemID = itemID,
+            sources = { sourceRow },
+            sourceCount = 1,
+            vendorData = vendorData,
+            itemCategory = self.GetItemCategoryByName and self:GetItemCategoryByName(itemName) or "misc",
+            sourceTags = { "Vendor" },
+            waypoint = (mapID and coords and coords[1] and coords[2]) and {
+                mapID = mapID,
+                x = coords[1],
+                y = coords[2],
+                title = vendorData and vendorData.name or itemName,
+            } or nil,
+        },
+    }
+end
+
+function HC:GetVendorInventory(vendorRef)
+    if not vendorRef then return {} end
+
+    local vendorName = nil
+    local vendorID = nil
+    local zone = nil
+    if type(vendorRef) == "table" then
+        vendorName = vendorRef.name or vendorRef.vendor
+        vendorID = vendorRef.id
+        zone = vendorRef.zone
+    elseif type(vendorRef) == "string" then
+        vendorName = vendorRef
+    end
+
+    local out = {}
+    local seen = {}
+    local nameKey = NormalizeVendorKey(vendorName)
+
+    if HC.VendorDB and type(HC.VendorDB) == "table" then
+        for npcID, vendorEntry in pairs(HC.VendorDB) do
+            local dbName = vendorEntry and vendorEntry[1]
+            local dbZone = vendorEntry and vendorEntry[2]
+            local nameMatches = (vendorID and tonumber(vendorID) == tonumber(npcID))
+                or (nameKey and NormalizeVendorKey(dbName) == nameKey)
+            local zoneMatches = (not zone) or (dbZone and tostring(dbZone):lower() == tostring(zone):lower())
+            if nameMatches and zoneMatches then
+                local vd = {
+                    id = tonumber(npcID),
+                    name = dbName,
+                    zone = dbZone,
+                    mapID = vendorEntry[3],
+                    x = vendorEntry[4],
+                    y = vendorEntry[5],
+                    faction = vendorEntry[6],
+                    expansion = vendorEntry.exp,
+                }
+                for itemID, itemEntry in pairs((vendorEntry and vendorEntry.items) or {}) do
+                    local numID = tonumber(itemID)
+                    if numID and not seen[numID] then
+                        seen[numID] = true
+                        table.insert(out, self:BuildVendorItemResult(vd, numID, itemEntry))
+                    end
+                end
+            end
+        end
+    end
+
+    if #out == 0 then
+        if (not self.ItemList) or (#self.ItemList == 0) then
+            self:BuildItemIndex(true)
+        end
+        for _, item in ipairs(self.ItemList or {}) do
+            local matchedSource = nil
+            for _, s in ipairs(item.sources or {}) do
+                local sNameKey = NormalizeVendorKey(s.vendor)
+                if (nameKey and sNameKey and sNameKey == nameKey)
+                    or (vendorID and s.vendorData and tonumber(s.vendorData.id) == tonumber(vendorID)) then
+                    matchedSource = s
+                    break
+                end
+            end
+            if matchedSource then
+                local itemID = item.itemID or self:ResolveItemIDByName(item.name)
+                local dedupeKey = itemID or (self:NormalizeItemName(item.name) or item.name)
+                if dedupeKey and not seen[dedupeKey] then
+                    seen[dedupeKey] = true
+                    table.insert(out, {
+                        type = self:NormalizeSourceType(matchedSource.sourceType or "vendor"),
+                        name = item.name,
+                        source = matchedSource.source,
+                        vendor = matchedSource.vendor,
+                        zone = matchedSource.zone,
+                        cost = matchedSource.cost,
+                        expansion = matchedSource.expansion,
+                        faction = matchedSource.faction,
+                        sourceCount = #(item.sources or {}),
+                        vendorData = matchedSource.vendorData,
+                        itemCategory = self.GetItemCategoryByName and self:GetItemCategoryByName(item.name) or "misc",
+                        sourceTags = self.GetSourceTags and self:GetSourceTags(item.sources) or { "Vendor" },
+                        collected = self:IsItemCollected(itemID, item.name),
+                        data = {
+                            name = item.name,
+                            itemID = itemID,
+                            sources = item.sources,
+                            sourceCount = #(item.sources or {}),
+                            vendorData = matchedSource.vendorData,
+                            itemCategory = self.GetItemCategoryByName and self:GetItemCategoryByName(item.name) or "misc",
+                            sourceTags = self.GetSourceTags and self:GetSourceTags(item.sources) or { "Vendor" },
+                        },
+                    })
+                end
+            end
+        end
+    end
+
+    table.sort(out, function(a, b)
+        return tostring(a.name or "") < tostring(b.name or "")
+    end)
+    return out
 end
 
 ---------------------------------------------------

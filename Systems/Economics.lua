@@ -50,6 +50,84 @@ local function PushReagent(output, itemID, reagentData)
     })
 end
 
+local localRecipeIndexBuilt = false
+local localRecipeByItemID = {}
+local localDecorIndexBuilt = false
+local localDecorByItemID = {}
+
+local function BuildLocalRecipeIndex()
+    if localRecipeIndexBuilt then return end
+    localRecipeIndexBuilt = true
+    localRecipeByItemID = {}
+
+    if type(HC.ProfessionRecipeDB) ~= "table" then
+        return
+    end
+
+    for _, entry in pairs(HC.ProfessionRecipeDB) do
+        local itemID = type(entry) == "table" and tonumber(entry.itemID) or nil
+        if itemID and not localRecipeByItemID[itemID] then
+            localRecipeByItemID[itemID] = entry
+        end
+    end
+end
+
+local function BuildLocalDecorIndex()
+    if localDecorIndexBuilt then return end
+    localDecorIndexBuilt = true
+    localDecorByItemID = {}
+
+    if type(HC.DecorRecipes) ~= "table" then
+        return
+    end
+
+    for _, entry in pairs(HC.DecorRecipes) do
+        local itemID = type(entry) == "table" and tonumber(entry.itemID) or nil
+        if itemID and not localDecorByItemID[itemID] then
+            localDecorByItemID[itemID] = entry
+        end
+    end
+end
+
+local function GetLocalDecorRecipeByItemID(itemID)
+    if not itemID then return nil end
+    BuildLocalDecorIndex()
+    return localDecorByItemID[itemID]
+end
+
+local function GetLocalRecipeByItemID(itemID)
+    if not itemID then return nil end
+    BuildLocalRecipeIndex()
+    return localRecipeByItemID[itemID]
+end
+
+local function GetLocalizedItemName(itemID)
+    if not itemID then return nil end
+
+    if C_Item and C_Item.GetItemNameByID then
+        local name = C_Item.GetItemNameByID(itemID)
+        if type(name) == "string" and name ~= "" then
+            return name
+        end
+    end
+
+    return nil
+end
+
+local function GetDataPrice(itemID)
+    if not itemID then return nil, nil end
+
+    local src = HC.ReagentSourceDB and HC.ReagentSourceDB[itemID]
+    if type(src) == "string" then
+        local vendorCopper = src:match("^Vendor:(%d+)$")
+        if vendorCopper then
+            return tonumber(vendorCopper), "vendor"
+        end
+    end
+
+    return nil, nil
+end
+
 function HC:ParseMoneyToCopper(value)
     if value == nil then
         return nil
@@ -176,14 +254,43 @@ function HC:GetCraftReagents(resultData)
         end
     end
 
+    if #reagents == 0 then
+        local itemID = (self.GetResolvedItemID and self:GetResolvedItemID(resultData))
+            or resultData.itemID
+            or (data and data.itemID)
+        local recipe = GetLocalRecipeByItemID(itemID)
+        if recipe and type(recipe.slots) == "table" then
+            for _, slot in ipairs(recipe.slots) do
+                if type(slot) == "table" and slot.type == "basic" and slot.itemID then
+                    table.insert(reagents, {
+                        itemID = tonumber(slot.itemID),
+                        qty = math.max(1, math.floor((tonumber(slot.qty) or 1) + 0.5)),
+                        name = GetLocalizedItemName(tonumber(slot.itemID)),
+                    })
+                end
+            end
+        end
+    end
+
+    if #reagents == 0 then
+        local itemID = (self.GetResolvedItemID and self:GetResolvedItemID(resultData))
+            or resultData.itemID
+            or (data and data.itemID)
+        local decorRecipe = GetLocalDecorRecipeByItemID(itemID)
+        if decorRecipe and type(decorRecipe.reagents) == "table" then
+            for reagentID, reagentData in pairs(decorRecipe.reagents) do
+                local rid = tonumber(reagentID) or (type(reagentData) == "table" and (reagentData.itemID or reagentData.id))
+                if rid then
+                    PushReagent(reagents, rid, reagentData)
+                end
+            end
+        end
+    end
+
     return reagents
 end
 
 function HC:GetAuctionPriceForResult(resultData)
-    if not (self.PricingProvider and self.PricingProvider.IsEnabled and self.PricingProvider:IsEnabled()) then
-        return nil
-    end
-
     local itemID = (self.GetResolvedItemID and self:GetResolvedItemID(resultData))
         or resultData.itemID
         or (resultData.data and resultData.data.itemID)
@@ -196,13 +303,25 @@ function HC:GetAuctionPriceForResult(resultData)
         itemLink = C_Item.GetItemLinkByID(itemID)
     end
 
-    if self.PricingProvider.GetAuctionInfo then
-        local info = self.PricingProvider:GetAuctionInfo(itemLink, itemID)
-        if info and info.price then
-            return info.price, info
+    if self.PricingProvider and self.PricingProvider.IsEnabled and self.PricingProvider:IsEnabled() then
+        if self.PricingProvider.GetAuctionInfo then
+            local info = self.PricingProvider:GetAuctionInfo(itemLink, itemID)
+            if info and info.price then
+                return info.price, info
+            end
+        end
+        local localPrice = self.PricingProvider:GetAuctionPrice(itemLink, itemID)
+        if localPrice and localPrice > 0 then
+            return localPrice, nil
         end
     end
-    return self.PricingProvider:GetAuctionPrice(itemLink, itemID), nil
+
+    local dataPrice, dataSource = GetDataPrice(itemID)
+    if dataPrice and dataPrice > 0 then
+        return dataPrice, { source = dataSource }
+    end
+
+    return nil, nil
 end
 
 function HC:RecordPriceHistory(itemID, price, auctionAgeSeconds)
@@ -332,6 +451,15 @@ function HC:GetReagentUnitCost(reagent)
         if ahPrice and ahPrice > 0 then
             return ahPrice, "auction"
         end
+    end
+
+    local dataPrice, dataSource = GetDataPrice(itemID)
+    if dataPrice and dataPrice > 0 then
+        local source = "auction"
+        if tostring(dataSource) == "Vendor" or tostring(dataSource) == "vendor" then
+            source = "vendor"
+        end
+        return dataPrice, source
     end
 
     local explicitCost = self:ParseMoneyToCopper(reagent.cost)

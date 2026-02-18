@@ -1023,6 +1023,10 @@ function HC:CreateResultRow(parent, index)
         if HC.UpdatePreview then
             HC:UpdatePreview(self.itemData)
         end
+        if self.itemData and self.itemData.type == "vendor" and HC.ShowVendorInventoryForResult then
+            HC:ShowVendorInventoryForResult(self.itemData)
+            return
+        end
         HC:OpenResultPreview(self.itemData)
     end)
     
@@ -1292,6 +1296,38 @@ function HC:GetItemCategoryName(categoryID)
     return "Misc"
 end
 
+local function TryLoadHousingPreviewModules()
+    local loader = (C_AddOns and C_AddOns.LoadAddOn) or LoadAddOn
+    if type(loader) ~= "function" then
+        return
+    end
+
+    local names = {
+        "Blizzard_HousingUI",
+        "Blizzard_HousingCatalog",
+        "Blizzard_ResidenceUI",
+    }
+    for _, name in ipairs(names) do
+        pcall(loader, name)
+    end
+end
+
+local function TryCallWithItemID(owner, fn, itemID)
+    if type(fn) ~= "function" then
+        return false
+    end
+
+    if pcall(fn, itemID) then
+        return true
+    end
+
+    if owner ~= nil and pcall(fn, owner, itemID) then
+        return true
+    end
+
+    return false
+end
+
 function HC:CreatePreviewPanel(parent)
     local preview = CreateFrame("Frame", nil, parent, "BackdropTemplate")
     preview:SetPoint("TOPRIGHT", 0, -HEADER_HEIGHT)
@@ -1321,7 +1357,7 @@ function HC:CreatePreviewPanel(parent)
     headerLine:SetColorTexture(0.42, 0.29, 0.16, 0.9)
     y = y - 10
     
-    -- Model container
+    -- Residence preview launcher container
     local modelContainer = CreateFrame("Frame", nil, preview, "BackdropTemplate")
     modelContainer:SetSize(PREVIEW_WIDTH - 24, 214)
     modelContainer:SetPoint("TOP", 0, y)
@@ -1333,48 +1369,35 @@ function HC:CreatePreviewPanel(parent)
     modelContainer:SetBackdropColor(0.06, 0.05, 0.04, 1)
     modelContainer:SetBackdropBorderColor(0.3, 0.22, 0.12, 1)
     
-    -- Prefer DressUpModel behavior so preview matches Dressing Room rendering.
-    local modelFrame = CreateFrame("DressUpModel", nil, modelContainer)
-    if not modelFrame then
-        modelFrame = CreateFrame("PlayerModel", nil, modelContainer)
-    end
-    modelFrame:SetAllPoints()
-    modelFrame:EnableMouse(true)
-    modelFrame:EnableMouseWheel(true)
-    if modelFrame.SetUnit then
-        pcall(modelFrame.SetUnit, modelFrame, "player")
-    end
-    
-    local isDragging = false
-    local lastX = 0
-    modelFrame:SetScript("OnMouseDown", function(self, button)
-        if button == "LeftButton" then
-            isDragging = true
-            lastX = GetCursorPosition()
-        end
-    end)
-    modelFrame:SetScript("OnMouseUp", function() isDragging = false end)
-    modelFrame:SetScript("OnUpdate", function(self)
-        if isDragging then
-            local x = GetCursorPosition()
-            if self.SetFacing then
-                local facing = self:GetFacing() or 0
-                self:SetFacing(facing + (x - lastX) * 0.02)
-            end
-            lastX = x
-        end
-    end)
-    
-    self.modelFrame = modelFrame
-    self.modelContainer = modelContainer
-
     local modelFallbackIcon = modelContainer:CreateTexture(nil, "ARTWORK")
-    modelFallbackIcon:SetSize(56, 56)
-    modelFallbackIcon:SetPoint("CENTER")
+    modelFallbackIcon:SetSize(72, 72)
+    modelFallbackIcon:SetPoint("TOP", 0, -54)
     modelFallbackIcon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
     modelFallbackIcon:SetVertexColor(0.8, 0.8, 0.8, 0.9)
-    modelFallbackIcon:Hide()
+    modelFallbackIcon:Show()
     self.modelFallbackIcon = modelFallbackIcon
+    self.modelContainer = modelContainer
+
+    local modelHint = modelContainer:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    modelHint:SetPoint("TOPLEFT", 12, -136)
+    modelHint:SetPoint("TOPRIGHT", -12, -136)
+    modelHint:SetJustifyH("CENTER")
+    modelHint:SetText("Open the residence preview for full interaction (rotate, dye, place).")
+    modelHint:SetTextColor(0.78, 0.70, 0.56)
+    self.previewResidenceHint = modelHint
+
+    local openResidenceBtn = CreateFrame("Button", nil, modelContainer, "UIPanelButtonTemplate")
+    openResidenceBtn:SetSize(190, 24)
+    openResidenceBtn:SetPoint("TOP", 0, -170)
+    openResidenceBtn:SetText("Open Residence Preview")
+    openResidenceBtn:SetEnabled(false)
+    openResidenceBtn:SetAlpha(0.45)
+    openResidenceBtn:SetScript("OnClick", function()
+        if self.previewResidenceItemID then
+            self:OpenItemPreview(self.previewResidenceItemID)
+        end
+    end)
+    self.previewOpenResidenceBtn = openResidenceBtn
 
     y = y - 224
     
@@ -1583,6 +1606,19 @@ function HC:CreatePreviewPanel(parent)
         end
     end)
     self.previewAddShoppingBtn = addListBtn
+
+    local browseVendorBtn = CreateFrame("Button", nil, preview, "UIPanelButtonTemplate")
+    browseVendorBtn:SetSize(PREVIEW_WIDTH - 30, 24)
+    browseVendorBtn:SetPoint("BOTTOM", 0, 76)
+    browseVendorBtn:SetText("Browse Vendor Items")
+    browseVendorBtn:SetEnabled(false)
+    browseVendorBtn:SetAlpha(0.45)
+    browseVendorBtn:SetScript("OnClick", function()
+        if selectedItem and HC.ShowVendorInventoryForResult then
+            HC:ShowVendorInventoryForResult(selectedItem)
+        end
+    end)
+    self.previewVendorItemsBtn = browseVendorBtn
     
     self.previewPanel = preview
 end
@@ -1609,8 +1645,22 @@ function HC:UpdatePreview(data)
         if self.previewItemID then self.previewItemID:SetText("-") end
         if self.previewSources then self.previewSources:SetText("-") end
         if self.previewMaterials then self.previewMaterials:SetText("-") end
-        if self.modelFrame.ClearModel then self.modelFrame:ClearModel() end
-        if self.modelFallbackIcon then self.modelFallbackIcon:Show() end
+        self.previewResidenceItemID = nil
+        if self.modelFallbackIcon then
+            self.modelFallbackIcon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+            self.modelFallbackIcon:Show()
+        end
+        if self.previewOpenResidenceBtn then
+            self.previewOpenResidenceBtn:SetEnabled(false)
+            self.previewOpenResidenceBtn:SetAlpha(0.45)
+        end
+        if self.previewVendorItemsBtn then
+            self.previewVendorItemsBtn:SetEnabled(false)
+            self.previewVendorItemsBtn:SetAlpha(0.45)
+        end
+        if self.previewResidenceHint then
+            self.previewResidenceHint:SetText("Select an item to open its residence preview.")
+        end
         if self.previewAddShoppingBtn then
             self.previewAddShoppingBtn:SetEnabled(false)
             self.previewAddShoppingBtn:SetAlpha(0.45)
@@ -1692,7 +1742,6 @@ function HC:UpdatePreview(data)
     end
 
     local itemID = self:GetResolvedItemID(data)
-    local resolvedItemLink = self.GetResultItemLink and select(1, self:GetResultItemLink(data)) or nil
     if self.previewItemID then
         self.previewItemID:SetText(itemID and tostring(itemID) or "-")
     end
@@ -1728,55 +1777,37 @@ function HC:UpdatePreview(data)
         self.previewRepStanding:SetTextColor(unpack(color))
     end
     
-    -- Model - dressing-room style try-on first, with safe fallbacks.
-    if self.modelFrame then
-        local showedModel = false
-        if itemID or resolvedItemLink then
-            if self.modelFrame.SetUnit then
-                pcall(self.modelFrame.SetUnit, self.modelFrame, "player")
-            end
-            if self.modelFrame.Undress then
-                pcall(self.modelFrame.Undress, self.modelFrame)
-            end
-
-            local itemLink = resolvedItemLink
-            if not itemLink and itemID then
-                itemLink = (C_Item and C_Item.GetItemLinkByID and C_Item.GetItemLinkByID(itemID)) or ("item:" .. itemID)
-            end
-            if self.modelFrame.TryOn then
-                local ok = pcall(self.modelFrame.TryOn, self.modelFrame, itemLink)
-                showedModel = ok and true or false
-            end
-        end
-
-        if (not showedModel) and data.type == "vendor" and data.data and data.data.id then
-            if self.modelFrame.SetCreature then
-                local ok = pcall(self.modelFrame.SetCreature, self.modelFrame, data.data.id)
-                if ok then
-                    showedModel = true
-                end
-            end
-        end
-
-        if self.modelFallbackIcon then
-            self.modelFallbackIcon:SetShown(not showedModel)
-        end
-
-        if not showedModel then
-            if self.modelFrame.ClearModel then
-                pcall(self.modelFrame.ClearModel, self.modelFrame)
-            end
-            local icon = (itemID and C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(itemID))
-                or "Interface\\Icons\\INV_Misc_QuestionMark"
-            if self.modelFallbackIcon then
-                self.modelFallbackIcon:SetTexture(icon)
-            end
+    -- Residence preview launcher state.
+    self.previewResidenceItemID = itemID
+    local icon = (itemID and C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(itemID))
+        or "Interface\\Icons\\INV_Misc_QuestionMark"
+    if self.modelFallbackIcon then
+        self.modelFallbackIcon:SetTexture(icon)
+    end
+    if self.previewOpenResidenceBtn then
+        local canOpenResidence = itemID and true or false
+        self.previewOpenResidenceBtn:SetEnabled(canOpenResidence and true or false)
+        self.previewOpenResidenceBtn:SetAlpha(canOpenResidence and 1 or 0.45)
+    end
+    if self.previewResidenceHint then
+        if itemID then
+            self.previewResidenceHint:SetText("Open the residence preview for full interaction (rotate, dye, place).")
+        else
+            self.previewResidenceHint:SetText("Select an item to open its residence preview.")
         end
     end
 
     if self.previewAddShoppingBtn then
         self.previewAddShoppingBtn:SetEnabled(true)
         self.previewAddShoppingBtn:SetAlpha(1)
+    end
+
+    if self.previewVendorItemsBtn then
+        local hasVendorBrowse = (data.type == "vendor")
+            or (type(data.vendor) == "string" and data.vendor ~= "")
+            or (data.data and data.data.vendorData and (data.data.vendorData.name or data.data.vendorData.id))
+        self.previewVendorItemsBtn:SetEnabled(hasVendorBrowse and true or false)
+        self.previewVendorItemsBtn:SetAlpha(hasVendorBrowse and 1 or 0.45)
     end
 end
 
@@ -1786,29 +1817,61 @@ function HC:OpenItemPreview(itemRef)
     local itemID = tonumber(itemRef)
     local itemLink = nil
     if type(itemRef) == "string" then
-        if itemRef:find("item:", 1, true) then
-            itemLink = itemRef
-        elseif tonumber(itemRef) then
+        if tonumber(itemRef) then
             itemID = tonumber(itemRef)
+        elseif itemRef:find("item:", 1, true) then
+            itemLink = itemRef
+            local parsedID = itemRef:match("item:(%d+)")
+            if parsedID then
+                itemID = tonumber(parsedID)
+            end
         end
     elseif type(itemRef) == "number" then
         itemID = itemRef
     end
 
-    if itemID and C_Item and C_Item.GetItemLinkByID then
-        itemLink = itemLink or C_Item.GetItemLinkByID(itemID)
+    if not itemID then
+        return false
     end
-    itemLink = itemLink or (itemID and ("item:" .. itemID)) or nil
 
-    -- Housing-native preview if available
-    if itemID and C_HousingCatalog and C_HousingCatalog.OpenToItemID then
-        local ok = pcall(C_HousingCatalog.OpenToItemID, itemID)
-        if ok then
-            return true
+    if not itemLink and C_Item and C_Item.GetItemLinkByID then
+        itemLink = C_Item.GetItemLinkByID(itemID)
+    end
+    itemLink = itemLink or ("item:" .. tostring(itemID))
+
+    TryLoadHousingPreviewModules()
+
+    if C_HousingCatalog then
+        local cFuncs = {
+            C_HousingCatalog.OpenToItemID,
+            C_HousingCatalog.OpenPreviewForItemID,
+            C_HousingCatalog.PreviewItem,
+            C_HousingCatalog.OpenItemPreview,
+            C_HousingCatalog.ShowItemPreview,
+        }
+        for _, fn in ipairs(cFuncs) do
+            if TryCallWithItemID(C_HousingCatalog, fn, itemID) then
+                return true
+            end
         end
     end
 
-    -- Fallback: Dressing Room
+    if HousingCatalogFrame then
+        local frameFuncs = {
+            HousingCatalogFrame.OpenToItemID,
+            HousingCatalogFrame.OpenPreviewForItemID,
+            HousingCatalogFrame.PreviewItem,
+            HousingCatalogFrame.OpenItemPreview,
+            HousingCatalogFrame.ShowItemPreview,
+        }
+        for _, fn in ipairs(frameFuncs) do
+            if TryCallWithItemID(HousingCatalogFrame, fn, itemID) then
+                return true
+            end
+        end
+    end
+
+    -- Final fallback: dressing room item preview.
     if itemLink and DressUpItemLink then
         local ok = pcall(DressUpItemLink, itemLink)
         if ok then
@@ -1816,7 +1879,6 @@ function HC:OpenItemPreview(itemRef)
         end
     end
 
-    -- Last fallback: use modified-click handler when available.
     if itemLink and HandleModifiedItemClick then
         local ok = pcall(HandleModifiedItemClick, itemLink)
         if ok then
@@ -1913,6 +1975,225 @@ function HC:BuildResultsCSV(results)
     end
 
     return table.concat(lines, "\n")
+end
+
+function HC:CreateVendorInventoryPanel()
+    if self.vendorInventoryPanel then return end
+
+    local frame = CreateFrame("Frame", "HousingCompletedVendorInventoryFrame", self.mainFrame or UIParent, "BackdropTemplate")
+    frame:SetSize(560, 620)
+    frame:SetPoint("CENTER", self.mainFrame or UIParent, "CENTER", 0, 0)
+    frame:SetFrameStrata("DIALOG")
+    frame:SetFrameLevel(40)
+    frame:SetMovable(true)
+    frame:EnableMouse(true)
+    frame:RegisterForDrag("LeftButton")
+    frame:SetClampedToScreen(true)
+    frame:SetScript("OnDragStart", frame.StartMoving)
+    frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
+    frame:SetBackdrop({
+        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        edgeSize = 12,
+        insets = { left = 3, right = 3, top = 3, bottom = 3 },
+    })
+    frame:SetBackdropColor(0.07, 0.055, 0.035, 0.98)
+    frame:SetBackdropBorderColor(unpack(COLORS.border))
+    frame:Hide()
+
+    local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    title:SetPoint("TOPLEFT", 14, -12)
+    title:SetPoint("TOPRIGHT", -46, -12)
+    title:SetJustifyH("LEFT")
+    title:SetText("Vendor Inventory")
+    frame.title = title
+
+    local subtitle = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    subtitle:SetPoint("TOPLEFT", 14, -36)
+    subtitle:SetPoint("TOPRIGHT", -46, -36)
+    subtitle:SetJustifyH("LEFT")
+    subtitle:SetTextColor(unpack(COLORS.textMuted))
+    subtitle:SetText("")
+    frame.subtitle = subtitle
+
+    local closeBtn = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
+    closeBtn:SetPoint("TOPRIGHT", -6, -6)
+
+    local listContainer = CreateFrame("Frame", nil, frame, "BackdropTemplate")
+    listContainer:SetPoint("TOPLEFT", 12, -62)
+    listContainer:SetPoint("TOPRIGHT", -12, -52)
+    listContainer:SetHeight(510)
+    listContainer:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    listContainer:SetBackdropColor(0.05, 0.04, 0.03, 0.94)
+    listContainer:SetBackdropBorderColor(0.28, 0.2, 0.1, 1)
+    frame.listContainer = listContainer
+
+    frame.rows = {}
+    for i = 1, 12 do
+        local row = CreateFrame("Button", nil, listContainer, "BackdropTemplate")
+        row:SetHeight(40)
+        row:SetPoint("LEFT", 6, 0)
+        row:SetPoint("RIGHT", -6, 0)
+        if i == 1 then
+            row:SetPoint("TOP", 0, -6)
+        else
+            row:SetPoint("TOP", frame.rows[i - 1], "BOTTOM", 0, -2)
+        end
+        row:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8" })
+        row:SetBackdropColor(0.14, 0.1, 0.06, 0.86)
+
+        local icon = row:CreateTexture(nil, "ARTWORK")
+        icon:SetSize(28, 28)
+        icon:SetPoint("LEFT", 8, 0)
+        row.icon = icon
+
+        local name = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        name:SetPoint("TOPLEFT", icon, "TOPRIGHT", 8, -1)
+        name:SetPoint("TOPRIGHT", -8, -1)
+        name:SetJustifyH("LEFT")
+        row.nameText = name
+
+        local info = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        info:SetPoint("BOTTOMLEFT", icon, "BOTTOMRIGHT", 8, 1)
+        info:SetPoint("BOTTOMRIGHT", -8, 1)
+        info:SetJustifyH("LEFT")
+        info:SetTextColor(unpack(COLORS.textMuted))
+        row.infoText = info
+
+        row:SetScript("OnClick", function(selfRow)
+            local resultData = selfRow.itemData
+            if not resultData then return end
+            selectedItem = resultData
+            if HC.UpdatePreview then
+                HC:UpdatePreview(resultData)
+            end
+            HC:UpdateSetWaypointButton()
+            HC:UpdateAddShoppingButton()
+            HC:OpenResultPreview(resultData)
+        end)
+
+        row:Hide()
+        frame.rows[i] = row
+    end
+
+    local prevBtn = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    prevBtn:SetSize(80, 24)
+    prevBtn:SetPoint("BOTTOMLEFT", 12, 12)
+    prevBtn:SetText("Prev")
+    prevBtn:SetScript("OnClick", function()
+        local st = HC.vendorInventoryState
+        if not st then return end
+        st.page = math.max(1, (st.page or 1) - 1)
+        HC:RefreshVendorInventoryPanel()
+    end)
+    frame.prevBtn = prevBtn
+
+    local nextBtn = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    nextBtn:SetSize(80, 24)
+    nextBtn:SetPoint("BOTTOMRIGHT", -12, 12)
+    nextBtn:SetText("Next")
+    nextBtn:SetScript("OnClick", function()
+        local st = HC.vendorInventoryState
+        if not st then return end
+        local totalPages = math.max(1, math.ceil(#(st.items or {}) / (st.perPage or 12)))
+        st.page = math.min(totalPages, (st.page or 1) + 1)
+        HC:RefreshVendorInventoryPanel()
+    end)
+    frame.nextBtn = nextBtn
+
+    local pageText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    pageText:SetPoint("BOTTOM", 0, 16)
+    pageText:SetTextColor(unpack(COLORS.textMuted))
+    pageText:SetText("Page 1 of 1")
+    frame.pageText = pageText
+
+    self.vendorInventoryPanel = frame
+end
+
+function HC:RefreshVendorInventoryPanel()
+    local frame = self.vendorInventoryPanel
+    local st = self.vendorInventoryState
+    if not frame or not st then return end
+
+    local items = st.items or {}
+    local perPage = st.perPage or 12
+    local page = math.max(1, st.page or 1)
+    local totalPages = math.max(1, math.ceil(#items / perPage))
+    if page > totalPages then
+        page = totalPages
+        st.page = page
+    end
+
+    local vendorName = (st.vendorRef and st.vendorRef.name) or "Vendor"
+    frame.title:SetText(vendorName .. " Inventory")
+    frame.subtitle:SetText(string.format("%d items", #items))
+    frame.pageText:SetText(string.format("Page %d of %d", page, totalPages))
+    frame.prevBtn:SetEnabled(page > 1)
+    frame.nextBtn:SetEnabled(page < totalPages)
+
+    local startIndex = ((page - 1) * perPage) + 1
+    for i = 1, 12 do
+        local row = frame.rows[i]
+        local idx = startIndex + (i - 1)
+        local item = items[idx]
+        if item then
+            local itemID = self:GetResolvedItemID(item)
+            local icon = (itemID and C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(itemID))
+                or "Interface\\Icons\\INV_Misc_QuestionMark"
+            row.icon:SetTexture(icon)
+            row.nameText:SetText(item.name or ("Item #" .. tostring(itemID or "?")))
+            local infoParts = {}
+            if item.cost and item.cost ~= "" then table.insert(infoParts, item.cost) end
+            if item.zone and item.zone ~= "" then table.insert(infoParts, item.zone) end
+            row.infoText:SetText(#infoParts > 0 and table.concat(infoParts, "  |  ") or "-")
+            row.itemData = item
+            row:Show()
+        else
+            row.itemData = nil
+            row:Hide()
+        end
+    end
+end
+
+function HC:ShowVendorInventoryForResult(resultData)
+    if not resultData or not self.GetVendorInventory then return end
+
+    local vendorRef = nil
+    if resultData.type == "vendor" and type(resultData.data) == "table" then
+        vendorRef = resultData.data
+    elseif type(resultData.vendor) == "string" and resultData.vendor ~= "" then
+        vendorRef = self:GetVendorByName(resultData.vendor) or {
+            name = resultData.vendor,
+            zone = resultData.zone,
+            mapID = resultData.mapID,
+        }
+    elseif resultData.data and resultData.data.vendorData then
+        vendorRef = resultData.data.vendorData
+    end
+
+    if not vendorRef then
+        return
+    end
+
+    local items = self:GetVendorInventory(vendorRef)
+    if not items or #items == 0 then
+        print("|cff00ff99Housing Completed|r: No cataloged items found for this vendor yet.")
+        return
+    end
+
+    self:CreateVendorInventoryPanel()
+    self.vendorInventoryState = {
+        vendorRef = vendorRef,
+        items = items,
+        page = 1,
+        perPage = 12,
+    }
+    self:RefreshVendorInventoryPanel()
+    self.vendorInventoryPanel:Show()
 end
 
 function HC:ShowTextExportDialog(title, text)
