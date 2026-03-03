@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.5.1] - 2026-02-25
+
+### Changed
+- Updated addon version metadata to `1.5.1`.
+- Confirmed retail TOC interface value remains `120001` (WoW `12.0.1`).
+
+### Packaging
+- Prepared new CurseForge release package zip.
+
 ## [1.5.0] - 2026-02-18
 
 ### Added
