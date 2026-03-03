@@ -6,7 +6,7 @@
 local addonName, HC = ...
 _G["HousingCompleted"] = HC
 
-HC.version = "1.5.2"
+HC.version = "1.6.0"
 HC.searchResults = {}
 HC.collectionCache = {}
 
@@ -37,6 +37,20 @@ scale = 1.0,
     economy = {
         priceHistory = {},
         maxHistory = 8,
+    },
+    ui = {
+        primaryTab = "overview",
+        viewMode = "grid",
+        compactMode = false,
+        showSourceDetails = true,
+        streamerMode = false,
+        performanceMode = false,
+        opacity = 0.97,
+        fontScale = 1.0,
+        gridScale = 1.0,
+    },
+    favorites = {
+        items = {},
     },
 }
 
@@ -106,6 +120,18 @@ function HC:InitSavedVars()
         HousingCompletedDB.economy.priceHistory = {}
     end
     HousingCompletedDB.economy.maxHistory = tonumber(HousingCompletedDB.economy.maxHistory) or 8
+    if type(HousingCompletedDB.ui) ~= "table" then
+        HousingCompletedDB.ui = CopyTable(defaults.ui)
+    end
+    if HousingCompletedDB.ui.viewMode ~= "grid" and HousingCompletedDB.ui.viewMode ~= "list" then
+        HousingCompletedDB.ui.viewMode = "grid"
+    end
+    if type(HousingCompletedDB.favorites) ~= "table" then
+        HousingCompletedDB.favorites = { items = {} }
+    end
+    if type(HousingCompletedDB.favorites.items) ~= "table" then
+        HousingCompletedDB.favorites.items = {}
+    end
     if HousingCompletedDB.mode ~= "hybrid" and HousingCompletedDB.mode ~= "goblin" then
         HousingCompletedDB.mode = "hybrid"
     end
@@ -702,17 +728,33 @@ function HC:BuildItemIndex(force)
 
     local function addEntry(entry)
         if not entry then return end
+        local resolvedItemID = entry.itemID or self:ResolveItemIDByName(entry.name)
         local name = entry.name
-        if not name or name == "" then return end
-        local resolvedItemID = entry.itemID or self:ResolveItemIDByName(name)
 
-        local item = self.ItemIndex[name]
+        -- Imported rows may only have itemID; never drop those.
+        if (not name or name == "") and resolvedItemID then
+            local cachedName = self.GetCachedItemInfo and select(1, self:GetCachedItemInfo(resolvedItemID)) or nil
+            name = cachedName or (C_Item and C_Item.GetItemNameByID and C_Item.GetItemNameByID(resolvedItemID)) or nil
+        end
+        if not name or name == "" then
+            if resolvedItemID then
+                name = "Item #" .. tostring(resolvedItemID)
+            else
+                return
+            end
+        end
+
+        local indexKey = resolvedItemID and ("id:" .. tostring(resolvedItemID)) or ("name:" .. tostring(name):lower())
+        local item = self.ItemIndex[indexKey]
         if not item then
             item = { name = name, itemID = resolvedItemID, sources = {} }
-            self.ItemIndex[name] = item
+            self.ItemIndex[indexKey] = item
             table.insert(self.ItemList, item)
         end
 
+        if (item.name == nil or item.name == "" or item.name:find("^Item #%d+$")) and name and name ~= "" then
+            item.name = name
+        end
         if (not item.itemID) and resolvedItemID then
             item.itemID = resolvedItemID
         end

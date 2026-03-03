@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.6.0] - 2026-03-03
+
+### Added
+- Modernized 2026 UI shell with deep-charcoal + blue-accent theme.
+- New top primary tabs: `Overview`, `Items`, `Sources`, `Filters`, `Favorites`, `Profiles`.
+- Completion header bar with overall % and quick metrics.
+- Grid/List view toggle for item browsing.
+- Favorites system with star/unstar actions and favorites-only tab filtering.
+- Expansion filter panel in sidebar.
+- Slide-in animation for right detail panel updates.
+- Streamer mode and performance mode settings.
+
+### Changed
+- Refreshed layout sizing and visual styling for cleaner, less-cluttered presentation.
+- Updated right panel action labels for goal tracking (`Track This`).
+- Updated addon version metadata to `1.6.0`.
+
 ## [1.5.2] - 2026-03-03
 
 ### Added

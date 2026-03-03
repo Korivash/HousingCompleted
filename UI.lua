@@ -5,42 +5,45 @@
 ---------------------------------------------------
 local addonName, HC = ...
 
-local FRAME_WIDTH = 1620
-local FRAME_HEIGHT = 900
-local SIDEBAR_WIDTH = 340
-local PREVIEW_WIDTH = 360
-local HEADER_HEIGHT = 86
+local FRAME_WIDTH = 1680
+local FRAME_HEIGHT = 940
+local SIDEBAR_WIDTH = 350
+local PREVIEW_WIDTH = 390
+local HEADER_HEIGHT = 128
 local ITEM_HEIGHT = 58
 local ITEMS_PER_PAGE = 10
 local RESULTS_HEADER_HEIGHT = 22
 
 local COLORS = {
-    background = {0.07, 0.055, 0.035, 0.98},
-    headerBg = {0.12, 0.085, 0.05, 1},
-    sidebar = {0.09, 0.065, 0.04, 1},
-    preview = {0.08, 0.06, 0.04, 1},
-    accent = {0.98, 0.80, 0.38, 1},
-    accentAlt = {0.93, 0.72, 0.30, 1},
+    background = {0.045, 0.05, 0.06, 0.97},
+    headerBg = {0.06, 0.075, 0.1, 0.98},
+    sidebar = {0.055, 0.065, 0.085, 0.98},
+    preview = {0.05, 0.065, 0.09, 0.98},
+    accent = {0.23, 0.63, 1.0, 1},
+    accentAlt = {0.44, 0.76, 1.0, 1},
     gold = {1, 0.82, 0, 1},
     text = {1, 1, 1, 1},
-    textMuted = {0.76, 0.69, 0.57, 1},
-    textDim = {0.58, 0.50, 0.40, 1},
+    textMuted = {0.79, 0.85, 0.94, 1},
+    textDim = {0.53, 0.62, 0.75, 1},
     collected = {0.56, 0.95, 0.54, 1},
-    row = {0.13, 0.09, 0.06, 0.86},
-    rowHover = {0.18, 0.12, 0.08, 1},
-    rowSelected = {0.23, 0.16, 0.09, 1},
-    border = {0.34, 0.24, 0.12, 1},
+    row = {0.08, 0.095, 0.125, 0.88},
+    rowHover = {0.11, 0.14, 0.19, 1},
+    rowSelected = {0.13, 0.19, 0.29, 1},
+    border = {0.17, 0.24, 0.35, 1},
 }
 
 local currentPage = 1
 local totalPages = 1
 local currentResults = {}
 local currentTab = "acquire"
+local currentPrimaryTab = "overview"
+local currentViewMode = "grid"
 local currentSourceView = "all"
 local currentItemCategory = "all"
 local selectedItem = nil
 local currentSortKey = "name"
 local currentSortAscending = true
+local TryLoadHousingPreviewModules
 
 local function EscapeCSV(value)
     if value == nil then return "" end
@@ -222,8 +225,58 @@ local function CreateSearchBox(parent, width)
     return container
 end
 
+local function EnsureUserUIState()
+    HousingCompletedDB.ui = HousingCompletedDB.ui or {}
+    if type(HousingCompletedDB.ui.primaryTab) ~= "string" or HousingCompletedDB.ui.primaryTab == "" then
+        HousingCompletedDB.ui.primaryTab = "overview"
+    end
+    if HousingCompletedDB.ui.viewMode ~= "grid" and HousingCompletedDB.ui.viewMode ~= "list" then
+        HousingCompletedDB.ui.viewMode = "grid"
+    end
+    HousingCompletedDB.ui.streamerMode = HousingCompletedDB.ui.streamerMode and true or false
+    HousingCompletedDB.ui.performanceMode = HousingCompletedDB.ui.performanceMode and true or false
+    HousingCompletedDB.ui.showSourceDetails = HousingCompletedDB.ui.showSourceDetails ~= false
+    HousingCompletedDB.ui.compactMode = HousingCompletedDB.ui.compactMode and true or false
+    HousingCompletedDB.ui.fontScale = tonumber(HousingCompletedDB.ui.fontScale) or 1.0
+    HousingCompletedDB.ui.gridScale = tonumber(HousingCompletedDB.ui.gridScale) or 1.0
+
+    HousingCompletedDB.favorites = HousingCompletedDB.favorites or {}
+    HousingCompletedDB.favorites.items = HousingCompletedDB.favorites.items or {}
+end
+
+function HC:IsItemFavorite(resultData)
+    if not resultData then return false end
+    EnsureUserUIState()
+    local itemID = self:GetResolvedItemID(resultData)
+    if itemID then
+        return HousingCompletedDB.favorites.items[itemID] == true
+    end
+    local name = resultData.name or (resultData.data and resultData.data.name)
+    if name and name ~= "" then
+        return HousingCompletedDB.favorites.items["name:" .. string.lower(name)] == true
+    end
+    return false
+end
+
+function HC:ToggleFavorite(resultData)
+    if not resultData then return end
+    EnsureUserUIState()
+    local itemID = self:GetResolvedItemID(resultData)
+    local key = itemID or ("name:" .. string.lower(resultData.name or ""))
+    if not key then return end
+    HousingCompletedDB.favorites.items[key] = not HousingCompletedDB.favorites.items[key]
+    self:UpdateResults()
+    self:UpdateStats()
+    if self.UpdatePreview then
+        self:UpdatePreview(selectedItem)
+    end
+end
+
 function HC:CreateUI()
     if self.mainFrame then return end
+    EnsureUserUIState()
+    currentPrimaryTab = HousingCompletedDB.ui.primaryTab or currentPrimaryTab
+    currentViewMode = HousingCompletedDB.ui.viewMode or currentViewMode
     
     local frame = CreateFrame("Frame", "HousingCompletedFrame", UIParent, "BackdropTemplate")
     frame:SetSize(FRAME_WIDTH, FRAME_HEIGHT)
@@ -254,6 +307,7 @@ function HC:CreateUI()
     end
     
     frame:SetScale(HousingCompletedDB.scale or 1.0)
+    frame:SetAlpha(tonumber(HousingCompletedDB.ui and HousingCompletedDB.ui.opacity) or 0.97)
     frame:Hide()
     self.mainFrame = frame
 
@@ -263,7 +317,7 @@ function HC:CreateUI()
     vignetteTop:SetHeight(220)
     vignetteTop:SetTexture("Interface\\Buttons\\WHITE8x8")
     if vignetteTop.SetGradientAlpha then
-        vignetteTop:SetGradientAlpha("VERTICAL", 0.24, 0.17, 0.09, 0.45, 0.24, 0.17, 0.09, 0.02)
+        vignetteTop:SetGradientAlpha("VERTICAL", 0.14, 0.25, 0.42, 0.28, 0.08, 0.12, 0.18, 0.02)
     else
         vignetteTop:SetVertexColor(0.24, 0.17, 0.09, 0.22)
     end
@@ -274,7 +328,7 @@ function HC:CreateUI()
     vignetteBottom:SetHeight(180)
     vignetteBottom:SetTexture("Interface\\Buttons\\WHITE8x8")
     if vignetteBottom.SetGradientAlpha then
-        vignetteBottom:SetGradientAlpha("VERTICAL", 0.18, 0.12, 0.06, 0.02, 0.18, 0.12, 0.06, 0.35)
+        vignetteBottom:SetGradientAlpha("VERTICAL", 0.06, 0.09, 0.13, 0.02, 0.09, 0.16, 0.24, 0.35)
     else
         vignetteBottom:SetVertexColor(0.18, 0.12, 0.06, 0.18)
     end
@@ -302,38 +356,187 @@ function HC:CreateHeader(parent)
     bottomBorder:SetPoint("BOTTOMRIGHT", 0, 0)
     bottomBorder:SetHeight(1)
     bottomBorder:SetColorTexture(unpack(COLORS.border))
-    
+
+    local topGlow = header:CreateTexture(nil, "BACKGROUND")
+    topGlow:SetPoint("TOPLEFT", 0, 0)
+    topGlow:SetPoint("TOPRIGHT", 0, 0)
+    topGlow:SetHeight(64)
+    topGlow:SetTexture("Interface\\Buttons\\WHITE8x8")
+    if topGlow.SetGradientAlpha then
+        topGlow:SetGradientAlpha("VERTICAL", 0.22, 0.44, 0.75, 0.2, 0.03, 0.06, 0.1, 0)
+    else
+        topGlow:SetVertexColor(0.18, 0.32, 0.55, 0.2)
+    end
+
     local title = header:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    title:SetPoint("LEFT", 20, 10)
-    title:SetText("|cfff4d38aHousing|r |cfffff8e7Completed|r")
+    title:SetPoint("TOPLEFT", 20, -12)
+    title:SetText("|cff66b8ffHousing|r |cfff5fbffCompleted|r")
 
     local subtitle = header:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    subtitle:SetPoint("LEFT", 20, -12)
-    subtitle:SetText("By Korivash")
-    subtitle:SetTextColor(0.82, 0.72, 0.56)
-    
+    subtitle:SetPoint("TOPLEFT", 20, -34)
+    subtitle:SetText("Premium housing collection tracker")
+    subtitle:SetTextColor(unpack(COLORS.textMuted))
+
     local version = header:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     version:SetPoint("LEFT", title, "RIGHT", 10, 0)
     version:SetText("v" .. HC.version)
-    version:SetTextColor(0.5, 0.5, 0.5)
-    
-    local stats = header:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    stats:SetPoint("LEFT", 190, -2)
-    stats:SetText("Loading...")
-    stats:SetTextColor(unpack(COLORS.textMuted))
-    self.statsText = stats
-    
+    version:SetTextColor(unpack(COLORS.textDim))
+
     local closeBtn = CreateFrame("Button", nil, header, "UIPanelCloseButton")
     closeBtn:SetPoint("TOPRIGHT", -5, -5)
     closeBtn:SetScript("OnClick", function() parent:Hide() end)
-    
+
     local settingsBtn = CreateFrame("Button", nil, header)
     settingsBtn:SetSize(24, 24)
     settingsBtn:SetPoint("RIGHT", closeBtn, "LEFT", -5, 0)
     settingsBtn:SetNormalTexture("Interface\\Icons\\INV_Misc_Gear_01")
     settingsBtn:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
     settingsBtn:SetScript("OnClick", function() HC:ToggleSettings() end)
-    
+
+    local tabsHost = CreateFrame("Frame", nil, header, "BackdropTemplate")
+    tabsHost:SetPoint("TOPLEFT", 290, -8)
+    tabsHost:SetPoint("TOPRIGHT", -72, -8)
+    tabsHost:SetHeight(34)
+    tabsHost:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8" })
+    tabsHost:SetBackdropColor(0.07, 0.09, 0.13, 0.85)
+
+    local topTabs = {
+        { id = "overview", label = "Overview", click = function()
+            currentPrimaryTab = "overview"
+            currentSourceView = "all"
+            currentTab = "acquire"
+            HC:DoSearch()
+        end },
+        { id = "items", label = "Items", click = function()
+            currentPrimaryTab = "items"
+            currentSourceView = "items"
+            currentTab = "acquire"
+            HC:DoSearch()
+        end },
+        { id = "sources", label = "Sources", click = function()
+            currentPrimaryTab = "sources"
+            currentSourceView = "all"
+            currentTab = "acquire"
+            HC:DoSearch()
+        end },
+        { id = "filters", label = "Filters", click = function()
+            currentPrimaryTab = "filters"
+            if HC.sidebarScrollFrame then
+                HC.sidebarScrollFrame:SetVerticalScroll(210)
+            end
+            HC:DoSearch()
+        end },
+        { id = "favorites", label = "Favorites", click = function()
+            currentPrimaryTab = "favorites"
+            currentTab = "collection"
+            HC:DoSearch()
+        end },
+        { id = "profiles", label = "Profiles", click = function()
+            currentPrimaryTab = "profiles"
+            HC:ToggleSettings()
+        end },
+    }
+
+    self.primaryTabButtons = {}
+    local tabWidth = 118
+    for idx, tabInfo in ipairs(topTabs) do
+        local btn = CreateFrame("Button", nil, tabsHost, "BackdropTemplate")
+        btn:SetSize(tabWidth, 30)
+        if idx == 1 then
+            btn:SetPoint("LEFT", 8, 0)
+        else
+            btn:SetPoint("LEFT", self.primaryTabButtons[topTabs[idx - 1].id], "RIGHT", 6, 0)
+        end
+        btn.tabID = tabInfo.id
+        btn:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+        })
+        btn:SetBackdropColor(0.09, 0.11, 0.16, 0.94)
+        btn:SetBackdropBorderColor(0.17, 0.24, 0.35, 1)
+
+        local label = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        label:SetPoint("CENTER", 0, 2)
+        label:SetText(tabInfo.label)
+        label:SetTextColor(unpack(COLORS.textMuted))
+        btn.label = label
+
+        local underline = btn:CreateTexture(nil, "ARTWORK")
+        underline:SetPoint("BOTTOMLEFT", 6, 3)
+        underline:SetPoint("BOTTOMRIGHT", -6, 3)
+        underline:SetHeight(2)
+        underline:SetColorTexture(unpack(COLORS.accent))
+        btn.underline = underline
+
+        btn:SetScript("OnEnter", function(selfBtn)
+            if currentPrimaryTab ~= selfBtn.tabID then
+                selfBtn:SetBackdropColor(0.11, 0.14, 0.2, 0.98)
+            end
+        end)
+        btn:SetScript("OnLeave", function(selfBtn)
+            if currentPrimaryTab ~= selfBtn.tabID then
+                selfBtn:SetBackdropColor(0.09, 0.11, 0.16, 0.94)
+            end
+        end)
+        btn:SetScript("OnClick", function()
+            tabInfo.click()
+            if HousingCompletedDB and HousingCompletedDB.ui then
+                HousingCompletedDB.ui.primaryTab = currentPrimaryTab
+            end
+            HC:UpdatePrimaryTabs()
+        end)
+
+        self.primaryTabButtons[tabInfo.id] = btn
+    end
+
+    local completionContainer = CreateFrame("Frame", nil, header, "BackdropTemplate")
+    completionContainer:SetPoint("TOPLEFT", 20, -58)
+    completionContainer:SetPoint("TOPRIGHT", -20, -58)
+    completionContainer:SetHeight(62)
+    completionContainer:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    completionContainer:SetBackdropColor(0.065, 0.085, 0.12, 0.95)
+    completionContainer:SetBackdropBorderColor(0.17, 0.24, 0.35, 1)
+
+    local completionLabel = completionContainer:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    completionLabel:SetPoint("TOPLEFT", 12, -8)
+    completionLabel:SetText("Housing Completion")
+    completionLabel:SetTextColor(unpack(COLORS.textMuted))
+
+    local completionValue = completionContainer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    completionValue:SetPoint("TOPRIGHT", -12, -8)
+    completionValue:SetText("0%")
+    completionValue:SetTextColor(unpack(COLORS.accentAlt))
+    self.completionValueText = completionValue
+
+    local progressBg = completionContainer:CreateTexture(nil, "ARTWORK")
+    progressBg:SetPoint("TOPLEFT", 12, -28)
+    progressBg:SetPoint("TOPRIGHT", -12, -28)
+    progressBg:SetHeight(12)
+    progressBg:SetTexture("Interface\\Buttons\\WHITE8x8")
+    progressBg:SetColorTexture(0.11, 0.13, 0.17, 0.95)
+
+    local progressBar = completionContainer:CreateTexture(nil, "ARTWORK")
+    progressBar:SetPoint("TOPLEFT", progressBg, "TOPLEFT", 1, -1)
+    progressBar:SetHeight(10)
+    progressBar:SetWidth(2)
+    progressBar:SetTexture("Interface\\Buttons\\WHITE8x8")
+    progressBar:SetColorTexture(unpack(COLORS.accent))
+    self.completionBar = progressBar
+    self.completionBarWidth = 2
+
+    local metrics = completionContainer:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    metrics:SetPoint("TOPLEFT", 12, -45)
+    metrics:SetPoint("TOPRIGHT", -12, -45)
+    metrics:SetJustifyH("LEFT")
+    metrics:SetText("Missing: 0  | Favorites: 0  | Recent: 0")
+    metrics:SetTextColor(unpack(COLORS.textDim))
+    self.statsText = metrics
+
     self.header = header
 end
 
@@ -364,6 +567,32 @@ function HC:CreateSidebar(parent)
     end)
     self.searchBox = searchBox.editBox
     y = y - 50
+
+    local clearBtn = CreateFrame("Button", nil, sidebar, "UIPanelButtonTemplate")
+    clearBtn:SetSize(120, 22)
+    clearBtn:SetPoint("TOPRIGHT", -10, -17)
+    clearBtn:SetText("Clear Filters")
+    clearBtn:SetScript("OnClick", function()
+        if HC.searchBox then HC.searchBox:SetText("") end
+        if HC.collectedCb then HC.collectedCb:SetChecked(true) end
+        if HC.uncollectedCb then HC.uncollectedCb:SetChecked(true) end
+        if HC.zoneOnlyCb then HC.zoneOnlyCb:SetChecked(false) end
+        if HousingCompletedDB and HousingCompletedDB.filters then
+            HousingCompletedDB.filters.expansions = {}
+        end
+        for _, cb in pairs(HC.expansionChecks or {}) do
+            cb:SetChecked(false)
+        end
+        currentSourceView = "all"
+        currentItemCategory = "all"
+        currentPrimaryTab = "overview"
+        if HousingCompletedDB and HousingCompletedDB.ui then
+            HousingCompletedDB.ui.primaryTab = currentPrimaryTab
+        end
+        HC:UpdateTabButtons()
+        HC:DoSearch()
+    end)
+    self.clearFiltersBtn = clearBtn
 
     local scrollFrame = CreateFrame("ScrollFrame", nil, sidebar, "UIPanelScrollFrameTemplate")
     scrollFrame:SetPoint("TOPLEFT", 6, y)
@@ -534,9 +763,44 @@ function HC:CreateSidebar(parent)
     end
     y = y - 4
 
+    local expansionLabel = scrollChild:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    expansionLabel:SetPoint("TOPLEFT", 15, y)
+    expansionLabel:SetText("EXPANSION")
+    expansionLabel:SetTextColor(unpack(COLORS.accentAlt))
+    y = y - 18
+
+    local expansionPanel = CreateFrame("Frame", nil, scrollChild, "BackdropTemplate")
+    expansionPanel:SetPoint("TOPLEFT", 10, y)
+    expansionPanel:SetSize(SIDEBAR_WIDTH - 44, 132)
+    expansionPanel:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    expansionPanel:SetBackdropColor(0.08, 0.07, 0.1, 0.85)
+    expansionPanel:SetBackdropBorderColor(0.2, 0.18, 0.24, 1)
+    y = y - 138
+
+    self.expansionChecks = {}
+    local expansions = HC.Expansions or {}
+    for idx, exp in ipairs(expansions) do
+        local cb = CreateFrame("CheckButton", nil, expansionPanel, "UICheckButtonTemplate")
+        local col = (idx - 1) % 2
+        local row = math.floor((idx - 1) / 2)
+        cb:SetPoint("TOPLEFT", 6 + col * ((SIDEBAR_WIDTH - 60) / 2), -4 - row * 20)
+        cb:SetChecked(HousingCompletedDB.filters and HousingCompletedDB.filters.expansions and HousingCompletedDB.filters.expansions[exp.id] and true or false)
+        SetButtonText(cb, exp.name, unpack(COLORS.textMuted))
+        cb:SetScript("OnClick", function(selfBtn)
+            HousingCompletedDB.filters.expansions = HousingCompletedDB.filters.expansions or {}
+            HousingCompletedDB.filters.expansions[exp.id] = selfBtn:GetChecked() and true or nil
+            HC:DoSearch()
+        end)
+        self.expansionChecks[exp.id] = cb
+    end
+
     local sourceLabel = scrollChild:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     sourceLabel:SetPoint("TOPLEFT", 15, y)
-    sourceLabel:SetText("SOURCE VIEW")
+    sourceLabel:SetText("SOURCE TYPE")
     sourceLabel:SetTextColor(unpack(COLORS.accentAlt))
     y = y - 18
 
@@ -852,6 +1116,42 @@ function HC:CreateContent(parent)
         profit = profitHeader,
         margin = marginHeader,
     }
+
+    local viewToggle = CreateFrame("Frame", nil, resultsFrame, "BackdropTemplate")
+    viewToggle:SetSize(110, 24)
+    viewToggle:SetPoint("TOPLEFT", 6, -2)
+    viewToggle:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    viewToggle:SetBackdropColor(0.08, 0.1, 0.14, 0.95)
+    viewToggle:SetBackdropBorderColor(0.17, 0.24, 0.35, 1)
+
+    self.viewModeButtons = {}
+    local function CreateViewButton(id, label, x)
+        local btn = CreateFrame("Button", nil, viewToggle, "BackdropTemplate")
+        btn:SetSize(50, 18)
+        btn:SetPoint("TOPLEFT", x, -3)
+        btn.modeID = id
+        btn:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8" })
+        btn:SetBackdropColor(0.1, 0.12, 0.18, 1)
+        local txt = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        txt:SetPoint("CENTER", 0, 0)
+        txt:SetText(label)
+        btn.text = txt
+        btn:SetScript("OnClick", function(selfBtn)
+            currentViewMode = selfBtn.modeID
+            if HousingCompletedDB and HousingCompletedDB.ui then
+                HousingCompletedDB.ui.viewMode = currentViewMode
+            end
+            HC:ApplyResultLayout()
+            HC:UpdateResults()
+        end)
+        self.viewModeButtons[id] = btn
+    end
+    CreateViewButton("grid", "Grid", 4)
+    CreateViewButton("list", "List", 56)
     
     self.resultRows = {}
     for i = 1, ITEMS_PER_PAGE do
@@ -986,6 +1286,7 @@ function HC:CreateContent(parent)
     self:UpdateMapAllButton()
     self:UpdateAcquireSortHeaderState()
     self:UpdatePlannerControls()
+    self:ApplyResultLayout()
     
     self.content = content
 end
@@ -1027,7 +1328,6 @@ function HC:CreateResultRow(parent, index)
             HC:ShowVendorInventoryForResult(self.itemData)
             return
         end
-        HC:OpenResultPreview(self.itemData)
     end)
     
     local typeIcon = row:CreateTexture(nil, "ARTWORK")
@@ -1041,6 +1341,14 @@ function HC:CreateResultRow(parent, index)
     collectedIcon:SetTexture("Interface\\RaidFrame\\ReadyCheck-Ready")
     collectedIcon:Hide()
     row.collectedIcon = collectedIcon
+
+    local favoriteIcon = row:CreateTexture(nil, "OVERLAY")
+    favoriteIcon:SetSize(14, 14)
+    favoriteIcon:SetPoint("BOTTOMLEFT", typeIcon, "BOTTOMRIGHT", -7, -2)
+    favoriteIcon:SetTexture("Interface\\AddOns\\Blizzard_GarrisonUI\\UI_Garrison_CollectionIcon-Check")
+    favoriteIcon:SetVertexColor(1, 0.84, 0.2, 1)
+    favoriteIcon:Hide()
+    row.favoriteIcon = favoriteIcon
     
     local nameText = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     nameText:SetPoint("TOPLEFT", typeIcon, "TOPRIGHT", 10, -2)
@@ -1296,7 +1604,95 @@ function HC:GetItemCategoryName(categoryID)
     return "Misc"
 end
 
-local function TryLoadHousingPreviewModules()
+function HC:SetupEmbeddedDressingModel(parent)
+    local modelScene = CreateFrame("ModelScene", nil, parent, "PanningModelSceneMixinTemplate")
+    modelScene:SetPoint("TOPLEFT", 2, -2)
+    modelScene:SetPoint("BOTTOMRIGHT", -2, 36)
+    modelScene:Hide()
+    self.embeddedDecorModelScene = modelScene
+
+    local ctrlOk, controls = pcall(CreateFrame, "Frame", nil, parent, "ModelSceneControlFrameTemplate")
+    if ctrlOk and controls then
+        controls:SetPoint("BOTTOM", parent, "BOTTOM", 0, 7)
+        pcall(controls.SetModelScene, controls, modelScene)
+        controls:Hide()
+        self.embeddedDecorControls = controls
+    else
+        self.embeddedDecorControls = nil
+    end
+end
+
+function HC:ResetEmbeddedModelView()
+    local modelScene = self.embeddedDecorModelScene
+    if not modelScene then return end
+
+    if self._embeddedSceneID then
+        pcall(function()
+            modelScene:TransitionToModelSceneID(self._embeddedSceneID, CAMERA_TRANSITION_TYPE_IMMEDIATE, CAMERA_MODIFICATION_TYPE_DISCARD, true)
+        end)
+    end
+    local actor = modelScene.GetActorByTag and modelScene:GetActorByTag("decor")
+    if actor and self._embeddedAssetID then
+        actor:SetPreferModelCollisionBounds(true)
+        actor:SetModelByFileID(self._embeddedAssetID)
+    end
+end
+
+function HC:UpdateEmbeddedPreview(itemLink, itemID, itemData)
+    local modelScene = self.embeddedDecorModelScene
+    if not modelScene then return false end
+    TryLoadHousingPreviewModules()
+    if self.embeddedDecorControls then
+        self.embeddedDecorControls:Hide()
+    end
+    modelScene:Hide()
+
+    local decorInfo = nil
+    if itemID and C_HousingCatalog and C_HousingCatalog.GetCatalogEntryInfoByItem then
+        decorInfo = C_HousingCatalog.GetCatalogEntryInfoByItem(itemID, true)
+    end
+    if (not decorInfo) and itemData and itemData.decorID and C_HousingCatalog and C_HousingCatalog.GetCatalogEntryInfoByRecordID then
+        local ok, info = pcall(C_HousingCatalog.GetCatalogEntryInfoByRecordID, 1, itemData.decorID, true)
+        if ok and info then
+            decorInfo = info
+        end
+    end
+
+    if not decorInfo or not decorInfo.asset then
+        return false
+    end
+
+    local sceneID = decorInfo.uiModelSceneID
+    if not sceneID and Constants and Constants.HousingCatalogConsts then
+        sceneID = Constants.HousingCatalogConsts.HOUSING_CATALOG_DECOR_MODELSCENEID_DEFAULT
+    end
+    sceneID = sceneID or 859
+
+    local ok = pcall(function()
+        modelScene:TransitionToModelSceneID(sceneID, CAMERA_TRANSITION_TYPE_IMMEDIATE, CAMERA_MODIFICATION_TYPE_DISCARD, true)
+        local actor = modelScene:GetActorByTag("decor")
+        if actor then
+            actor:SetPreferModelCollisionBounds(true)
+            actor:SetModelByFileID(decorInfo.asset)
+        else
+            error("decor actor not found")
+        end
+    end)
+
+    if ok then
+        self._embeddedSceneID = sceneID
+        self._embeddedAssetID = decorInfo.asset
+        modelScene:Show()
+        if self.embeddedDecorControls then
+            self.embeddedDecorControls:Show()
+        end
+        return true
+    end
+
+    return false
+end
+
+TryLoadHousingPreviewModules = function()
     local loader = (C_AddOns and C_AddOns.LoadAddOn) or LoadAddOn
     if type(loader) ~= "function" then
         return
@@ -1368,7 +1764,10 @@ function HC:CreatePreviewPanel(parent)
     })
     modelContainer:SetBackdropColor(0.06, 0.05, 0.04, 1)
     modelContainer:SetBackdropBorderColor(0.3, 0.22, 0.12, 1)
-    
+    modelContainer:EnableMouse(true)
+
+    self:SetupEmbeddedDressingModel(modelContainer)
+
     local modelFallbackIcon = modelContainer:CreateTexture(nil, "ARTWORK")
     modelFallbackIcon:SetSize(72, 72)
     modelFallbackIcon:SetPoint("TOP", 0, -54)
@@ -1379,17 +1778,17 @@ function HC:CreatePreviewPanel(parent)
     self.modelContainer = modelContainer
 
     local modelHint = modelContainer:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    modelHint:SetPoint("TOPLEFT", 12, -136)
-    modelHint:SetPoint("TOPRIGHT", -12, -136)
+    modelHint:SetPoint("TOPLEFT", 12, -174)
+    modelHint:SetPoint("TOPRIGHT", -12, -174)
     modelHint:SetJustifyH("CENTER")
-    modelHint:SetText("Open the residence preview for full interaction (rotate, dye, place).")
+    modelHint:SetText("Drag to rotate, scroll to zoom, right-drag to pan.")
     modelHint:SetTextColor(0.78, 0.70, 0.56)
     self.previewResidenceHint = modelHint
 
     local openResidenceBtn = CreateFrame("Button", nil, modelContainer, "UIPanelButtonTemplate")
-    openResidenceBtn:SetSize(190, 24)
-    openResidenceBtn:SetPoint("TOP", 0, -170)
-    openResidenceBtn:SetText("Open Residence Preview")
+    openResidenceBtn:SetSize(146, 22)
+    openResidenceBtn:SetPoint("BOTTOMLEFT", 10, 8)
+    openResidenceBtn:SetText("Open External")
     openResidenceBtn:SetEnabled(false)
     openResidenceBtn:SetAlpha(0.45)
     openResidenceBtn:SetScript("OnClick", function()
@@ -1398,6 +1797,15 @@ function HC:CreatePreviewPanel(parent)
         end
     end)
     self.previewOpenResidenceBtn = openResidenceBtn
+
+    local resetModelBtn = CreateFrame("Button", nil, modelContainer, "UIPanelButtonTemplate")
+    resetModelBtn:SetSize(96, 22)
+    resetModelBtn:SetPoint("BOTTOMRIGHT", -10, 8)
+    resetModelBtn:SetText("Reset View")
+    resetModelBtn:SetScript("OnClick", function()
+        HC:ResetEmbeddedModelView()
+    end)
+    self.previewResetModelBtn = resetModelBtn
 
     y = y - 224
     
@@ -1595,7 +2003,7 @@ function HC:CreatePreviewPanel(parent)
     local addListBtn = CreateFrame("Button", nil, preview, "UIPanelButtonTemplate")
     addListBtn:SetSize(PREVIEW_WIDTH - 30, 24)
     addListBtn:SetPoint("BOTTOM", 0, 48)
-    addListBtn:SetText("Add To Shopping List")
+    addListBtn:SetText("Track This")
     addListBtn:SetScript("OnClick", function()
         local ok, msg = HC:AddResultToShoppingList(selectedItem)
         if msg then
@@ -1606,6 +2014,17 @@ function HC:CreatePreviewPanel(parent)
         end
     end)
     self.previewAddShoppingBtn = addListBtn
+
+    local favoriteBtn = CreateFrame("Button", nil, preview, "UIPanelButtonTemplate")
+    favoriteBtn:SetSize(PREVIEW_WIDTH - 30, 24)
+    favoriteBtn:SetPoint("BOTTOM", 0, 104)
+    favoriteBtn:SetText("Star Item")
+    favoriteBtn:SetScript("OnClick", function()
+        if selectedItem then
+            HC:ToggleFavorite(selectedItem)
+        end
+    end)
+    self.previewFavoriteBtn = favoriteBtn
 
     local browseVendorBtn = CreateFrame("Button", nil, preview, "UIPanelButtonTemplate")
     browseVendorBtn:SetSize(PREVIEW_WIDTH - 30, 24)
@@ -1619,12 +2038,23 @@ function HC:CreatePreviewPanel(parent)
         end
     end)
     self.previewVendorItemsBtn = browseVendorBtn
-    
+
+    preview.slideIn = preview:CreateAnimationGroup()
+    local slide = preview.slideIn:CreateAnimation("Translation")
+    slide:SetDuration(0.16)
+    slide:SetOffset(-18, 0)
+    local fade = preview.slideIn:CreateAnimation("Alpha")
+    fade:SetDuration(0.16)
+    fade:SetFromAlpha(0.88)
+    fade:SetToAlpha(1)
+    preview.slideIn:SetToFinalAlpha(true)
+
     self.previewPanel = preview
 end
 
 function HC:UpdatePreview(data)
     if not self.previewName then return end
+    local streamerMode = HousingCompletedDB and HousingCompletedDB.ui and HousingCompletedDB.ui.streamerMode
     
     -- Reset all
     self.previewRepHeader:Hide()
@@ -1650,6 +2080,12 @@ function HC:UpdatePreview(data)
             self.modelFallbackIcon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
             self.modelFallbackIcon:Show()
         end
+        if self.embeddedDecorModelScene then
+            self.embeddedDecorModelScene:Hide()
+        end
+        if self.embeddedDecorControls then
+            self.embeddedDecorControls:Hide()
+        end
         if self.previewOpenResidenceBtn then
             self.previewOpenResidenceBtn:SetEnabled(false)
             self.previewOpenResidenceBtn:SetAlpha(0.45)
@@ -1659,13 +2095,23 @@ function HC:UpdatePreview(data)
             self.previewVendorItemsBtn:SetAlpha(0.45)
         end
         if self.previewResidenceHint then
-            self.previewResidenceHint:SetText("Select an item to open its residence preview.")
+            self.previewResidenceHint:SetText("Select an item to preview it in-panel.")
         end
         if self.previewAddShoppingBtn then
             self.previewAddShoppingBtn:SetEnabled(false)
             self.previewAddShoppingBtn:SetAlpha(0.45)
         end
+        if self.previewFavoriteBtn then
+            self.previewFavoriteBtn:SetEnabled(false)
+            self.previewFavoriteBtn:SetAlpha(0.45)
+            self.previewFavoriteBtn:SetText("Star Item")
+        end
         return
+    end
+
+    if self.previewPanel and self.previewPanel.slideIn then
+        self.previewPanel.slideIn:Stop()
+        self.previewPanel.slideIn:Play()
     end
     
     -- Name
@@ -1693,13 +2139,13 @@ function HC:UpdatePreview(data)
     if data.data and data.data.subzone then
         loc = loc .. ", " .. data.data.subzone
     end
-    if data.data and data.data.x and data.data.y then
+    if (not streamerMode) and data.data and data.data.x and data.data.y then
         loc = loc .. string.format(" (%.1f, %.1f)", data.data.x, data.data.y)
     end
     self.previewLocation:SetText(loc ~= "" and loc or "-")
     
     -- Cost
-    if data.cost then
+    if (not streamerMode) and data.cost then
         self.previewCost:SetText("|cffffd700" .. data.cost .. "|r")
     else
         self.previewCost:SetText("-")
@@ -1707,13 +2153,15 @@ function HC:UpdatePreview(data)
 
     local economics = self.GetResultEconomics and self:GetResultEconomics(data) or nil
     if self.previewAHPrice then
-        self.previewAHPrice:SetText(FormatMoneyValue(economics and economics.ahPrice))
+        self.previewAHPrice:SetText(streamerMode and "-" or FormatMoneyValue(economics and economics.ahPrice))
     end
     if self.previewTotalCost then
-        self.previewTotalCost:SetText(FormatMoneyValue(economics and economics.totalCost))
+        self.previewTotalCost:SetText(streamerMode and "-" or FormatMoneyValue(economics and economics.totalCost))
     end
     if self.previewProfit then
-        if economics and economics.profit then
+        if streamerMode then
+            self.previewProfit:SetText("-")
+        elseif economics and economics.profit then
             local absProfit = FormatMoneyValue(math.abs(economics.profit))
             if economics.profit >= 0 then
                 self.previewProfit:SetText("|cff40ff40+" .. absProfit .. "|r")
@@ -1725,7 +2173,9 @@ function HC:UpdatePreview(data)
         end
     end
     if self.previewMargin then
-        if economics and economics.margin then
+        if streamerMode then
+            self.previewMargin:SetText("-")
+        elseif economics and economics.margin then
             if economics.margin >= 0 then
                 self.previewMargin:SetText("|cff40ff40" .. FormatMarginValue(economics.margin) .. "|r")
             else
@@ -1779,27 +2229,38 @@ function HC:UpdatePreview(data)
     
     -- Residence preview launcher state.
     self.previewResidenceItemID = itemID
+    local itemLink = self:GetResultItemLink(data)
+    local embeddedShown = self:UpdateEmbeddedPreview(itemLink, itemID, data and data.data)
     local icon = (itemID and C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(itemID))
         or "Interface\\Icons\\INV_Misc_QuestionMark"
     if self.modelFallbackIcon then
         self.modelFallbackIcon:SetTexture(icon)
+        self.modelFallbackIcon:SetShown(not embeddedShown)
     end
     if self.previewOpenResidenceBtn then
-        local canOpenResidence = itemID and true or false
+        local canOpenResidence = itemID and (not embeddedShown) and true or false
         self.previewOpenResidenceBtn:SetEnabled(canOpenResidence and true or false)
         self.previewOpenResidenceBtn:SetAlpha(canOpenResidence and 1 or 0.45)
     end
     if self.previewResidenceHint then
-        if itemID then
-            self.previewResidenceHint:SetText("Open the residence preview for full interaction (rotate, dye, place).")
+        if embeddedShown then
+            self.previewResidenceHint:SetText("Drag to rotate and mouse wheel to zoom.")
+        elseif itemID then
+            self.previewResidenceHint:SetText("Item cannot render in-panel. Use Open External preview.")
         else
-            self.previewResidenceHint:SetText("Select an item to open its residence preview.")
+            self.previewResidenceHint:SetText("Select an item to preview it in-panel.")
         end
     end
 
     if self.previewAddShoppingBtn then
         self.previewAddShoppingBtn:SetEnabled(true)
         self.previewAddShoppingBtn:SetAlpha(1)
+    end
+    if self.previewFavoriteBtn then
+        local isFav = self:IsItemFavorite(data)
+        self.previewFavoriteBtn:SetEnabled(true)
+        self.previewFavoriteBtn:SetAlpha(1)
+        self.previewFavoriteBtn:SetText(isFav and "Unstar Item" or "Star Item")
     end
 
     if self.previewVendorItemsBtn then
@@ -2510,6 +2971,91 @@ function HC:CreateSettingsPanel(parent)
         end
     end)
     y = y - 26
+
+    local streamerCb = CreateFrame("CheckButton", nil, settings, "UICheckButtonTemplate")
+    streamerCb:SetPoint("TOPLEFT", 20, y)
+    SetButtonText(streamerCb, "Streamer Mode (hide sensitive details)", 0.8, 0.8, 0.8)
+    streamerCb:SetChecked(HousingCompletedDB.ui and HousingCompletedDB.ui.streamerMode)
+    streamerCb:SetScript("OnClick", function(selfBtn)
+        EnsureUserUIState()
+        HousingCompletedDB.ui.streamerMode = selfBtn:GetChecked() and true or false
+        HC:UpdateStats()
+        HC:UpdateResults()
+        if HC.UpdatePreview then HC:UpdatePreview(selectedItem) end
+    end)
+    y = y - 24
+
+    local sourceDetailsCb = CreateFrame("CheckButton", nil, settings, "UICheckButtonTemplate")
+    sourceDetailsCb:SetPoint("TOPLEFT", 20, y)
+    SetButtonText(sourceDetailsCb, "Show Source Details", 0.8, 0.8, 0.8)
+    sourceDetailsCb:SetChecked(HousingCompletedDB.ui and HousingCompletedDB.ui.showSourceDetails ~= false)
+    sourceDetailsCb:SetScript("OnClick", function(selfBtn)
+        EnsureUserUIState()
+        HousingCompletedDB.ui.showSourceDetails = selfBtn:GetChecked() and true or false
+        HC:UpdateResults()
+    end)
+    y = y - 24
+
+    local performanceCb = CreateFrame("CheckButton", nil, settings, "UICheckButtonTemplate")
+    performanceCb:SetPoint("TOPLEFT", 20, y)
+    SetButtonText(performanceCb, "Performance Mode (lighter updates)", 0.8, 0.8, 0.8)
+    performanceCb:SetChecked(HousingCompletedDB.ui and HousingCompletedDB.ui.performanceMode)
+    performanceCb:SetScript("OnClick", function(selfBtn)
+        EnsureUserUIState()
+        HousingCompletedDB.ui.performanceMode = selfBtn:GetChecked() and true or false
+    end)
+    y = y - 30
+
+    local opacityLabel = settings:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    opacityLabel:SetPoint("TOPLEFT", 20, y)
+    opacityLabel:SetText("Window Opacity:")
+    y = y - 24
+
+    local opacitySlider = CreateFrame("Slider", nil, settings, "OptionsSliderTemplate")
+    opacitySlider:SetPoint("TOPLEFT", 30, y)
+    opacitySlider:SetWidth(420)
+    opacitySlider:SetMinMaxValues(0.65, 1.0)
+    opacitySlider:SetValueStep(0.01)
+    opacitySlider:SetObeyStepOnDrag(true)
+    opacitySlider.Low:SetText("65%")
+    opacitySlider.High:SetText("100%")
+    opacitySlider:SetValue(tonumber(HousingCompletedDB.ui and HousingCompletedDB.ui.opacity) or 0.97)
+    opacitySlider:SetScript("OnValueChanged", function(selfSlider, value)
+        EnsureUserUIState()
+        local v = tonumber(string.format("%.2f", value))
+        HousingCompletedDB.ui.opacity = v
+        if HC.mainFrame then
+            HC.mainFrame:SetAlpha(v)
+        end
+        if selfSlider.Text then
+            selfSlider.Text:SetText(string.format("%.0f%%", v * 100))
+        end
+    end)
+    y = y - 44
+
+    local fontSizeLabel = settings:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    fontSizeLabel:SetPoint("TOPLEFT", 20, y)
+    fontSizeLabel:SetText("Font Scale:")
+    y = y - 24
+
+    local fontSlider = CreateFrame("Slider", nil, settings, "OptionsSliderTemplate")
+    fontSlider:SetPoint("TOPLEFT", 30, y)
+    fontSlider:SetWidth(420)
+    fontSlider:SetMinMaxValues(0.9, 1.25)
+    fontSlider:SetValueStep(0.01)
+    fontSlider:SetObeyStepOnDrag(true)
+    fontSlider.Low:SetText("90%")
+    fontSlider.High:SetText("125%")
+    fontSlider:SetValue(tonumber(HousingCompletedDB.ui and HousingCompletedDB.ui.fontScale) or 1.0)
+    fontSlider:SetScript("OnValueChanged", function(selfSlider, value)
+        EnsureUserUIState()
+        HousingCompletedDB.ui.fontScale = tonumber(string.format("%.2f", value))
+        if selfSlider.Text then
+            selfSlider.Text:SetText(string.format("%.0f%%", value * 100))
+        end
+        HC:UpdateResults()
+    end)
+
 local backBtn = CreateFrame("Button", nil, settings, "UIPanelButtonTemplate")
     backBtn:SetSize(100, 28)
     backBtn:SetPoint("BOTTOMLEFT", 20, 20)
@@ -2533,6 +3079,7 @@ function HC:DoSearch(opts)
     end
 
     local query = self.searchBox and self.searchBox:GetText() or ""
+    local performanceMode = HousingCompletedDB and HousingCompletedDB.ui and HousingCompletedDB.ui.performanceMode
     local zoneMapID = nil
     if self.zoneOnlyCb and self.zoneOnlyCb:GetChecked() then
         zoneMapID = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player") or nil
@@ -2542,6 +3089,7 @@ function HC:DoSearch(opts)
         showUncollected = self.uncollectedCb and self.uncollectedCb:GetChecked(),
         faction = self:GetPlayerFaction(),
         zoneMapID = zoneMapID,
+        expansions = HousingCompletedDB.filters and HousingCompletedDB.filters.expansions or nil,
     }
     if currentTab == "craft" then
         filters.sourceTypes = { profession = true }
@@ -2567,6 +3115,9 @@ function HC:DoSearch(opts)
         local show = true
         if r.collected and not filters.showCollected then show = false end
         if not r.collected and not filters.showUncollected then show = false end
+        if show and currentPrimaryTab == "favorites" then
+            show = self:IsItemFavorite(r)
+        end
         if show then table.insert(filtered, r) end
     end
     
@@ -2577,7 +3128,7 @@ function HC:DoSearch(opts)
         local craftableOnly = HousingCompletedDB.filters and HousingCompletedDB.filters.craftableOnly
         local lowRiskOnly = HousingCompletedDB.filters and HousingCompletedDB.filters.lowRiskOnly
         for _, r in ipairs(filtered) do
-            local econ = self.GetResultEconomics and self:GetResultEconomics(r, { forceRefresh = true }) or nil
+            local econ = self.GetResultEconomics and self:GetResultEconomics(r, { forceRefresh = not performanceMode }) or nil
             local keep = econ and econ.ahPrice and econ.totalCost
             if keep and minProfit > 0 then
                 keep = (econ.profit or 0) >= minProfit
@@ -2685,13 +3236,14 @@ end
 
 function HC:ApplyEconomyFilters(results)
     local filtered = {}
+    local performanceMode = HousingCompletedDB and HousingCompletedDB.ui and HousingCompletedDB.ui.performanceMode
     local minProfit = tonumber(HousingCompletedDB.filters and HousingCompletedDB.filters.minProfit) or 0
     local minMargin = tonumber(HousingCompletedDB.filters and HousingCompletedDB.filters.minMargin) or 0
     local craftableOnly = HousingCompletedDB.filters and HousingCompletedDB.filters.craftableOnly
     local lowRiskOnly = HousingCompletedDB.filters and HousingCompletedDB.filters.lowRiskOnly
 
     for _, r in ipairs(results or {}) do
-        local econ = self.GetResultEconomics and self:GetResultEconomics(r, { forceRefresh = true }) or nil
+        local econ = self.GetResultEconomics and self:GetResultEconomics(r, { forceRefresh = not performanceMode }) or nil
         local keep = econ and econ.ahPrice and econ.totalCost
         if keep and minProfit > 0 then
             keep = (econ.profit or 0) >= minProfit
@@ -2713,6 +3265,79 @@ function HC:ApplyEconomyFilters(results)
     return filtered
 end
 
+function HC:ApplyResultLayout()
+    local gridMode = currentViewMode == "grid"
+    local rowBaseHeight = gridMode and 84 or (ITEM_HEIGHT - 5)
+    local rowW = (self.resultsFrame and self.resultsFrame:GetWidth() or 900) - 10
+    local colW = math.floor((rowW - 8) / 2)
+
+    for idx, row in ipairs(self.resultRows or {}) do
+        row:ClearAllPoints()
+        if gridMode then
+            local col = (idx - 1) % 2
+            local r = math.floor((idx - 1) / 2)
+            row:SetHeight(rowBaseHeight)
+            row:SetWidth(colW)
+            row:SetPoint("TOPLEFT", self.resultsFrame, "TOPLEFT", 5 + col * (colW + 8), -5 - RESULTS_HEADER_HEIGHT - r * (rowBaseHeight + 6))
+
+            row.nameText:ClearAllPoints()
+            row.nameText:SetPoint("TOPLEFT", row.typeIcon, "TOPRIGHT", 10, -2)
+            row.nameText:SetPoint("RIGHT", -10, 0)
+
+            row.sourceText:ClearAllPoints()
+            row.sourceText:SetPoint("TOPLEFT", row.nameText, "BOTTOMLEFT", 0, -2)
+            row.sourceText:SetPoint("RIGHT", -10, 0)
+
+            row.infoText:ClearAllPoints()
+            row.infoText:SetPoint("TOPLEFT", row.sourceText, "BOTTOMLEFT", 0, -2)
+            row.infoText:SetPoint("RIGHT", -10, 0)
+
+            row.waypointBtn:Hide()
+            row.marginText:Hide()
+            row.profitText:Hide()
+            row.craftVsBuyText:Hide()
+            row.craftCostText:Hide()
+            row.ahPriceText:Hide()
+            row.typeBadge:Hide()
+            if row.repBadge then row.repBadge:Hide() end
+        else
+            row:SetHeight(rowBaseHeight)
+            row:SetPoint("TOPLEFT", self.resultsFrame, "TOPLEFT", 5, -5 - RESULTS_HEADER_HEIGHT - (idx - 1) * ITEM_HEIGHT)
+            row:SetPoint("TOPRIGHT", self.resultsFrame, "TOPRIGHT", -5, -5 - RESULTS_HEADER_HEIGHT - (idx - 1) * ITEM_HEIGHT)
+
+            row.nameText:ClearAllPoints()
+            row.nameText:SetPoint("TOPLEFT", row.typeIcon, "TOPRIGHT", 10, -2)
+            row.nameText:SetPoint("RIGHT", -470, 0)
+
+            row.sourceText:ClearAllPoints()
+            row.sourceText:SetPoint("TOPLEFT", row.nameText, "BOTTOMLEFT", 0, -2)
+            row.sourceText:SetPoint("RIGHT", -470, 0)
+
+            row.infoText:ClearAllPoints()
+            row.infoText:SetPoint("TOPLEFT", row.sourceText, "BOTTOMLEFT", 0, -2)
+            row.infoText:SetPoint("RIGHT", -470, 0)
+
+            row.waypointBtn:Show()
+            row.marginText:Show()
+            row.profitText:Show()
+            row.craftVsBuyText:Show()
+            row.craftCostText:Show()
+            row.ahPriceText:Show()
+            row.typeBadge:Show()
+        end
+    end
+
+    for _, h in pairs(self.acquireSortHeaders or {}) do
+        h:SetShown(not gridMode)
+    end
+
+    for modeID, btn in pairs(self.viewModeButtons or {}) do
+        local active = modeID == currentViewMode
+        btn:SetBackdropColor(active and 0.14 or 0.1, active and 0.26 or 0.12, active and 0.42 or 0.18, 1)
+        btn.text:SetTextColor(active and 1 or 0.76, active and 1 or 0.84, active and 1 or 0.96)
+    end
+end
+
 function HC:UpdateResults()
     for i = 1, ITEMS_PER_PAGE do
         if self.resultRows[i] then self.resultRows[i]:Hide() end
@@ -2728,6 +3353,7 @@ function HC:UpdateResults()
         
         if row and data then
             row.itemData = data
+            local streamerMode = HousingCompletedDB and HousingCompletedDB.ui and HousingCompletedDB.ui.streamerMode
             
             -- Get icon based on source type and profession
             local sourceInfo = self:GetSourceTypeInfo(data.type)
@@ -2766,6 +3392,9 @@ function HC:UpdateResults()
                 row.nameText:SetTextColor(1, 1, 1)
             end
             row.collectedIcon:SetShown(data.collected)
+            if row.favoriteIcon then
+                row.favoriteIcon:SetShown(self:IsItemFavorite(data))
+            end
             
             local sourceText = data.source or ""
             if currentSourceView == "items" then
@@ -2795,20 +3424,31 @@ function HC:UpdateResults()
                 end
                 infoText = infoText .. "|cff999999Tags:|r " .. tagText
             end
-            row.infoText:SetText(infoText)
+            if HousingCompletedDB and HousingCompletedDB.ui and HousingCompletedDB.ui.showSourceDetails == false then
+                row.infoText:SetText("")
+            else
+                row.infoText:SetText(infoText)
+            end
 
             local economics = self.GetResultEconomics and self:GetResultEconomics(data) or nil
-            row.ahPriceText:SetText(FormatMoneyValue(economics and economics.ahPrice))
-            row.craftCostText:SetText(FormatMoneyValue(economics and economics.craftCost))
-            row.profitText:SetText(FormatMoneyValue(economics and economics.profit and math.abs(economics.profit) or nil))
-            row.marginText:SetText(FormatMarginValue(economics and economics.margin))
+            if streamerMode then
+                row.ahPriceText:SetText("-")
+                row.craftCostText:SetText("-")
+                row.profitText:SetText("-")
+                row.marginText:SetText("-")
+            else
+                row.ahPriceText:SetText(FormatMoneyValue(economics and economics.ahPrice))
+                row.craftCostText:SetText(FormatMoneyValue(economics and economics.craftCost))
+                row.profitText:SetText(FormatMoneyValue(economics and economics.profit and math.abs(economics.profit) or nil))
+                row.marginText:SetText(FormatMarginValue(economics and economics.margin))
+            end
             local cvb = economics and economics.craftVsBuy or "-"
             if cvb == "BuyAH" then cvb = "Buy (AH)"
             elseif cvb == "BuyVendor" then cvb = "Buy (V)"
             end
             row.craftVsBuyText:SetText(cvb or "-")
 
-            if economics and economics.trend and economics.trend.arrow then
+            if (not streamerMode) and economics and economics.trend and economics.trend.arrow then
                 local trendText = string.format(" |cff666666| |rTrend: %s %.1f%%  Risk: %d", economics.trend.arrow, economics.trend.changePct or 0, economics.risk or 0)
                 row.infoText:SetText((row.infoText:GetText() or "") .. trendText)
             end
@@ -2837,15 +3477,15 @@ function HC:UpdateResults()
             local repRequirements = self:GetReputationRequirements(data)
             if row.repBadge then
                 row.repBadge.repRequirements = repRequirements
-                row.repBadge:SetShown(#repRequirements > 0)
+                row.repBadge:SetShown(#repRequirements > 0 and currentViewMode ~= "grid")
             end
             
             row.vendorData = data.type == "vendor" and data.data or nil
             row.vendorName = data.vendor
             
             local hasCoords = self.ResultHasWaypoint and self:ResultHasWaypoint(data)
-            row.waypointBtn:SetEnabled(hasCoords and true or false)
-            row.waypointBtn:SetAlpha(hasCoords and 1 or 0.3)
+            row.waypointBtn:SetEnabled(hasCoords and currentViewMode ~= "grid" and true or false)
+            row.waypointBtn:SetAlpha((hasCoords and currentViewMode ~= "grid") and 1 or 0.3)
             
             row:SetBackdropColor(unpack(COLORS.row))
             row:Show()
@@ -2864,6 +3504,9 @@ function HC:UpdateResults()
 end
 
 function HC:RefreshVisiblePricingData()
+    if HousingCompletedDB and HousingCompletedDB.ui and HousingCompletedDB.ui.performanceMode then
+        return
+    end
     if #currentResults == 0 then
         return
     end
@@ -2929,6 +3572,23 @@ function HC:UpdatePlannerControls()
     if self.plannerSummaryText then self.plannerSummaryText:SetShown(show) end
 end
 
+function HC:UpdatePrimaryTabs()
+    for tabID, btn in pairs(self.primaryTabButtons or {}) do
+        local active = tabID == currentPrimaryTab
+        if active then
+            btn:SetBackdropColor(0.12, 0.2, 0.32, 0.98)
+            btn:SetBackdropBorderColor(unpack(COLORS.accentAlt))
+            btn.label:SetTextColor(1, 1, 1)
+            btn.underline:SetAlpha(1)
+        else
+            btn:SetBackdropColor(0.09, 0.11, 0.16, 0.94)
+            btn:SetBackdropBorderColor(0.17, 0.24, 0.35, 1)
+            btn.label:SetTextColor(unpack(COLORS.textMuted))
+            btn.underline:SetAlpha(0.15)
+        end
+    end
+end
+
 function HC:UpdateTabButtons()
     for tabID, btn in pairs(self.tabButtons) do
         if tabID == currentTab then
@@ -2944,6 +3604,7 @@ function HC:UpdateTabButtons()
         end
     end
     self:UpdateModeButtons()
+    self:UpdatePrimaryTabs()
     self:UpdateSourceViewButtons()
     self:UpdateItemCategoryButtons()
     self:UpdatePlannerControls()
@@ -3133,14 +3794,36 @@ end
 
 function HC:UpdateStats()
     local stats = self:GetStatistics()
+    local pctCollectedTrackable = stats.trackableTotal > 0 and math.floor((stats.collectedTrackable / stats.trackableTotal) * 100) or 0
+    local favoriteCount = 0
+    if HousingCompletedDB and HousingCompletedDB.favorites and HousingCompletedDB.favorites.items then
+        for _, v in pairs(HousingCompletedDB.favorites.items) do
+            if v then favoriteCount = favoriteCount + 1 end
+        end
+    end
+
+    if self.completionBar then
+        local maxW = (self.header and self.header:GetWidth() and self.header:GetWidth() > 80) and (self.header:GetWidth() - 64) or (FRAME_WIDTH - 64)
+        local barW = math.max(2, math.floor(maxW * (pctCollectedTrackable / 100)))
+        self.completionBar:SetWidth(barW)
+    end
+    if self.completionValueText then
+        self.completionValueText:SetText(string.format("%d%%", pctCollectedTrackable))
+    end
+
     if self.statsText then
-        local pctCollectedTrackable = stats.trackableTotal > 0 and math.floor((stats.collectedTrackable / stats.trackableTotal) * 100) or 0
         local pctTrackableKnown = stats.knownTotal > 0 and math.floor((stats.trackableTotal / stats.knownTotal) * 100) or 0
-        self.statsText:SetText(string.format(
-            "Collected/Trackable: %d/%d (%d%%)  |  Trackable/Known: %d/%d (%d%%)",
-            stats.collectedTrackable, stats.trackableTotal, pctCollectedTrackable,
-            stats.trackableTotal, stats.knownTotal, pctTrackableKnown
-        ))
+        if HousingCompletedDB and HousingCompletedDB.ui and HousingCompletedDB.ui.streamerMode then
+            self.statsText:SetText(string.format(
+                "Missing: %d  | Favorites: %d  | Current Expansion: %d%%",
+                math.max(0, stats.trackableTotal - stats.collectedTrackable), favoriteCount, pctCollectedTrackable
+            ))
+        else
+            self.statsText:SetText(string.format(
+                "Missing: %d  | Favorites: %d  | Recently Obtained: 0  | Trackable/Known: %d%%",
+                math.max(0, stats.trackableTotal - stats.collectedTrackable), favoriteCount, pctTrackableKnown
+            ))
+        end
     end
     if self.progressText then
         self.progressText:SetText(string.format(
@@ -3165,6 +3848,12 @@ function HC:ToggleUI()
         if HousingCompletedDB and HousingCompletedDB.lastSourceView and self.sourceViewButtons and self.sourceViewButtons[HousingCompletedDB.lastSourceView] then
             currentSourceView = HousingCompletedDB.lastSourceView
         end
+        if HousingCompletedDB and HousingCompletedDB.ui and type(HousingCompletedDB.ui.primaryTab) == "string" then
+            currentPrimaryTab = HousingCompletedDB.ui.primaryTab
+        end
+        if HousingCompletedDB and HousingCompletedDB.ui and (HousingCompletedDB.ui.viewMode == "grid" or HousingCompletedDB.ui.viewMode == "list") then
+            currentViewMode = HousingCompletedDB.ui.viewMode
+        end
         if self.settingsPanel then self.settingsPanel:Hide() end
         if self.content then self.content:Show() end
         if self.previewPanel then self.previewPanel:Show() end
@@ -3172,6 +3861,7 @@ function HC:ToggleUI()
             self:CacheCollection()
         end
         self:UpdateTabButtons()
+        self:ApplyResultLayout()
         self:DoSearch()
         if self.UpdatePreview then
             self:UpdatePreview(selectedItem)
