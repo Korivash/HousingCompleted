@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.5.2] - 2026-03-03
+
+### Added
+- Added `automation/Refresh-HDGImports.ps1` for one-command import refresh from `HousingDecorGuide`.
+- Added `automation/Build-CurseForgeRelease.ps1` to build a clean package from `.toc` runtime files.
+
+### Changed
+- Updated addon version metadata to `1.5.2`.
+- Refreshed imported decor datasets from latest `HousingDecorGuide`, including new Midnight items.
+
+### Packaging
+- Built CurseForge-ready zip from runtime addon files only.
+
 ## [1.5.1] - 2026-02-25
 
 ### Changed
