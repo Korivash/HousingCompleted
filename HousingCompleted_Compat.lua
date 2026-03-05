@@ -1,9 +1,3 @@
----------------------------------------------------
--- Housing Completed - Compatibility bridge
--- Merges legacy HousingDecorGuide backend into HousingCompleted
--- while preserving HousingCompleted UI methods.
----------------------------------------------------
-
 local function MergeArrayByValue(dst, src)
     if type(dst) ~= "table" or type(src) ~= "table" then
         return
