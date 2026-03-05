@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.6.1] - 2026-03-05
+
+### Fixed
+- Unknown source/expansion column categorization caused by mixed imported metadata formats.
+- Expansion filter mismatches caused by mixed expansion values (short IDs vs full names).
+
+### Changed
+- Updated addon version metadata to `1.6.1`.
+- Core item-source ingest now normalizes expansion IDs and infers missing expansion from vendor/map metadata.
+- Core source ingest now infers source type from available fields when imported type is missing/unknown.
+- Statistics and filter checks now normalize source/expansion keys before bucketing/comparison.
+
 ## [1.6.0] - 2026-03-03
 
 ### Added

@@ -6,7 +6,7 @@
 local addonName, HC = ...
 _G["HousingCompleted"] = HC
 
-HC.version = "1.6.0"
+HC.version = "1.6.1"
 HC.searchResults = {}
 HC.collectionCache = {}
 
@@ -405,6 +405,91 @@ function HC:NormalizeSourceType(sourceType)
     return "unknown"
 end
 
+function HC:NormalizeExpansionID(expansion)
+    if type(expansion) ~= "string" then return nil end
+    local e = expansion:lower()
+    e = e:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+    e = e:gsub("^%s+", ""):gsub("%s+$", "")
+    e = e:gsub("[%s%-]+", "_")
+    if e == "" or e == "unknown" then return nil end
+
+    if e == "classic" then return "classic" end
+    if e == "the_burning_crusade" or e == "burning_crusade" or e == "outland" then return "tbc" end
+    if e == "wrath_of_the_lich_king" or e == "wrath" then return "wotlk" end
+    if e == "cataclysm" then return "cata" end
+    if e == "mists_of_pandaria" or e == "pandaria" then return "mop" end
+    if e == "warlords_of_draenor" then return "wod" end
+    if e == "legion" then return "legion" end
+    if e == "battle_for_azeroth" then return "bfa" end
+    if e == "shadowlands" then return "sl" end
+    if e == "dragonflight" then return "df" end
+    if e == "the_war_within" or e == "war_within" then return "tww" end
+    if e == "midnight" then return "midnight" end
+
+    for _, info in ipairs(HC.Expansions or {}) do
+        if info.id == e then
+            return info.id
+        end
+        local n = type(info.name) == "string" and info.name:lower():gsub("[%s%-]+", "_") or nil
+        if n and n == e then
+            return info.id
+        end
+    end
+
+    return nil
+end
+
+function HC:EnsureMapExpansionIndex()
+    if self.mapIDToExpansion then return end
+    self.mapIDToExpansion = {}
+    for _, v in ipairs(HC.Vendors or {}) do
+        if v.mapID and v.expansion then
+            local exp = self:NormalizeExpansionID(v.expansion)
+            if exp and not self.mapIDToExpansion[v.mapID] then
+                self.mapIDToExpansion[v.mapID] = exp
+            end
+        end
+    end
+end
+
+function HC:GetExpansionFromMapID(mapID)
+    if not mapID then return nil end
+    self:EnsureMapExpansionIndex()
+    return self.mapIDToExpansion and self.mapIDToExpansion[mapID] or nil
+end
+
+function HC:ResolveSourceTypeForEntry(entry, vendorData)
+    local sourceType = self:NormalizeSourceType(entry and (entry.sourceType or entry.type) or "unknown")
+    if sourceType ~= "unknown" then
+        return sourceType
+    end
+
+    if (entry and entry.vendor) or vendorData then return "vendor" end
+    if entry and entry.achievement then return "achievement" end
+    if entry and entry.quest then return "quest" end
+    if entry and (entry.profession or entry.source == "Crafted") then return "profession" end
+    if entry and (entry.standing or entry.faction) then return "reputation" end
+
+    return "unknown"
+end
+
+function HC:ResolveExpansionForEntry(entry, vendorData)
+    if not entry then return nil end
+
+    local exp = self:NormalizeExpansionID(entry.expansion)
+    if exp then return exp end
+
+    if vendorData and vendorData.expansion then
+        exp = self:NormalizeExpansionID(vendorData.expansion)
+        if exp then return exp end
+    end
+
+    exp = self:GetExpansionFromMapID(entry.mapID or (vendorData and vendorData.mapID))
+    if exp then return exp end
+
+    return nil
+end
+
 function HC:BuildItemNameLookup()
     self.itemNameToID = {}
     for itemID, itemData in pairs(self.allItemCache or {}) do
@@ -772,7 +857,8 @@ function HC:BuildItemIndex(force)
             sourceCoords = { vendorData.x, vendorData.y }
         end
 
-        local normalizedSourceType = self:NormalizeSourceType(entry.sourceType or entry.type or "unknown")
+        local normalizedSourceType = self:ResolveSourceTypeForEntry(entry, vendorData)
+        local normalizedExpansion = self:ResolveExpansionForEntry(entry, vendorData)
 
         table.insert(item.sources, {
             sourceType = normalizedSourceType,
@@ -783,7 +869,7 @@ function HC:BuildItemIndex(force)
             coords = sourceCoords,
             mapID = entry.mapID or (vendorData and vendorData.mapID) or nil,
             faction = entry.faction or (vendorData and vendorData.faction) or nil,
-            expansion = entry.expansion,
+            expansion = normalizedExpansion,
             notes = entry.notes,
             standing = entry.standing,
             profession = entry.profession,
@@ -1101,7 +1187,7 @@ function HC:SearchAll(query, filters)
                 primaryVendor = s.vendor
                 primaryCost = s.cost
                 primaryZone = s.zone
-                primaryExpansion = s.expansion
+                primaryExpansion = self:NormalizeExpansionID(s.expansion) or s.expansion
                 primaryFaction = s.faction
                 primaryStanding = s.standing
                 primaryVendorData = s.vendorData
@@ -1125,7 +1211,7 @@ function HC:SearchAll(query, filters)
                             primaryVendor = s.vendor
                             primaryCost = s.cost
                             primaryZone = s.zone
-                            primaryExpansion = s.expansion
+                            primaryExpansion = self:NormalizeExpansionID(s.expansion) or s.expansion
                             primaryFaction = s.faction
                             primaryStanding = s.standing
                             primaryVendorData = s.vendorData
@@ -1141,7 +1227,7 @@ function HC:SearchAll(query, filters)
             if passes and filters.expansions and next(filters.expansions) then
                 passes = false
                 for _, s in ipairs(item.sources or {}) do
-                    local exp = s.expansion
+                    local exp = self:NormalizeExpansionID(s.expansion) or s.expansion
                     if exp and filters.expansions[exp] then
                         passes = true
                         break
@@ -1203,7 +1289,7 @@ function HC:SearchAll(query, filters)
                     vendor = primaryVendor,
                     zone = primaryZone,
                     cost = primaryCost,
-                    expansion = primaryExpansion,
+                    expansion = self:NormalizeExpansionID(primaryExpansion) or primaryExpansion,
                     faction = primaryFaction,
                     sourceCount = #(item.sources or {}),
                     vendorData = primaryVendorData,
@@ -1310,7 +1396,7 @@ function HC:PassesFilters(item, filters, sourceType)
     
     -- Check expansion filter
     if filters.expansions and next(filters.expansions) then
-        local expansion = item.expansion
+        local expansion = self:NormalizeExpansionID(item.expansion) or item.expansion
         if expansion and not filters.expansions[expansion] then
             return false
         end
@@ -1630,7 +1716,7 @@ function HC:GetVendorInventory(vendorRef)
                         vendor = matchedSource.vendor,
                         zone = matchedSource.zone,
                         cost = matchedSource.cost,
-                        expansion = matchedSource.expansion,
+                        expansion = self:NormalizeExpansionID(matchedSource.expansion) or matchedSource.expansion,
                         faction = matchedSource.faction,
                         sourceCount = #(item.sources or {}),
                         vendorData = matchedSource.vendorData,
@@ -1820,6 +1906,7 @@ function HC:GetSourceTypeInfo(sourceType)
 end
 
 function HC:GetExpansionInfo(expansion)
+    expansion = self:NormalizeExpansionID(expansion) or expansion
     for _, info in ipairs(HC.Expansions or {}) do
         if info.id == expansion then
             return info
@@ -1871,14 +1958,14 @@ function HC:GetStatistics()
     local collectionExtraNameKeys = {}
 
     local function addStatRow(sourceType, expansion, collected)
-        local sourceKey = sourceType or "unknown"
+        local sourceKey = self:NormalizeSourceType(sourceType or "unknown")
         stats.bySource[sourceKey] = stats.bySource[sourceKey] or { total = 0, collected = 0 }
         stats.bySource[sourceKey].total = stats.bySource[sourceKey].total + 1
         if collected then
             stats.bySource[sourceKey].collected = stats.bySource[sourceKey].collected + 1
         end
 
-        local expansionKey = expansion or "unknown"
+        local expansionKey = self:NormalizeExpansionID(expansion) or "unknown"
         stats.byExpansion[expansionKey] = stats.byExpansion[expansionKey] or { total = 0, collected = 0 }
         stats.byExpansion[expansionKey].total = stats.byExpansion[expansionKey].total + 1
         if collected then
