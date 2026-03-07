@@ -1,7 +1,3 @@
----------------------------------------------------
--- Housing Completed - Systems/Planner.lua
--- Economy planner and craft-tree helpers
----------------------------------------------------
 local addonName, HC = ...
 
 local function SafeDiv(a, b)

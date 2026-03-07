@@ -1,13 +1,7 @@
----------------------------------------------------
--- Housing Completed - AllItems.lua
--- Master list of all known housing decor itemIDs
--- Source: DecorVendor (extracted)
----------------------------------------------------
 local addonName, HC = ...
 
 HC.AllItems = HC.AllItems or {}
 
--- itemIDs only; names/icons are resolved in-client via C_Item as needed.
 HC.AllItems.IDs = {
     13217,
     14624,

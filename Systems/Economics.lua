@@ -1,7 +1,3 @@
----------------------------------------------------
--- Housing Completed - Systems/Economics.lua
--- Shared acquisition/crafting/profit calculations
----------------------------------------------------
 local addonName, HC = ...
 
 local function ToNumber(v)
@@ -163,7 +159,6 @@ function HC:ParseMoneyToCopper(value)
         return (gold * 10000) + (silver * 100) + copper
     end
 
-    -- "123 gold 45 silver 6 copper" style
     for num in text:gmatch("([%d,%.]+)%s*gold") do
         gold = ParseTokenNumber(num) or gold
     end

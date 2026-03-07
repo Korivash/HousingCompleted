@@ -1,7 +1,3 @@
----------------------------------------------------
--- Housing Completed - Categories.lua
--- Decor source categories and filters
----------------------------------------------------
 local addonName, HC = ...
 
 HC.SourceTypes = {
@@ -31,7 +27,6 @@ HC.Expansions = {
     { id = "midnight", name = "Midnight", color = {0.8, 0.2, 0.4} },
 }
 
--- Correct profession icons
 HC.Professions = {
     { id = "alchemy", name = "Alchemy", icon = "Interface\\Icons\\Trade_Alchemy" },
     { id = "blacksmithing", name = "Blacksmithing", icon = "Interface\\Icons\\Trade_BlackSmithing" },
@@ -49,7 +44,6 @@ HC.Professions = {
     { id = "archaeology", name = "Archaeology", icon = "Interface\\Icons\\Trade_Archaeology" },
 }
 
--- Lookup table for quick access
 HC.ProfessionIcons = {}
 for _, prof in ipairs(HC.Professions) do
     HC.ProfessionIcons[prof.id] = prof.icon

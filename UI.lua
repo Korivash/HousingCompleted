@@ -1,8 +1,3 @@
----------------------------------------------------
--- Housing Completed - UI.lua
--- Modern interface with Blizzard item/NPC previews
--- Author: Korivash
----------------------------------------------------
 local addonName, HC = ...
 
 local FRAME_WIDTH = 1680
@@ -44,6 +39,7 @@ local selectedItem = nil
 local currentSortKey = "name"
 local currentSortAscending = true
 local TryLoadHousingPreviewModules
+local analyticsSummaryText = ""
 
 local function EscapeCSV(value)
     if value == nil then return "" end
@@ -183,6 +179,13 @@ local function FormatCraftMaterialsValue(economics)
     end
 
     return table.concat(lines, "\n")
+end
+
+local function GetCharacterItemCount(itemID)
+    if not itemID or not C_Item or not C_Item.GetItemCount then
+        return 0
+    end
+    return C_Item.GetItemCount(itemID, true, false, true, true) or 0
 end
 
 local function CreateSearchBox(parent, width)
@@ -493,7 +496,7 @@ function HC:CreateHeader(parent)
     local completionContainer = CreateFrame("Frame", nil, header, "BackdropTemplate")
     completionContainer:SetPoint("TOPLEFT", 20, -58)
     completionContainer:SetPoint("TOPRIGHT", -20, -58)
-    completionContainer:SetHeight(62)
+    completionContainer:SetHeight(78)
     completionContainer:SetBackdrop({
         bgFile = "Interface\\Buttons\\WHITE8x8",
         edgeFile = "Interface\\Buttons\\WHITE8x8",
@@ -536,6 +539,14 @@ function HC:CreateHeader(parent)
     metrics:SetText("Missing: 0  | Favorites: 0  | Recent: 0")
     metrics:SetTextColor(unpack(COLORS.textDim))
     self.statsText = metrics
+
+    local nextActionText = completionContainer:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    nextActionText:SetPoint("TOPLEFT", 12, -58)
+    nextActionText:SetPoint("TOPRIGHT", -12, -58)
+    nextActionText:SetJustifyH("LEFT")
+    nextActionText:SetTextColor(unpack(COLORS.accentAlt))
+    nextActionText:SetText("Next: Scanning best action...")
+    self.nextActionText = nextActionText
 
     self.header = header
 end
@@ -642,6 +653,7 @@ function HC:CreateSidebar(parent)
         { id = "craft", name = "Craft", icon = "Interface\\Icons\\INV_Misc_Gear_01" },
         { id = "economy", name = "Economy", icon = "Interface\\Icons\\INV_Misc_Coin_18" },
         { id = "planner", name = "Planner", icon = "Interface\\Icons\\INV_Scroll_03" },
+        { id = "analytics", name = "Analytics", icon = "Interface\\Icons\\INV_Misc_Spyglass_03" },
         { id = "collection", name = "Collection", icon = "Interface\\Icons\\INV_Misc_Bag_10_Blue" },
     }
     
@@ -1171,17 +1183,44 @@ function HC:CreateContent(parent)
     pagination:SetBackdropColor(0.08, 0.06, 0.04, 0.92)
     
     local exportBtn = CreateFrame("Button", nil, pagination, "UIPanelButtonTemplate")
-    exportBtn:SetSize(96, 26)
+    exportBtn:SetSize(80, 26)
     exportBtn:SetPoint("LEFT", 0, 0)
-    exportBtn:SetText("Export CSV")
+    exportBtn:SetText("CSV")
     exportBtn:SetScript("OnClick", function()
         HC:ShowResultsExportDialog()
     end)
     self.exportBtn = exportBtn
 
+    local routeBtn = CreateFrame("Button", nil, pagination, "UIPanelButtonTemplate")
+    routeBtn:SetSize(86, 26)
+    routeBtn:SetPoint("LEFT", exportBtn, "RIGHT", 6, 0)
+    routeBtn:SetText("Optimize")
+    routeBtn:SetScript("OnClick", function()
+        HC:RunAdvancedRoute()
+    end)
+    self.routeBtn = routeBtn
+
+    local blueprintBtn = CreateFrame("Button", nil, pagination, "UIPanelButtonTemplate")
+    blueprintBtn:SetSize(82, 26)
+    blueprintBtn:SetPoint("LEFT", routeBtn, "RIGHT", 6, 0)
+    blueprintBtn:SetText("Blueprint")
+    blueprintBtn:SetScript("OnClick", function()
+        HC:ShowBlueprintDialog()
+    end)
+    self.blueprintBtn = blueprintBtn
+
+    local autoBtn = CreateFrame("Button", nil, pagination, "UIPanelButtonTemplate")
+    autoBtn:SetSize(70, 26)
+    autoBtn:SetPoint("LEFT", blueprintBtn, "RIGHT", 6, 0)
+    autoBtn:SetText("Auto")
+    autoBtn:SetScript("OnClick", function()
+        HC:RunAutomationCycle()
+    end)
+    self.autoBtn = autoBtn
+
     local shoppingBtn = CreateFrame("Button", nil, pagination, "UIPanelButtonTemplate")
     shoppingBtn:SetSize(108, 26)
-    shoppingBtn:SetPoint("LEFT", exportBtn, "RIGHT", 8, 0)
+    shoppingBtn:SetPoint("LEFT", autoBtn, "RIGHT", 6, 0)
     shoppingBtn:SetText("Shopping List")
     shoppingBtn:SetScript("OnClick", function()
         HC:ToggleShoppingListPanel()
@@ -1287,6 +1326,86 @@ function HC:CreateContent(parent)
     self:UpdateAcquireSortHeaderState()
     self:UpdatePlannerControls()
     self:ApplyResultLayout()
+
+    local analyticsFrame = CreateFrame("Frame", nil, content, "BackdropTemplate")
+    analyticsFrame:SetPoint("TOPLEFT", 15, -15)
+    analyticsFrame:SetPoint("BOTTOMRIGHT", -15, 80)
+    analyticsFrame:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    analyticsFrame:SetBackdropColor(0.05, 0.07, 0.09, 0.95)
+    analyticsFrame:SetBackdropBorderColor(unpack(COLORS.border))
+    analyticsFrame:Hide()
+
+    local analyticsTitle = analyticsFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    analyticsTitle:SetPoint("TOPLEFT", 12, -10)
+    analyticsTitle:SetText("Advanced Analytics")
+    analyticsTitle:SetTextColor(unpack(COLORS.accentAlt))
+
+    local analyticsBody = analyticsFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    analyticsBody:SetPoint("TOPLEFT", 12, -36)
+    analyticsBody:SetPoint("BOTTOMRIGHT", -12, 12)
+    analyticsBody:SetJustifyH("LEFT")
+    analyticsBody:SetJustifyV("TOP")
+    analyticsBody:SetTextColor(unpack(COLORS.textMuted))
+    analyticsBody:SetText("")
+    self.analyticsBodyText = analyticsBody
+
+    local autoMapBtn = CreateFrame("Button", nil, analyticsFrame, "UIPanelButtonTemplate")
+    autoMapBtn:SetSize(120, 22)
+    autoMapBtn:SetPoint("TOPRIGHT", -12, -10)
+    autoMapBtn:SetText("Map Next Run")
+    autoMapBtn:SetScript("OnClick", function()
+        local r = HC.RunAutomationAction and HC:RunAutomationAction("next_best", currentResults) or nil
+        if r and r.message then
+            print("|cff00ff99Housing Completed|r: " .. r.message)
+        end
+    end)
+
+    local autoTrackBtn = CreateFrame("Button", nil, analyticsFrame, "UIPanelButtonTemplate")
+    autoTrackBtn:SetSize(120, 22)
+    autoTrackBtn:SetPoint("TOPRIGHT", autoMapBtn, "BOTTOMRIGHT", 0, -6)
+    autoTrackBtn:SetText("Track Missing")
+    autoTrackBtn:SetScript("OnClick", function()
+        local r = HC.RunAutomationAction and HC:RunAutomationAction("track_missing_mats", currentResults) or nil
+        if r and r.message then
+            print("|cff00ff99Housing Completed|r: " .. r.message)
+        end
+        if HC.RefreshShoppingListPanel and HC.shoppingListPanel and HC.shoppingListPanel:IsShown() then
+            HC:RefreshShoppingListPanel()
+        end
+    end)
+
+    local autoQueueBtn = CreateFrame("Button", nil, analyticsFrame, "UIPanelButtonTemplate")
+    autoQueueBtn:SetSize(120, 22)
+    autoQueueBtn:SetPoint("TOPRIGHT", autoTrackBtn, "BOTTOMRIGHT", 0, -6)
+    autoQueueBtn:SetText("Queue Best")
+    autoQueueBtn:SetScript("OnClick", function()
+        local r = HC.RunAutomationAction and HC:RunAutomationAction("queue_best_crafts", currentResults) or nil
+        if r and r.message then
+            print("|cff00ff99Housing Completed|r: " .. r.message)
+        end
+    end)
+
+    local roomBtn = CreateFrame("Button", nil, analyticsFrame, "UIPanelButtonTemplate")
+    roomBtn:SetSize(120, 22)
+    roomBtn:SetPoint("TOPRIGHT", autoQueueBtn, "BOTTOMRIGHT", 0, -6)
+    roomBtn:SetText("Room Bundle")
+    roomBtn:SetScript("OnClick", function()
+        HC:ShowRoomBundleDialog("study")
+    end)
+
+    local depBtn = CreateFrame("Button", nil, analyticsFrame, "UIPanelButtonTemplate")
+    depBtn:SetSize(120, 22)
+    depBtn:SetPoint("TOPRIGHT", roomBtn, "BOTTOMRIGHT", 0, -6)
+    depBtn:SetText("Deps")
+    depBtn:SetScript("OnClick", function()
+        HC:ShowDependencyGraphDialog()
+    end)
+
+    self.analyticsFrame = analyticsFrame
     
     self.content = content
 end
@@ -1301,7 +1420,6 @@ function HC:CreateResultRow(parent, index)
         if selectedItem ~= self.itemData then
             self:SetBackdropColor(unpack(COLORS.rowHover))
         end
-        -- Show item tooltip if we have itemID
         local itemID = HC:GetResolvedItemID(self.itemData)
         if itemID then
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -1753,7 +1871,6 @@ function HC:CreatePreviewPanel(parent)
     headerLine:SetColorTexture(0.42, 0.29, 0.16, 0.9)
     y = y - 10
     
-    -- Residence preview launcher container
     local modelContainer = CreateFrame("Frame", nil, preview, "BackdropTemplate")
     modelContainer:SetSize(PREVIEW_WIDTH - 24, 214)
     modelContainer:SetPoint("TOP", 0, y)
@@ -1809,7 +1926,6 @@ function HC:CreatePreviewPanel(parent)
 
     y = y - 224
     
-    -- Item name
     local itemName = preview:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     itemName:SetPoint("TOPLEFT", 15, y)
     itemName:SetPoint("TOPRIGHT", -15, y)
@@ -1819,14 +1935,12 @@ function HC:CreatePreviewPanel(parent)
     self.previewName = itemName
     y = y - 22
     
-    -- Source type badge
     local sourceType = preview:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     sourceType:SetPoint("TOP", 0, y)
     sourceType:SetText("")
     self.previewSourceType = sourceType
     y = y - 25
     
-    -- Details frame
     local detailsFrame = CreateFrame("Frame", nil, preview)
     detailsFrame:SetPoint("TOPLEFT", 15, y)
     detailsFrame:SetPoint("TOPRIGHT", -15, y)
@@ -1834,7 +1948,6 @@ function HC:CreatePreviewPanel(parent)
     
     local dy = 0
     
-    -- Vendor
     local vendorLabel = detailsFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     vendorLabel:SetPoint("TOPLEFT", 0, dy)
     vendorLabel:SetText("|cff888888Vendor:|r")
@@ -1846,7 +1959,6 @@ function HC:CreatePreviewPanel(parent)
     self.previewVendor = vendorValue
     dy = dy - 16
     
-    -- Location
     local locLabel = detailsFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     locLabel:SetPoint("TOPLEFT", 0, dy)
     locLabel:SetText("|cff888888Location:|r")
@@ -1858,7 +1970,6 @@ function HC:CreatePreviewPanel(parent)
     self.previewLocation = locValue
     dy = dy - 16
     
-    -- Cost
     local costLabel = detailsFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     costLabel:SetPoint("TOPLEFT", 0, dy)
     costLabel:SetText("|cff888888Cost:|r")
@@ -1914,7 +2025,6 @@ function HC:CreatePreviewPanel(parent)
     self.previewMargin = marginValue
     dy = dy - 16
 
-    -- Item ID
     local itemIDLabel = detailsFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     itemIDLabel:SetPoint("TOPLEFT", 0, dy)
     itemIDLabel:SetText("|cff888888Item ID:|r")
@@ -1926,7 +2036,6 @@ function HC:CreatePreviewPanel(parent)
     self.previewItemID = itemIDValue
     dy = dy - 16
 
-    -- Sources
     local sourcesLabel = detailsFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     sourcesLabel:SetPoint("TOPLEFT", 0, dy)
     sourcesLabel:SetText("|cff888888Sources:|r")
@@ -1951,9 +2060,14 @@ function HC:CreatePreviewPanel(parent)
     end
     matsValue:SetText("-")
     self.previewMaterials = matsValue
+    local matsButtonsFrame = CreateFrame("Frame", nil, detailsFrame)
+    matsButtonsFrame:SetPoint("TOPLEFT", 55, dy - 1)
+    matsButtonsFrame:SetSize(PREVIEW_WIDTH - 88, 48)
+    matsButtonsFrame:Hide()
+    self.previewMaterialsButtonsFrame = matsButtonsFrame
+    self.previewMaterialButtons = {}
     dy = dy - 50
     
-    -- Reputation section
     local repHeader = detailsFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     repHeader:SetPoint("TOPLEFT", 0, dy)
     repHeader:SetText("|cffaa88ffReputation Required:|r")
@@ -1978,7 +2092,6 @@ function HC:CreatePreviewPanel(parent)
     
     self.detailsFrame = detailsFrame
     
-    -- Waypoint button at bottom
     local wpBtn = CreateFrame("Button", nil, preview, "UIPanelButtonTemplate")
     wpBtn:SetSize(PREVIEW_WIDTH - 30, 28)
     wpBtn:SetPoint("BOTTOM", 0, 15)
@@ -2052,11 +2165,109 @@ function HC:CreatePreviewPanel(parent)
     self.previewPanel = preview
 end
 
+function HC:RefreshPreviewMaterialButtons(economics)
+    if not self.previewMaterialsButtonsFrame then return end
+    local frame = self.previewMaterialsButtonsFrame
+    local buttons = self.previewMaterialButtons or {}
+    self.previewMaterialButtons = buttons
+
+    for _, btn in ipairs(buttons) do
+        btn:Hide()
+    end
+
+    local reagents = economics and economics.reagents or nil
+    if type(reagents) ~= "table" or #reagents == 0 then
+        frame:Hide()
+        return false
+    end
+
+    local maxButtons = math.min(3, #reagents)
+    local y = 0
+    for idx = 1, maxButtons do
+        local reagent = reagents[idx]
+        local btn = buttons[idx]
+        if not btn then
+            btn = CreateFrame("Button", nil, frame, "BackdropTemplate")
+            btn:SetBackdrop({
+                bgFile = "Interface\\Buttons\\WHITE8x8",
+                edgeFile = "Interface\\Buttons\\WHITE8x8",
+                edgeSize = 1,
+            })
+            btn:SetBackdropColor(0.1, 0.11, 0.14, 0.95)
+            btn:SetBackdropBorderColor(0.2, 0.25, 0.34, 1)
+            btn:SetHeight(15)
+
+            local txt = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+            txt:SetPoint("LEFT", 4, 0)
+            txt:SetPoint("RIGHT", -4, 0)
+            txt:SetJustifyH("LEFT")
+            if txt.SetWordWrap then txt:SetWordWrap(false) end
+            if txt.SetNonSpaceWrap then txt:SetNonSpaceWrap(false) end
+            if txt.SetMaxLines then txt:SetMaxLines(1) end
+            btn.text = txt
+
+            buttons[idx] = btn
+        end
+
+        local qty = math.max(1, math.floor((tonumber(reagent.qty) or 1) + 0.5))
+        local reagentName = reagent.name or (reagent.itemID and ("Item #" .. tostring(reagent.itemID))) or "Unknown"
+        btn.reagentID = reagent.itemID
+        btn.reagentName = reagentName
+        btn.reagentQty = qty
+        btn:SetPoint("TOPLEFT", 0, y)
+        btn:SetPoint("TOPRIGHT", 0, y)
+        btn.text:SetText(string.format("%dx %s", qty, reagentName))
+        btn:SetScript("OnClick", function(selfBtn, button)
+            if button == "LeftButton" and IsShiftKeyDown() then
+                local ok, msg = HC:TrackReagent(selfBtn.reagentID, selfBtn.reagentName, selfBtn.reagentQty)
+                if msg then
+                    print("|cff00ff99Housing Completed|r: " .. msg)
+                end
+                if ok and HC.RefreshShoppingListPanel and HC.shoppingListPanel and HC.shoppingListPanel:IsShown() then
+                    HC:RefreshShoppingListPanel()
+                end
+            elseif button == "LeftButton" then
+                if not AuctionHouseFrame or not AuctionHouseFrame:IsShown() then
+                    print("|cff00ff99Housing Completed|r: Please open the Auction House first.")
+                elseif AuctionHouseFrame.SearchBar and AuctionHouseFrame.SearchBar.SearchBox then
+                    AuctionHouseFrame.SearchBar.SearchBox:SetText(selfBtn.reagentName)
+                    print("|cff00ff99Housing Completed|r: Set AH search text to: " .. selfBtn.reagentName)
+                end
+            elseif button == "RightButton" then
+                local ok, msg = HC:UntrackReagent(selfBtn.reagentID)
+                if msg then
+                    print("|cff00ff99Housing Completed|r: " .. msg)
+                end
+                if ok and HC.RefreshShoppingListPanel and HC.shoppingListPanel and HC.shoppingListPanel:IsShown() then
+                    HC:RefreshShoppingListPanel()
+                end
+            end
+        end)
+        btn:SetScript("OnEnter", function(selfBtn)
+            GameTooltip:SetOwner(selfBtn, "ANCHOR_RIGHT")
+            GameTooltip:SetText(selfBtn.reagentName, 1, 1, 1)
+            GameTooltip:AddLine(" ")
+            GameTooltip:AddLine("Click to set AH search text", 0.7, 0.7, 0.7)
+            GameTooltip:AddLine("Shift-Click to track reagent", 0.7, 0.7, 0.7)
+            GameTooltip:AddLine("Right-Click to untrack reagent", 0.7, 0.7, 0.7)
+            GameTooltip:Show()
+        end)
+        btn:SetScript("OnLeave", function()
+            GameTooltip:Hide()
+        end)
+        btn:Show()
+        y = y - 16
+    end
+
+    frame:SetHeight((maxButtons * 16) + 2)
+    frame:Show()
+    return true
+end
+
 function HC:UpdatePreview(data)
     if not self.previewName then return end
     local streamerMode = HousingCompletedDB and HousingCompletedDB.ui and HousingCompletedDB.ui.streamerMode
     
-    -- Reset all
     self.previewRepHeader:Hide()
     self.previewRepFaction:Hide()
     self.previewRepStanding:Hide()
@@ -2075,6 +2286,9 @@ function HC:UpdatePreview(data)
         if self.previewItemID then self.previewItemID:SetText("-") end
         if self.previewSources then self.previewSources:SetText("-") end
         if self.previewMaterials then self.previewMaterials:SetText("-") end
+        if self.RefreshPreviewMaterialButtons then
+            self:RefreshPreviewMaterialButtons(nil)
+        end
         self.previewResidenceItemID = nil
         if self.modelFallbackIcon then
             self.modelFallbackIcon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
@@ -2114,7 +2328,6 @@ function HC:UpdatePreview(data)
         self.previewPanel.slideIn:Play()
     end
     
-    -- Name
     self.previewName:SetText(data.name or "Unknown")
     if data.collected then
         self.previewName:SetTextColor(unpack(COLORS.collected))
@@ -2122,19 +2335,16 @@ function HC:UpdatePreview(data)
         self.previewName:SetTextColor(1, 1, 1)
     end
     
-    -- Source type
     local sourceInfo = self:GetSourceTypeInfo(data.type)
     self.previewSourceType:SetText(sourceInfo.name)
     self.previewSourceType:SetTextColor(unpack(sourceInfo.color))
     
-    -- Vendor
     if data.type == "vendor" and data.data then
         self.previewVendor:SetText(data.data.name or "-")
     else
         self.previewVendor:SetText(data.vendor or "-")
     end
     
-    -- Location
     local loc = data.zone or ""
     if data.data and data.data.subzone then
         loc = loc .. ", " .. data.data.subzone
@@ -2144,7 +2354,6 @@ function HC:UpdatePreview(data)
     end
     self.previewLocation:SetText(loc ~= "" and loc or "-")
     
-    -- Cost
     if (not streamerMode) and data.cost then
         self.previewCost:SetText("|cffffd700" .. data.cost .. "|r")
     else
@@ -2200,11 +2409,15 @@ function HC:UpdatePreview(data)
         local sourceCount = (data.data and data.data.sourceCount) or (data.sourceCount) or ((data.data and data.data.sources and #data.data.sources) or nil)
         self.previewSources:SetText(sourceCount and tostring(sourceCount) or "-")
     end
+    local materialsText = FormatCraftMaterialsValue(economics)
+    local showingMaterialButtons = false
+    if self.RefreshPreviewMaterialButtons then
+        showingMaterialButtons = self:RefreshPreviewMaterialButtons(economics) and true or false
+    end
     if self.previewMaterials then
-        self.previewMaterials:SetText(FormatCraftMaterialsValue(economics))
+        self.previewMaterials:SetText(showingMaterialButtons and "-" or materialsText)
     end
     
-    -- Reputation details
     local repReqs = self.GetReputationRequirements and self:GetReputationRequirements(data) or {}
     if #repReqs > 0 then
         local req = repReqs[1]
@@ -2227,7 +2440,6 @@ function HC:UpdatePreview(data)
         self.previewRepStanding:SetTextColor(unpack(color))
     end
     
-    -- Residence preview launcher state.
     self.previewResidenceItemID = itemID
     local itemLink = self:GetResultItemLink(data)
     local embeddedShown = self:UpdateEmbeddedPreview(itemLink, itemID, data and data.data)
@@ -2332,7 +2544,6 @@ function HC:OpenItemPreview(itemRef)
         end
     end
 
-    -- Final fallback: dressing room item preview.
     if itemLink and DressUpItemLink then
         local ok = pcall(DressUpItemLink, itemLink)
         if ok then
@@ -2697,7 +2908,12 @@ function HC:ShowTextExportDialog(title, text)
         edit:SetWidth(830)
         edit:SetScript("OnEscapePressed", function() f:Hide() end)
         edit:SetScript("OnTextChanged", function(self)
-            self:SetHeight(math.max(1, self:GetStringHeight() + 20))
+            local txt = self:GetText() or ""
+            local lines = 1
+            for _ in string.gmatch(txt, "\n") do
+                lines = lines + 1
+            end
+            self:SetHeight(math.max(200, (lines * 16) + 20))
         end)
         scroll:SetScrollChild(edit)
 
@@ -2714,6 +2930,135 @@ end
 function HC:ShowResultsExportDialog()
     local csv = self:BuildResultsCSV(currentResults or {})
     self:ShowTextExportDialog("Export Results CSV", csv)
+end
+
+function HC:RunAdvancedRoute()
+    local route = self.OptimizeVendorRoute and self:OptimizeVendorRoute(currentResults) or {}
+    if not route or #route == 0 then
+        print("|cff00ff99Housing Completed|r: No mappable targets for route optimization.")
+        return
+    end
+    local first = route[1]
+    if first and self.SetSmartWaypoint then
+        self:SetSmartWaypoint(first.x, first.y, first.mapID, first.title)
+    end
+    if _G.TomTom and _G.TomTom.AddWaypoint then
+        for _, stop in ipairs(route) do
+            _G.TomTom:AddWaypoint(stop.mapID, stop.x, stop.y, {
+                title = stop.title or "Route Stop",
+                persistent = false,
+                minimap = true,
+                world = true,
+            })
+        end
+    end
+    if self.RecordAdvancedDecision then
+        self:RecordAdvancedDecision("route_optimized", { stops = #route })
+    end
+    print("|cff00ff99Housing Completed|r: Optimized route with " .. tostring(#route) .. " stop(s).")
+end
+
+function HC:ShowBlueprintDialog()
+    local items = {}
+    for _, r in ipairs(currentResults or {}) do
+        local itemID = self:GetResolvedItemID(r)
+        if itemID then
+            items[#items + 1] = { itemID = itemID, qty = 1 }
+        end
+    end
+    local encoded = self.ExportBlueprint and self:ExportBlueprint({
+        label = "Current Filter Blueprint",
+        items = items,
+    }) or nil
+    if not encoded then
+        print("|cff00ff99Housing Completed|r: Blueprint export unavailable.")
+        return
+    end
+    local baseText = encoded
+    if self.GetAdvancedState and self.ImportBlueprint and self.ExportBlueprint and self.DiffBlueprints and self.MergeBlueprints then
+        local adv = self:GetAdvancedState()
+        adv.blueprints = adv.blueprints or {}
+        local imported = self:ImportBlueprint(encoded)
+        if imported then
+            local prev = adv.blueprints[#adv.blueprints]
+            if prev then
+                local diff = self:DiffBlueprints(prev, imported)
+                local merged = self:MergeBlueprints(prev, imported, "max")
+                local mergedEncoded = self:ExportBlueprint(merged) or ""
+                local diffLines = {}
+                for i = 1, math.min(12, #diff) do
+                    local d = diff[i]
+                    diffLines[#diffLines + 1] = string.format("Item %d: %+d", tonumber(d.itemID) or 0, tonumber(d.qtyDelta) or 0)
+                end
+                baseText = baseText .. "\n\nDIFF VS LAST (" .. tostring(#diff) .. "):\n" .. table.concat(diffLines, "\n") .. "\n\nMERGED(MAX):\n" .. mergedEncoded
+            end
+            adv.blueprints[#adv.blueprints + 1] = imported
+            if #adv.blueprints > 30 then
+                table.remove(adv.blueprints, 1)
+            end
+            if self.RecordAdvancedDecision then
+                self:RecordAdvancedDecision("blueprint_export", { items = #items, label = imported.label })
+            end
+        end
+    end
+    self:ShowTextExportDialog("Blueprint Export", baseText)
+end
+
+function HC:RunAutomationCycle()
+    if not self.RunAutomationAction then
+        print("|cff00ff99Housing Completed|r: Automation unavailable.")
+        return
+    end
+    local result = self:RunAutomationAction("next_best", currentResults)
+    if result and result.message then
+        print("|cff00ff99Housing Completed|r: " .. result.message)
+    end
+    local tracked = self:RunAutomationAction("track_missing_mats", currentResults)
+    if tracked and tracked.message then
+        print("|cff00ff99Housing Completed|r: " .. tracked.message)
+    end
+    if self.RefreshShoppingListPanel and self.shoppingListPanel and self.shoppingListPanel:IsShown() then
+        self:RefreshShoppingListPanel()
+    end
+end
+
+function HC:ShowRoomBundleDialog(templateID)
+    if not self.BuildRoomTemplateBundle then
+        print("|cff00ff99Housing Completed|r: Room templates unavailable.")
+        return
+    end
+    local picks = self:BuildRoomTemplateBundle(templateID or "study", currentResults, 0)
+    if not picks or #picks == 0 then
+        print("|cff00ff99Housing Completed|r: No items matched that room template.")
+        return
+    end
+    local lines = { "Room Template: " .. tostring(templateID or "study") }
+    for i = 1, math.min(40, #picks) do
+        local p = picks[i]
+        local name = (p.result and p.result.name) or "Unknown"
+        local cost = p.cost and FormatMoneyValue(p.cost) or "-"
+        lines[#lines + 1] = string.format("%d. %s  [%s]", i, name, cost)
+    end
+    self:ShowTextExportDialog("Room Bundle", table.concat(lines, "\n"))
+end
+
+function HC:ShowDependencyGraphDialog()
+    if not self.BuildCraftDependencyGraph then
+        print("|cff00ff99Housing Completed|r: Dependency graph unavailable.")
+        return
+    end
+    local graph = self:BuildCraftDependencyGraph(self:GetShoppingList())
+    local lines = {
+        "Dependency Graph",
+        "Nodes: " .. tostring(#(graph.nodes or {})),
+        "Edges: " .. tostring(#(graph.edges or {})),
+        "",
+    }
+    for i = 1, math.min(80, #(graph.edges or {})) do
+        local e = graph.edges[i]
+        lines[#lines + 1] = string.format("%s -> %s x%d [%s]", tostring(e.from), tostring(e.to), tonumber(e.qty) or 1, tostring(e.decision or "Unknown"))
+    end
+    self:ShowTextExportDialog("Craft Dependency Graph", table.concat(lines, "\n"))
 end
 
 function HC:CreateShoppingListPanel(parent)
@@ -2800,8 +3145,13 @@ function HC:RefreshShoppingListPanel()
 
     local panel = self.shoppingListPanel
     local list = self:GetShoppingList()
+    local tracked = self:GetTrackedReagents()
+    local trackedCount = 0
+    for _ in pairs(tracked) do
+        trackedCount = trackedCount + 1
+    end
 
-    panel.countText:SetText(string.format("%d item%s", #list, #list == 1 and "" or "s"))
+    panel.countText:SetText(string.format("%d item%s | %d tracked reagent%s", #list, #list == 1 and "" or "s", trackedCount, trackedCount == 1 and "" or "s"))
     panel.mapBtn:SetEnabled(#list > 0)
     panel.mapBtn:SetAlpha(#list > 0 and 1 or 0.45)
     panel.clearBtn:SetEnabled(#list > 0)
@@ -2814,6 +3164,9 @@ function HC:RefreshShoppingListPanel()
 
     for _, row in ipairs(panel.rows) do
         row:Hide()
+    end
+    if panel.trackedHeader then
+        panel.trackedHeader:Hide()
     end
 
     local rowHeight = 28
@@ -2835,6 +3188,9 @@ function HC:RefreshShoppingListPanel()
             txt:SetPoint("LEFT", 8, 0)
             txt:SetPoint("RIGHT", -96, 0)
             txt:SetJustifyH("LEFT")
+            if txt.SetWordWrap then txt:SetWordWrap(false) end
+            if txt.SetNonSpaceWrap then txt:SetNonSpaceWrap(false) end
+            if txt.SetMaxLines then txt:SetMaxLines(1) end
             row.text = txt
 
             local del = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
@@ -2867,10 +3223,88 @@ function HC:RefreshShoppingListPanel()
             end
         end
         row.text:SetText((entry.name or "Unknown") .. vendorPart .. zonePart .. econPart)
+        row.deleteBtn:SetText("Remove")
+        row.deleteBtn:SetScript("OnClick", function(selfBtn)
+            local idx = selfBtn.rowIndex
+            HC:RemoveShoppingListEntry(idx)
+            HC:RefreshShoppingListPanel()
+        end)
         row.deleteBtn.rowIndex = i
         row:Show()
 
         y = y - rowHeight
+    end
+
+    if trackedCount > 0 then
+        if not panel.trackedHeader then
+            local hdr = panel.child:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+            hdr:SetJustifyH("LEFT")
+            hdr:SetTextColor(unpack(COLORS.accentAlt))
+            panel.trackedHeader = hdr
+        end
+        panel.trackedHeader:SetPoint("TOPLEFT", 2, y - 4)
+        panel.trackedHeader:SetPoint("TOPRIGHT", -8, y - 4)
+        panel.trackedHeader:SetText("Tracked Reagents")
+        panel.trackedHeader:Show()
+        y = y - 24
+
+        local trackedRows = {}
+        for itemID, info in pairs(tracked) do
+            table.insert(trackedRows, { itemID = itemID, info = info })
+        end
+        table.sort(trackedRows, function(a, b)
+            return tostring((a.info and a.info.name) or "") < tostring((b.info and b.info.name) or "")
+        end)
+
+        for idx, entry in ipairs(trackedRows) do
+            local rowIndex = #list + idx
+            local row = panel.rows[rowIndex]
+            if not row then
+                row = CreateFrame("Frame", nil, panel.child, "BackdropTemplate")
+                row:SetBackdrop({
+                    bgFile = "Interface\\Buttons\\WHITE8x8",
+                    edgeFile = "Interface\\Buttons\\WHITE8x8",
+                    edgeSize = 1,
+                })
+                row:SetBackdropColor(0.09, 0.1, 0.07, 0.92)
+                row:SetBackdropBorderColor(0.2, 0.28, 0.14, 1)
+                row:SetHeight(rowHeight - 2)
+
+                local txt = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+                txt:SetPoint("LEFT", 8, 0)
+                txt:SetPoint("RIGHT", -96, 0)
+                txt:SetJustifyH("LEFT")
+                if txt.SetWordWrap then txt:SetWordWrap(false) end
+                if txt.SetNonSpaceWrap then txt:SetNonSpaceWrap(false) end
+                if txt.SetMaxLines then txt:SetMaxLines(1) end
+                row.text = txt
+
+                local del = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+                del:SetSize(78, 20)
+                del:SetPoint("RIGHT", -8, 0)
+                row.deleteBtn = del
+                panel.rows[rowIndex] = row
+            end
+
+            row:ClearAllPoints()
+            row:SetPoint("TOPLEFT", 0, y)
+            row:SetPoint("TOPRIGHT", -8, y)
+            local itemID = tonumber(entry.itemID)
+            local info = entry.info or {}
+            local have = GetCharacterItemCount(itemID)
+            local need = math.max(0, math.floor((tonumber(info.targetQty) or 0) + 0.5))
+            local name = info.name or (itemID and ("Item #" .. tostring(itemID))) or "Unknown"
+            row.text:SetText(string.format("%s |cff888888Have %d / Need %d|r", name, have, need))
+            row.deleteBtn:SetText("Untrack")
+            row.deleteBtn:SetScript("OnClick", function(selfBtn)
+                local reagentID = selfBtn.reagentID
+                HC:UntrackReagent(reagentID)
+                HC:RefreshShoppingListPanel()
+            end)
+            row.deleteBtn.reagentID = itemID
+            row:Show()
+            y = y - rowHeight
+        end
     end
 
     panel.child:SetWidth(math.max(1, panel.scroll:GetWidth() - 18))
@@ -2909,7 +3343,6 @@ function HC:CreateSettingsPanel(parent)
     y = y - 35
 
 
-    -- Force TomTom routing toggle
     local forceTomTomCheck = CreateFrame("CheckButton", nil, settings, "InterfaceOptionsCheckButtonTemplate")
     forceTomTomCheck:SetPoint("TOPLEFT", 20, y)
     forceTomTomCheck.Text:SetText("Force TomTom Routing (recommended)")
@@ -3003,6 +3436,85 @@ function HC:CreateSettingsPanel(parent)
     performanceCb:SetScript("OnClick", function(selfBtn)
         EnsureUserUIState()
         HousingCompletedDB.ui.performanceMode = selfBtn:GetChecked() and true or false
+    end)
+    y = y - 30
+
+    local advLabel = settings:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    advLabel:SetPoint("TOPLEFT", 20, y)
+    advLabel:SetText("Advanced Profile:")
+    y = y - 22
+
+    local profileBox = CreateFrame("EditBox", nil, settings, "InputBoxTemplate")
+    profileBox:SetSize(180, 20)
+    profileBox:SetPoint("TOPLEFT", 30, y)
+    profileBox:SetAutoFocus(false)
+    if self.GetAdvancedProfileName then
+        profileBox:SetText(self:GetAdvancedProfileName() or "default")
+    else
+        profileBox:SetText("default")
+    end
+    profileBox:SetScript("OnEnterPressed", function(selfBox)
+        local name = selfBox:GetText()
+        if HC.SetAdvancedProfile then
+            local ok, active = HC:SetAdvancedProfile(name)
+            if ok then
+                selfBox:SetText(active)
+                print("|cff00ff99Housing Completed|r: Active profile set to '" .. tostring(active) .. "'.")
+                HC:DoSearch({ preservePage = true, preserveSelection = true })
+            end
+        end
+        selfBox:ClearFocus()
+    end)
+
+    local rulesBtn = CreateFrame("Button", nil, settings, "UIPanelButtonTemplate")
+    rulesBtn:SetSize(120, 20)
+    rulesBtn:SetPoint("LEFT", profileBox, "RIGHT", 8, 0)
+    rulesBtn:SetText("Reset Rules")
+    rulesBtn:SetScript("OnClick", function()
+        if HC.ClearAdvancedRules then
+            HC:ClearAdvancedRules()
+            print("|cff00ff99Housing Completed|r: Rules cleared for active profile.")
+            HC:DoSearch({ preservePage = true, preserveSelection = true })
+        end
+    end)
+    y = y - 28
+
+    local rulesEnabledCb = CreateFrame("CheckButton", nil, settings, "UICheckButtonTemplate")
+    rulesEnabledCb:SetPoint("TOPLEFT", 30, y)
+    SetButtonText(rulesEnabledCb, "Enable Rule Engine Filtering", 0.8, 0.8, 0.8)
+    rulesEnabledCb:SetChecked(HC.AdvancedRulesEnabled and HC:AdvancedRulesEnabled() or false)
+    rulesEnabledCb:SetScript("OnClick", function(selfBtn)
+        if HC.SetAdvancedRulesEnabled then
+            HC:SetAdvancedRulesEnabled(selfBtn:GetChecked() and true or false)
+            HC:DoSearch({ preservePage = true, preserveSelection = true })
+        end
+    end)
+    y = y - 24
+
+    local scoreLabel = settings:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    scoreLabel:SetPoint("TOPLEFT", 20, y)
+    scoreLabel:SetText("Scoring Weights (P/C/T/R):")
+    y = y - 22
+
+    local scoreBox = CreateFrame("EditBox", nil, settings, "InputBoxTemplate")
+    scoreBox:SetSize(220, 20)
+    scoreBox:SetPoint("TOPLEFT", 30, y)
+    scoreBox:SetAutoFocus(false)
+    local sCfg = self.GetScoringConfig and self:GetScoringConfig() or { profitability = 1, completion = 1, travel = 1, risk = 1 }
+    scoreBox:SetText(string.format("%.2f %.2f %.2f %.2f", tonumber(sCfg.profitability) or 1, tonumber(sCfg.completion) or 1, tonumber(sCfg.travel) or 1, tonumber(sCfg.risk) or 1))
+    scoreBox:SetScript("OnEnterPressed", function(selfBox)
+        local p, c, t, r = selfBox:GetText():match("([%-%d%.]+)%s+([%-%d%.]+)%s+([%-%d%.]+)%s+([%-%d%.]+)")
+        if p and HC.SetScoringConfig then
+            HC:SetScoringConfig({
+                profitability = tonumber(p) or 1,
+                completion = tonumber(c) or 1,
+                travel = tonumber(t) or 1,
+                risk = tonumber(r) or 1,
+            })
+            print("|cff00ff99Housing Completed|r: Scoring weights updated.")
+            HC:DoSearch({ preservePage = true, preserveSelection = true })
+        end
+        selfBox:ClearFocus()
     end)
     y = y - 30
 
@@ -3122,9 +3634,8 @@ function HC:DoSearch(opts)
     if currentTab == "craft" then
         filters.sourceTypes = { profession = true }
     elseif currentTab == "planner" then
-        -- planner uses economy-capable rows
     elseif currentTab == "economy" then
-        -- economy uses all sources but filters by economics below
+    elseif currentTab == "analytics" then
     end
 
     if currentSourceView == "items" then
@@ -3143,6 +3654,9 @@ function HC:DoSearch(opts)
         local show = true
         if r.collected and not filters.showCollected then show = false end
         if not r.collected and not filters.showUncollected then show = false end
+        if show and self.IsResultAllowedByRules and not self:IsResultAllowedByRules(r) then
+            show = false
+        end
         if show and currentPrimaryTab == "favorites" then
             show = self:IsItemFavorite(r)
         end
@@ -3178,6 +3692,7 @@ function HC:DoSearch(opts)
     end
 
     currentResults = filtered
+    self.lastComputedResults = currentResults
     for _, r in ipairs(currentResults) do
         if self.GetResultEconomics then
             self:GetResultEconomics(r, { forceRefresh = false })
@@ -3206,12 +3721,67 @@ function HC:DoSearch(opts)
     self:UpdateSetWaypointButton()
     self:UpdateAddShoppingButton()
     self:UpdateMapAllButton()
+    self:UpdateActionPanel()
+    self:RefreshAnalyticsPanel()
     if currentTab == "planner" then
         self:RunPlanner()
     end
     if self.UpdatePreview then
         self:UpdatePreview(selectedItem)
     end
+end
+
+function HC:UpdateActionPanel()
+    if not self.nextActionText then return end
+    local nextAction = self.GetNextBestAction and self:GetNextBestAction(currentResults) or nil
+    if not nextAction then
+        self.nextActionText:SetText("Next: No actionable target in current filters.")
+        return
+    end
+    local loc = ""
+    if nextAction.mapID and nextAction.x and nextAction.y then
+        loc = string.format(" @ %.1f, %.1f", (nextAction.x or 0) * 100, (nextAction.y or 0) * 100)
+    end
+    self.nextActionText:SetText(string.format("Next: %s | %s (%d%%)%s", nextAction.action or "Do", nextAction.name or "Unknown", tonumber(nextAction.confidence) or 0, loc))
+end
+
+function HC:RefreshAnalyticsPanel()
+    if not self.analyticsBodyText then return end
+    local a = self.GetAdvancedAnalytics and self:GetAdvancedAnalytics(currentResults) or nil
+    if not a then
+        self.analyticsBodyText:SetText("Analytics unavailable.")
+        return
+    end
+    analyticsSummaryText = string.format(
+        "Profile: %s\nCollection: %d/%d\nUnknown Sources: %d\nResults: %d\nCraftable: %d\nProfitable: %d\nShopping List: %d\nTracked Reagents: %d\nAggregate Cost: %s\nAggregate Profit: %s\nROI: %.1f%%\nMarket Trend Up: %d\nMarket Trend Down: %d\nRegime: %s (%d%%)\nAverage Risk: %.1f\nTelemetry Events: %d",
+        tostring(a.activeProfile or "default"),
+        tonumber(a.collectedTrackable) or 0,
+        tonumber(a.trackableTotal) or 0,
+        tonumber(a.unknownSourceItems) or 0,
+        tonumber(a.totalResults) or 0,
+        tonumber(a.craftableCount) or 0,
+        tonumber(a.profitableCount) or 0,
+        tonumber(a.shoppingItems) or 0,
+        tonumber(a.trackedReagents) or 0,
+        FormatMoneyValue(a.totalCost),
+        FormatMoneyValue(a.totalProfit),
+        tonumber(a.roi) or 0,
+        tonumber(a.trendUp) or 0,
+        tonumber(a.trendDown) or 0,
+        tostring(a.marketRegime or "Unknown"),
+        tonumber(a.marketConfidence) or 0,
+        tonumber(a.avgRisk) or 0,
+        tonumber(a.telemetryTotal) or 0
+    )
+    if type(a.telemetryByType) == "table" and next(a.telemetryByType) then
+        local parts = {}
+        for k, v in pairs(a.telemetryByType) do
+            parts[#parts + 1] = tostring(k) .. ":" .. tostring(v)
+        end
+        table.sort(parts)
+        analyticsSummaryText = analyticsSummaryText .. "\nTelemetry Breakdown: " .. table.concat(parts, ", ")
+    end
+    self.analyticsBodyText:SetText(analyticsSummaryText)
 end
 
 function HC:BuildSourceCountFilters()
@@ -3367,6 +3937,18 @@ function HC:ApplyResultLayout()
 end
 
 function HC:UpdateResults()
+    if currentTab == "analytics" then
+        for i = 1, ITEMS_PER_PAGE do
+            if self.resultRows[i] then self.resultRows[i]:Hide() end
+        end
+        if self.pageText then self.pageText:SetText("Analytics") end
+        if self.prevBtn then self.prevBtn:SetEnabled(false) end
+        if self.nextBtn then self.nextBtn:SetEnabled(false) end
+        if self.statusText then self.statusText:SetText("Analytics View") end
+        self:RefreshAnalyticsPanel()
+        return
+    end
+
     for i = 1, ITEMS_PER_PAGE do
         if self.resultRows[i] then self.resultRows[i]:Hide() end
     end
@@ -3383,12 +3965,10 @@ function HC:UpdateResults()
             row.itemData = data
             local streamerMode = HousingCompletedDB and HousingCompletedDB.ui and HousingCompletedDB.ui.streamerMode
             
-            -- Get icon based on source type and profession
             local sourceInfo = self:GetSourceTypeInfo(data.type)
             local icon = sourceInfo.icon
             local resolvedItemID = self:GetResolvedItemID(data)
             
-            -- Prefer the actual item icon when we have an itemID
             if resolvedItemID then
                 local itemIcon
                 if C_Item and C_Item.GetItemIconByID then
@@ -3399,7 +3979,6 @@ function HC:UpdateResults()
                 if itemIcon then icon = itemIcon end
             end
 
-            -- Use profession-specific icon (scan sources for profession name)
             if data.type == "profession" and data.data and data.data.sources and HC.ProfessionIcons then
                 for _, s in ipairs(data.data.sources) do
                     if s.profession and type(s.profession) == "string" then
@@ -3598,6 +4177,15 @@ function HC:UpdatePlannerControls()
     if self.plannerBudgetBox then self.plannerBudgetBox:SetShown(show) end
     if self.plannerRunBtn then self.plannerRunBtn:SetShown(show) end
     if self.plannerSummaryText then self.plannerSummaryText:SetShown(show) end
+    local analytics = currentTab == "analytics"
+    if self.resultsFrame then self.resultsFrame:SetShown(not analytics) end
+    if self.analyticsFrame then self.analyticsFrame:SetShown(analytics) end
+    if self.pageText then self.pageText:SetShown(not analytics) end
+    if self.prevBtn then self.prevBtn:SetShown(not analytics) end
+    if self.nextBtn then self.nextBtn:SetShown(not analytics) end
+    if self.statusText then
+        self.statusText:SetText(analytics and "Analytics View" or string.format("%d results", #currentResults))
+    end
 end
 
 function HC:UpdatePrimaryTabs()
@@ -3711,7 +4299,7 @@ function HC:UpdateModeButtons()
     end
 
     local visibleTabs = {
-        acquire = true, craft = true, economy = true, planner = true, collection = true,
+        acquire = true, craft = true, economy = true, planner = true, analytics = true, collection = true,
     }
     if active == "goblin" then
         visibleTabs.collection = false

@@ -1,5 +1,44 @@
 # Changelog
 
+## [1.7.0] - 2026-03-06
+
+### Added
+- Advanced systems foundation in `Systems/Advanced.lua` with automation, blueprint, routing, and planning hooks integrated into the main UI flow.
+- Enhanced vendor and acquisition workflows, including broader filtering, mapping, and source visibility.
+- Richer crafting and planning surfaces with stronger reagent tracking and shopping support.
+- Additional quality-of-life integrations across route planning, export dialogs, and action panel operations.
+
+### Changed
+- Recipes materials interaction updated to Shift-Click tracking for reagents in recipe material displays.
+- Removed Ctrl-Click tracking behavior from recipe material rows.
+- Collection checks centralized so tabs and filters use consistent ownership logic.
+- Version aligned to `1.7.0` across addon metadata and runtime constants.
+
+### Fixed
+- Collection false-positives corrected for non-crafted items (vendor, promotion, quest, and similar sources).
+- Crafted-only fallback handling applied so `firstAcquisitionBonus` no longer marks non-crafted items as collected.
+- Styles tab uncollected filter now uses centralized collection validation instead of inline fallback checks.
+- Materials list now refreshes immediately after tracking or untracking reagents.
+- Fixed startup error in advanced actions (`IsResultCraftable` nil method path).
+- Fixed blueprint dialog/editbox height error (`GetStringHeight` nil call path).
+- Stabilized result and item-resolution flows after API-oriented behavior updates that caused missing-item scenarios.
+
+### Performance
+- Reduced memory pressure by removing duplicate all-item cache dependence in search/index paths.
+- Introduced lightweight known-item ID indexing for broad item resolution without duplicating full item objects.
+- Optimized statistics/search loops to iterate compact ID lists and cached item metadata.
+- Added source-table release support after index/materialized lookup build to reduce retained memory footprint.
+
+### UI
+- Fixed overlapping text in item crafting/material requirement displays.
+- Prevented simultaneous overdraw of material text and reagent button overlays in preview.
+- Applied single-line clamping in relevant shopping/tracked reagent rows to avoid row collision on long labels.
+
+### Notes
+- This release includes broad data, UI, systems, and performance updates delivered as one consolidated update.
+
+
+
 ## [1.6.1] - 2026-03-05
 
 ### Fixed

@@ -1,18 +1,8 @@
----------------------------------------------------
--- Housing Completed - Imported from internal vendor/recipe datasets
----------------------------------------------------
 local addonName, HC = ...
 
--- ============================================================================
--- HC_ProfessionsDB v2 (Slot-Based Format, Keyed by RecipeID)
--- Generated: 2026-01-15 20:42:16
--- Total Recipes: 8396
--- Slot types: basic (required), modifying/finishing/automatic (optional)
--- ============================================================================
 
 HC.ProfessionRecipeDB = {
 
--- ========== Classic ==========
 [3979]={name="Accurate Scope",profession="Engineering",expansion="Classic",recipeID=3979,itemID=4407,slots={{type="basic",qty=1,itemID=4371,variants={},name="Bronze Tube"},{type="basic",qty=1,itemID=1529,variants={}},{type="basic",qty=1,itemID=3864,variants={}}}},
 [12081]={name="Admiral's Hat",profession="Tailoring",expansion="Classic",recipeID=12081,itemID=10030,slots={{type="basic",qty=5,itemID=4339,variants={}},{type="basic",qty=2,itemID=8343,variants={}},{type="modifying",qty=1,itemID=180055,variants={180057,180058,180059,180060,228368}}}},
 [13868]={name="Advanced Herbalism",profession="Enchanting",expansion="Classic",recipeID=13868,slots={{type="basic",qty=2,itemID=156930,variants={}},{type="basic",qty=3,itemID=8838,variants={}}}},
@@ -1594,7 +1584,6 @@ HC.ProfessionRecipeDB = {
 [23129]={name="World Enlarger",profession="Engineering",expansion="Classic",recipeID=23129,itemID=18660,slots={{type="basic",qty=1,itemID=10561,variants={},name="Mithril Casing"},{type="basic",qty=2,itemID=15994,variants={},name="Thorium Widget"},{type="basic",qty=1,itemID=10558,variants={},name="Gold Power Core"},{type="basic",qty=1,itemID=10560,variants={},name="Unstable Trigger"},{type="basic",qty=1,itemID=3864,variants={}}}},
 [26925]={name="Woven Copper Ring",profession="Jewelcrafting",expansion="Classic",recipeID=26925,itemID=21931,slots={{type="basic",qty=2,itemID=20816,variants={}},{type="basic",qty=1,itemID=2840,variants={}},{type="modifying",qty=1,itemID=180055,variants={180057,180058,180059,180060,228368}}}},
 
--- ========== The Burning Crusade ==========
 [29606]={name="Adamantite Breastplate",profession="Blacksmithing",expansion="The Burning Crusade",recipeID=29606,itemID=23507,slots={{type="basic",qty=12,itemID=23446,variants={}},{type="basic",qty=4,itemID=22452,variants={}},{type="basic",qty=2,itemID=21884,variants={}},{type="modifying",qty=1,itemID=180055,variants={180057,180058,180059,180060,228368},name="Relic of the Past I"}}},
 [29568]={name="Adamantite Cleaver",profession="Blacksmithing",expansion="The Burning Crusade",recipeID=29568,itemID=23503,slots={{type="basic",qty=8,itemID=23446,variants={}},{type="modifying",qty=1,itemID=180055,variants={180057,180058,180059,180060,228368},name="Relic of the Past I"}}},
 [29569]={name="Adamantite Dagger",profession="Blacksmithing",expansion="The Burning Crusade",recipeID=29569,itemID=23504,slots={{type="basic",qty=7,itemID=23446,variants={}},{type="basic",qty=2,itemID=21887,variants={}},{type="modifying",qty=1,itemID=180055,variants={180057,180058,180059,180060,228368},name="Relic of the Past I"}}},
@@ -2376,7 +2365,6 @@ HC.ProfessionRecipeDB = {
 [46106]={name="Wonderheal XT68 Shades",profession="Engineering",expansion="The Burning Crusade",recipeID=46106,itemID=35183,slots={{type="basic",qty=1,itemID=32479,variants={},name="Wonderheal XT40 Shades"},{type="basic",qty=4,itemID=21885,variants={},name="Primal Water"},{type="basic",qty=8,itemID=22457,variants={},name="Primal Mana"},{type="basic",qty=4,itemID=23572,variants={},name="Primal Nether"},{type="modifying",qty=1,itemID=180055,variants={180057,180058,180059,180060,228368},name="Relic of the Past I"}}},
 [30548]={name="Zapthrottle Mote Extractor",profession="Engineering",expansion="The Burning Crusade",recipeID=30548,itemID=23821,slots={{type="basic",qty=2,itemID=23782,variants={},name="Fel Iron Casing"},{type="basic",qty=2,itemID=23783,variants={},name="Handful of Fel Iron Bolts"},{type="basic",qty=4,itemID=21886,variants={},name="Primal Life"},{type="basic",qty=1,itemID=16006,variants={},name="Delicate Arcanite Converter"}}},
 
--- ========== Wrath of the Lich King ==========
 [56004]={name="Abyssal Bag",profession="Tailoring",expansion="Wrath of the Lich King",recipeID=56004,itemID=41597,slots={{type="basic",qty=4,itemID=41593,variants={}},{type="basic",qty=2,itemID=41595,variants={}},{type="basic",qty=1,itemID=38426,variants={}}}},
 [69412]={name="Abyssal Shatter",profession="Enchanting",expansion="Wrath of the Lich King",recipeID=69412,itemID=89738,slots={{type="basic",qty=1,itemID=34057,variants={},name="Abyss Crystal"}}},
 [59619]={name="Accuracy",profession="Enchanting",expansion="Wrath of the Lich King",recipeID=59619,slots={{type="basic",qty=20,itemID=34054,variants={},name="Infinite Dust"},{type="basic",qty=4,itemID=34055,variants={},name="Greater Cosmic Essence"},{type="basic",qty=4,itemID=34052,variants={}},{type="basic",qty=6,itemID=34057,variants={},name="Abyss Crystal"}}},
@@ -3225,7 +3213,6 @@ HC.ProfessionRecipeDB = {
 [53841]={name="Wrath Elixir",profession="Alchemy",expansion="Wrath of the Lich King",recipeID=53841,itemID=40068,slots={{type="basic",qty=1,itemID=36901,variants={}},{type="basic",qty=2,itemID=37921,variants={}},{type="basic",qty=1,itemID=3371,variants={},name="Crystal Vial"}}},
 [55995]={name="Yellow Lumberjack Shirt",profession="Tailoring",expansion="Wrath of the Lich King",recipeID=55995,itemID=41251,slots={{type="basic",qty=4,itemID=41510,variants={}},{type="basic",qty=1,itemID=4341,variants={}}}},
 
--- ========== Cataclysm ==========
 [1262370]={name="\"Unity of Thorns\" Tapestry",profession="Tailoring",expansion="Cataclysm",recipeID=1262370,itemID=257402,slots={{type="basic",qty=26,itemID=251764,variants={}},{type="basic",qty=2,itemID=54440,variants={}},{type="basic",qty=2,itemID=54849,variants={}},{type="basic",qty=8,itemID=38426,variants={}},{type="basic",qty=6,itemID=61981,variants={}}}},
 [73360]={name="Accurate Demonseye",profession="Jewelcrafting",expansion="Cataclysm",recipeID=73360,itemID=52203,slots={{type="basic",qty=1,itemID=52194,variants={}}}},
 [73250]={name="Accurate Nightstone",profession="Jewelcrafting",expansion="Cataclysm",recipeID=73250,itemID=52105,slots={{type="basic",qty=1,itemID=52180,variants={}}}},
@@ -3920,7 +3907,6 @@ HC.ProfessionRecipeDB = {
 [101748]={name="Zen Elven Peridot",profession="Jewelcrafting",expansion="Cataclysm",recipeID=101748,itemID=71827,slots={{type="basic",qty=1,itemID=71810,variants={}}}},
 [73280]={name="Zen Jasper",profession="Jewelcrafting",expansion="Cataclysm",recipeID=73280,itemID=52127,slots={{type="basic",qty=1,itemID=52182,variants={}}}},
 
--- ========== Mists of Pandaria ==========
 [104398]={name="Accuracy",profession="Enchanting",expansion="Mists of Pandaria",recipeID=104398,slots={{type="basic",qty=7,itemID=74249,variants={},name="Spirit Dust"}}},
 [107693]={name="Accurate Imperial Amethyst",profession="Jewelcrafting",expansion="Mists of Pandaria",recipeID=107693,itemID=76681,slots={{type="basic",qty=1,itemID=76141,variants={}}}},
 [107627]={name="Accurate Roguestone",profession="Jewelcrafting",expansion="Mists of Pandaria",recipeID=107627,itemID=76549,slots={{type="basic",qty=1,itemID=76135,variants={}}}},
@@ -4920,7 +4906,6 @@ HC.ProfessionRecipeDB = {
 [107616]={name="Zen Alexandrite",profession="Jewelcrafting",expansion="Mists of Pandaria",recipeID=107616,itemID=76512,slots={{type="basic",qty=1,itemID=76137,variants={}}}},
 [106958]={name="Zen Wild Jade",profession="Jewelcrafting",expansion="Mists of Pandaria",recipeID=106958,itemID=76645,slots={{type="basic",qty=1,itemID=76139,variants={}}}},
 
--- ========== Warlords of Draenor ==========
 [156588]={name="Alchemical Catalyst - Fireweed",profession="Alchemy",expansion="Warlords of Draenor",recipeID=156588,slots={{type="basic",qty=20,itemID=109125,variants={}},{type="basic",qty=3,itemID=109118,variants={}}}},
 [156589]={name="Alchemical Catalyst - Flytrap",profession="Alchemy",expansion="Warlords of Draenor",recipeID=156589,slots={{type="basic",qty=20,itemID=109126,variants={}},{type="basic",qty=3,itemID=109118,variants={}}}},
 [156593]={name="Alchemical Catalyst - Lotus",profession="Alchemy",expansion="Warlords of Draenor",recipeID=156593,slots={{type="basic",qty=1,itemID=109130,variants={}},{type="basic",qty=3,itemID=109118,variants={}}}},
@@ -5283,7 +5268,6 @@ HC.ProfessionRecipeDB = {
 [162206]={name="World Shrinker",profession="Engineering",expansion="Warlords of Draenor",recipeID=162206,itemID=109183,slots={{type="basic",qty=50,itemID=111366,variants={},name="Gearspring Parts"}}},
 [162216]={name="Wormhole Centrifuge",profession="Engineering",expansion="Warlords of Draenor",recipeID=162216,itemID=112059,slots={{type="basic",qty=50,itemID=111366,variants={},name="Gearspring Parts"}}},
 
--- ========== Legion ==========
 [209501]={name="\"The Felic\"",profession="Engineering",expansion="Legion",recipeID=209501,itemID=136687,slots={{type="basic",qty=12,itemID=124461,variants={},name="Demonsteel Bar"},{type="basic",qty=8,itemID=124124,variants={},name="Blood of Sargeras"},{type="basic",qty=2,itemID=124444,variants={},name="Infernal Brimstone"}}},
 [188297]={name="Ancient Healing Potion",profession="Alchemy",expansion="Legion",recipeID=188297,itemID=127834,slots={{type="basic",qty=4,itemID=128304,variants={}},{type="basic",qty=1,itemID=3371,variants={},name="Crystal Vial"}}},
 [195873]={name="Ancient Maelstrom Amulet",profession="Jewelcrafting",expansion="Legion",recipeID=195873,itemID=130241,slots={{type="basic",qty=8,itemID=130182,variants={}},{type="basic",qty=1,itemID=130178,variants={}},{type="basic",qty=1,itemID=130181,variants={}},{type="basic",qty=2,itemID=124444,variants={}},{type="basic",qty=5,itemID=124124,variants={}},{type="modifying",qty=1,itemID=180055,variants={180057,180058,180059,180060,228368}}}},
@@ -5820,7 +5804,6 @@ HC.ProfessionRecipeDB = {
 [190869]={name="Word of Versatility",profession="Enchanting",expansion="Legion",recipeID=190869,slots={{type="basic",qty=15,itemID=124440,variants={},name="Arkhana"}}},
 [247744]={name="Wormhole Generator: Argus",profession="Engineering",expansion="Legion",recipeID=247744,itemID=151652,slots={{type="basic",qty=30,itemID=151564,variants={},name="Empyrium"},{type="basic",qty=2,itemID=136633,variants={}},{type="basic",qty=2,itemID=151568,variants={}}}},
 
--- ========== Battle for Azeroth ==========
 [305951]={name="A-N0M-A-L0U5 Bionic Bifocals",profession="Engineering",expansion="Battle for Azeroth",recipeID=305951,itemID=171014,slots={{type="basic",qty=200,itemID=168185,variants={},name="Osmenite Ore"},{type="basic",qty=50,itemID=152513,variants={}},{type="basic",qty=30,itemID=152668,variants={},name="Expulsom"},{type="basic",qty=35,itemID=163569,variants={},name="Insulated Wiring"}}},
 [305942]={name="A-N0M-A-L0U5 Gearspun Goggles",profession="Engineering",expansion="Battle for Azeroth",recipeID=305942,itemID=171005,slots={{type="basic",qty=200,itemID=168185,variants={},name="Osmenite Ore"},{type="basic",qty=50,itemID=152513,variants={}},{type="basic",qty=30,itemID=152668,variants={},name="Expulsom"},{type="basic",qty=35,itemID=163569,variants={},name="Insulated Wiring"}}},
 [305948]={name="A-N0M-A-L0U5 Orthogonal Optics",profession="Engineering",expansion="Battle for Azeroth",recipeID=305948,itemID=171011,slots={{type="basic",qty=200,itemID=168185,variants={},name="Osmenite Ore"},{type="basic",qty=50,itemID=152513,variants={}},{type="basic",qty=30,itemID=152668,variants={},name="Expulsom"},{type="basic",qty=35,itemID=163569,variants={},name="Insulated Wiring"}}},
@@ -6544,7 +6527,6 @@ HC.ProfessionRecipeDB = {
 [1260564]={name="Zuldazar Fence",profession="Inscription",expansion="Battle for Azeroth",recipeID=1260564,itemID=245415,slots={{type="basic",qty=15,itemID=251768,variants={}},{type="basic",qty=18,itemID=152512,variants={}},{type="basic",qty=8,itemID=158188,variants={}}}},
 [1260508]={name="Zuldazar Fencepost",profession="Inscription",expansion="Battle for Azeroth",recipeID=1260508,itemID=245416,slots={{type="basic",qty=10,itemID=251768,variants={}},{type="basic",qty=6,itemID=152512,variants={}},{type="basic",qty=4,itemID=158188,variants={}}}},
 
--- ========== Shadowlands ==========
 [310493]={name="50UL-TR4P",profession="Engineering",expansion="Shadowlands",recipeID=310493,itemID=172915,slots={{type="basic",qty=3,itemID=172937,variants={},name="Wormfed Gear Assembly"},{type="basic",qty=5,itemID=172936,variants={},name="Mortal Coiled Spring"},{type="basic",qty=10,itemID=172934,variants={},name="Handful of Laestrite Bolts"},{type="basic",qty=10,itemID=171831,variants={}},{type="basic",qty=5,itemID=172230,variants={},name="Soul Dust"}}},
 [360016]={name="Aealic Harmonizing Stone",profession="Jewelcrafting",expansion="Shadowlands",recipeID=360016,itemID=187829,slots={{type="basic",qty=7,itemID=187700,variants={}},{type="basic",qty=5,itemID=183954,variants={}},{type="basic",qty=5,itemID=173108,variants={}},{type="basic",qty=5,itemID=173110,variants={}}}},
 [309532]={name="Agile Soulwalker",profession="Enchanting",expansion="Shadowlands",recipeID=309532,slots={{type="basic",qty=3,itemID=172230,variants={},name="Soul Dust"}}},
@@ -7009,7 +6991,6 @@ HC.ProfessionRecipeDB = {
 [338271]={name="Woven Gossamer Tunic",profession="Tailoring",expansion="Shadowlands",recipeID=338271,itemID=181971,slots={{type="basic",qty=3,itemID=182102,variants={}},{type="basic",qty=1,itemID=182104,variants={}}}},
 [311423]={name="Writ of Grave Robbing",profession="Inscription",expansion="Shadowlands",recipeID=311423,itemID=173065,slots={{type="basic",qty=1,itemID=173059,variants={}},{type="basic",qty=1,itemID=173058,variants={}},{type="basic",qty=1,itemID=175886,variants={}}}},
 
--- ========== Dragonflight ==========
 [375063]={name="\"Rhinestone\" Sunglasses",profession="Jewelcrafting",expansion="Dragonflight",recipeID=375063,itemID=193371,slots={{type="basic",qty=2,itemID=192859,variants={192860,192861}},{type="basic",qty=2,itemID=192876,variants={192877,192878}},{type="basic",qty=1,itemID=192869,variants={192870,192871}},{type="basic",qty=1,itemID=192887,variants={193378,193379}}}},
 [376533]={name="Abrasive Polishing Cloth",profession="Tailoring",expansion="Dragonflight",recipeID=376533,itemID=193950,outputQtyMin=2,outputQtyMax=2,slots={{type="basic",qty=3,itemID=192872,variants={}},{type="basic",qty=1,itemID=193926,variants={193927,193928}},{type="finishing",qty=1,itemID=191526,variants={}}}},
 [389416]={name="Accelerated Agility",profession="Enchanting",expansion="Dragonflight",recipeID=389416,slots={{type="basic",qty=3,itemID=194124,variants={},name="Vibrant Shard"},{type="basic",qty=2,itemID=200113,variants={},name="Resonant Crystal"},{type="finishing",qty=1,itemID=191526,variants={},name="Lesser Illustrious Insight"}}},
@@ -7840,7 +7821,6 @@ HC.ProfessionRecipeDB = {
 [374458]={name="Zen Neltharite",profession="Jewelcrafting",expansion="Dragonflight",recipeID=374458,itemID=192962,slots={{type="basic",qty=2,itemID=190329,variants={}},{type="basic",qty=1,itemID=190316,variants={}},{type="basic",qty=1,itemID=190324,variants={}},{type="basic",qty=1,itemID=192862,variants={192863,192865}},{type="finishing",qty=1,itemID=193950,variants={193951,193952,193953,193954,193955}},{type="finishing",qty=1,itemID=191526,variants={}}}},
 [381381]={name="Zesty Water",profession="Cooking",expansion="Dragonflight",recipeID=381381,itemID=197770,outputQtyMin=4,outputQtyMax=4,slots={{type="basic",qty=1,itemID=197742,variants={},name="Ribbed Mollusk Meat"},{type="basic",qty=1,itemID=159,variants={},name="Refreshing Spring Water"},{type="finishing",qty=1,itemID=197765,variants={197764},name="Impossibly Sharp Cutting Knife"},{type="finishing",qty=1,itemID=194902,variants={},name="Ooey-Gooey Chocolate"}}},
 
--- ========== The War Within ==========
 [1213620]={name="22H Slicks",profession="Engineering",expansion="The War Within",recipeID=1213620,itemID=232985,slots={{type="basic",qty=50,itemID=219150,variants={},name="Pile of Rusted Scrap"},{type="basic",qty=32,itemID=221853,variants={221854,221855},name="Handful of Bismuth Bolts"},{type="basic",qty=12,itemID=221859,variants={221860,221861},name="Gyrating Gear"},{type="basic",qty=6,itemID=221856,variants={221857,221858},name="Whimsical Wiring"},{type="basic",qty=2,itemID=221868,variants={221869,221870},name="Entropy Enhancer"}}},
 [447379]={name="4UT0-41M3R",profession="Engineering",expansion="The War Within",recipeID=447379,itemID=225646,slots={{type="basic",qty=10,itemID=219150,variants={},name="Pile of Rusted Scrap"},{type="basic",qty=6,itemID=221853,variants={221854,221855},name="Handful of Bismuth Bolts"},{type="basic",qty=1,itemID=221859,variants={221860,221861},name="Gyrating Gear"},{type="basic",qty=1,itemID=221856,variants={221857,221858},name="Whimsical Wiring"},{type="basic",qty=1,itemID=221862,variants={221863,221864},name="Safety Switch"},{type="finishing",qty=1,itemID=225670,variants={225671,225672,225673},name="Apprentice's Crafting License"},{type="modifying",qty=1,itemID=222579,variants={222580,222581,222582,222583,222584,222585,222586,222587,222588,222589,222590,222591,222592,222593,222594,222595,222596},name="Algari Missive of the Aurora"},{type="modifying",qty=1,itemID=213768,variants={213769,213770,213771,213772,213773,213774,213775,213776,219495,219496,219497,226025,226026,226027,226022,226023,226024,226028,226029,226030,226031,226032,226033,221938,221939,221940,221941,221942,221943,228921},name="Elemental Focusing Lens"},{type="modifying",qty=1,itemID=228339,variants={224069,230937,231767},name="Soul Sigil II"},{type="finishing",qty=1,itemID=213765,variants={213766,213767,225987,225988,225989,224173,224174,224175,222514,222515,222516},name="Ominous Energy Crystal"}}},
 [447375]={name="Acolyte's Goggles",profession="Engineering",expansion="The War Within",recipeID=447375,itemID=225642,slots={{type="basic",qty=5,itemID=219150,variants={},name="Pile of Rusted Scrap"},{type="basic",qty=4,itemID=221853,variants={221854,221855},name="Handful of Bismuth Bolts"},{type="basic",qty=1,itemID=221859,variants={221860,221861},name="Gyrating Gear"},{type="basic",qty=1,itemID=221856,variants={221857,221858},name="Whimsical Wiring"},{type="modifying",qty=1,itemID=221911,variants={221912,221913,221914,221915,221916,221917,221918,221919,221920,221921,221922},name="Serrated Cogwheel"},{type="modifying",qty=1,itemID=221923,variants={221924,221925,221926,221927,221928,221932,221933,221934},name="Recalibrated Safety Switch"},{type="modifying",qty=1,itemID=228338,variants={228339,224069,230937,231767}},{type="finishing",qty=1,itemID=213765,variants={213766,213767,225987,225988,225989,224173,224174,224175,222514,222515,222516},name="Ominous Energy Crystal"},{type="finishing",qty=1,itemID=225670,variants={225671,225672,225673},name="Apprentice's Crafting License"},{type="automatic",qty=1,itemID=226676,variants={226677,232387,232388,248447,248448}}}},

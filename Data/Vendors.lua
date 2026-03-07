@@ -1,14 +1,6 @@
----------------------------------------------------
--- Housing Completed - Vendors.lua
--- All housing decor vendors with locations
----------------------------------------------------
 local addonName, HC = ...
 
--- Vendor database: { id, name, zone, subzone, x, y, mapID, faction, expansion, items = {} }
 HC.Vendors = {
-    -- =====================================================
-    -- CLASSIC
-    -- =====================================================
     { id = 68364, name = "Paul North", zone = "Brawl'gar Arena", x = 52.0, y = 27.8, mapID = 503, faction = "horde", expansion = "classic", notes = "Brawler's Guild" },
     { id = 68363, name = "Quackenbush", zone = "Bizmo's Brawlpub", x = 51.0, y = 30.0, mapID = 499, faction = "alliance", expansion = "classic", notes = "Brawler's Guild" },
     { id = 13217, name = "Thanthaldis Snowgleam", zone = "Hillsbrad Foothills", subzone = "The Headland", x = 44.6, y = 46.6, mapID = 25, faction = "neutral", expansion = "classic" },
@@ -36,29 +28,17 @@ HC.Vendors = {
     { id = 50483, name = "Brave Tuho", zone = "Thunder Bluff", x = 46.6, y = 50.6, mapID = 88, faction = "horde", expansion = "classic" },
     { id = 3178, name = "Stuart Fleming", zone = "Wetlands", subzone = "Menethil Harbor", x = 6.27, y = 57.45, mapID = 56, faction = "alliance", expansion = "classic" },
     
-    -- =====================================================
-    -- THE BURNING CRUSADE
-    -- =====================================================
     { id = 16528, name = "Provisioner Vredigar", zone = "Ghostlands", subzone = "Tranquillien", x = 47.6, y = 32.4, mapID = 95, faction = "horde", expansion = "tbc" },
     
-    -- =====================================================
-    -- WRATH OF THE LICH KING
-    -- =====================================================
     { id = 28038, name = "Purser Boulian", zone = "Sholazar Basin", subzone = "Nesingwary Base Camp", x = 26.8, y = 59.2, mapID = 119, faction = "neutral", expansion = "wotlk" },
     { id = 27391, name = "Woodsman Drake", zone = "Grizzly Hills", subzone = "Amberpine Lodge", x = 32.4, y = 60, mapID = 116, faction = "alliance", expansion = "wotlk" },
     { id = 25206, name = "Ahlurglgr", zone = "Borean Tundra", subzone = "Winterfin Retreat", x = 43.03, y = 13.78, mapID = 114, faction = "neutral", expansion = "wotlk" },
     
-    -- =====================================================
-    -- CATACLYSM
-    -- =====================================================
     { id = 211065, name = "Marie Allen", zone = "Gilneas", subzone = "Stormglen Village", x = 60.4, y = 92.4, mapID = 217, faction = "alliance", expansion = "cata" },
     { id = 50307, name = "Lord Candren", zone = "Gilneas City", x = 56.94, y = 55.91, mapID = 217, faction = "alliance", expansion = "cata" },
     { id = 216888, name = "Samantha Buckley", zone = "Gilneas City", x = 65.2, y = 47.2, mapID = 217, faction = "alliance", expansion = "cata" },
     { id = 253227, name = "Breana Bitterbrand", zone = "Twilight Highlands", subzone = "Thundermar", x = 49.6, y = 29.6, mapID = 241, faction = "alliance", expansion = "cata" },
     
-    -- =====================================================
-    -- MISTS OF PANDARIA
-    -- =====================================================
     { id = 58414, name = "San Redscale", zone = "The Jade Forest", subzone = "Arboretum", x = 56.6, y = 44.4, mapID = 371, faction = "neutral", expansion = "mop" },
     { id = 59698, name = "Brother Furtrim", zone = "Kun-Lai Summit", subzone = "One Keg", x = 57.2, y = 61, mapID = 379, faction = "neutral", expansion = "mop" },
     { id = 58706, name = "Gina Mudclaw", zone = "Valley of the Four Winds", subzone = "Halfhill", x = 53.2, y = 51.6, mapID = 376, faction = "neutral", expansion = "mop" },
@@ -67,9 +47,6 @@ HC.Vendors = {
     { id = 64605, name = "Tan Shin Tiao", zone = "Vale of Eternal Blossoms", subzone = "Mogu'shan Palace", x = 82.23, y = 29.33, mapID = 390, faction = "neutral", expansion = "mop" },
     { id = 62088, name = "Lali the Assistant", zone = "Vale of Eternal Blossoms", subzone = "Mogu'shan Palace", x = 82.8, y = 30.8, mapID = 390, faction = "neutral", expansion = "mop" },
     
-    -- =====================================================
-    -- WARLORDS OF DRAENOR
-    -- =====================================================
     { id = 79812, name = "Moz'def", zone = "Frostwall", x = 48.0, y = 66.0, mapID = 525, faction = "horde", expansion = "wod", notes = "Requires Level 1 Barracks" },
     { id = 76872, name = "Supplymaster Eri", zone = "Frostwall", x = 48.0, y = 66.0, mapID = 525, faction = "horde", expansion = "wod" },
     { id = 79774, name = "Sergeant Grimjaw", zone = "Frostwall", x = 43.8, y = 47.4, mapID = 590, faction = "horde", expansion = "wod" },
@@ -81,9 +58,6 @@ HC.Vendors = {
     { id = 81133, name = "Artificer Kallaes", zone = "Shadowmoon Valley", subzone = "Embaari Village", x = 46.2, y = 39.3, mapID = 539, faction = "alliance", expansion = "wod" },
     { id = 87775, name = "Ruuan the Seer", zone = "Spires of Arak", subzone = "Veil Terokk", x = 46.6, y = 45.0, mapID = 542, faction = "neutral", expansion = "wod" },
     
-    -- =====================================================
-    -- LEGION
-    -- =====================================================
     { id = 127151, name = "Toraan the Revered", zone = "Argus", subzone = "The Vindicaar", x = 68.22, y = 56.91, mapID = 940, faction = "neutral", expansion = "legion" },
     { id = 89939, name = "Berazus", zone = "Azsuna", subzone = "Leyhollow Cave", x = 47.8, y = 23.6, mapID = 630, faction = "neutral", expansion = "legion" },
     { id = 112716, name = "Rasil Fireborne", zone = "Dalaran", subzone = "Photonic Playground", x = 43.4, y = 49.4, mapID = 627, faction = "neutral", expansion = "legion" },
@@ -100,7 +74,6 @@ HC.Vendors = {
     { id = 252498, name = "Corbin Branbell", zone = "Val'sharah", subzone = "Bradensbrook", x = 42.09, y = 59.38, mapID = 641, faction = "neutral", expansion = "legion" },
     { id = 109306, name = "Myria Glenbrook", zone = "Val'sharah", subzone = "Lightsong", x = 60.2, y = 84.86, mapID = 641, faction = "neutral", expansion = "legion" },
     
-    -- Order Halls
     { id = 93550, name = "Quartermaster Ozorg", zone = "Acherus", notes = "Death Knight Order Hall", expansion = "legion" },
     { id = 112407, name = "Falara Nightsong", zone = "Fel Hammer", notes = "Demon Hunter Order Hall", expansion = "legion" },
     { id = 100196, name = "Eadric the Pure", zone = "Sanctum of Light", notes = "Paladin Order Hall", expansion = "legion" },
@@ -114,9 +87,6 @@ HC.Vendors = {
     { id = 112392, name = "Quartermaster Durnolf", zone = "Skyhold", notes = "Warrior Order Hall", expansion = "legion" },
     { id = 112401, name = "Meridelle Lightspark", zone = "Netherlight Temple", notes = "Priest Order Hall", expansion = "legion" },
     
-    -- =====================================================
-    -- BATTLE FOR AZEROTH
-    -- =====================================================
     { id = 152194, name = "MOTHER", zone = "Silithus", subzone = "Chamber of Heart", x = 48.3, y = 72.1, mapID = 1473, faction = "neutral", expansion = "bfa" },
     { id = 252313, name = "Caspian", zone = "Stormsong Valley", subzone = "Brennadom", x = 59.6, y = 69.6, mapID = 942, faction = "alliance", expansion = "bfa" },
     { id = 150716, name = "Stolen Royal Vendorbot", zone = "Mechagon", subzone = "Rustbolt", x = 73.7, y = 36.91, mapID = 1462, faction = "neutral", expansion = "bfa" },
@@ -128,15 +98,9 @@ HC.Vendors = {
     { id = 251921, name = "Arcanist Peroleth", zone = "Zuldazar", subzone = "Port of Zandalar", x = 58.0, y = 62.6, mapID = 862, faction = "horde", expansion = "bfa" },
     { id = 252326, name = "T'lama", zone = "Dazar'alor", subzone = "The Great Seal", x = 36.94, y = 59.17, mapID = 1164, faction = "horde", expansion = "bfa" },
     
-    -- =====================================================
-    -- SHADOWLANDS
-    -- =====================================================
     { id = 174710, name = "Chachi the Artiste", zone = "Revendreth", subzone = "Sinfall", x = 54.0, y = 24.8, mapID = 1699, faction = "neutral", expansion = "sl", notes = "Venthyr covenant only" },
     { id = 162804, name = "Ve'nari", zone = "The Maw", subzone = "Ve'nari's Refuge", x = 46.8, y = 41.6, mapID = 1543, faction = "neutral", expansion = "sl" },
     
-    -- =====================================================
-    -- DRAGONFLIGHT
-    -- =====================================================
     { id = 253086, name = "Jolinth", zone = "The Forbidden Reach", subzone = "Morqut Village", x = 35.2, y = 57.0, mapID = 2151, faction = "neutral", expansion = "df" },
     { id = 193015, name = "Unatos", zone = "Valdrakken", subzone = "The Seat of Aspects", x = 58.2, y = 35.6, mapID = 2112, faction = "neutral", expansion = "df" },
     { id = 253067, name = "Silvrath", zone = "Valdrakken", subzone = "The Parting Glass", x = 71.53, y = 49.62, mapID = 2112, faction = "neutral", expansion = "df" },
@@ -152,9 +116,6 @@ HC.Vendors = {
     { id = 216284, name = "Mythrin'dir", zone = "Amirdrassil", subzone = "Bel'ameth", x = 54.0, y = 60.8, mapID = 2239, faction = "alliance", expansion = "df" },
     { id = 216285, name = "Ellandrieth", zone = "Amirdrassil", subzone = "Bel'ameth", x = 48.4, y = 53.6, mapID = 2239, faction = "neutral", expansion = "df" },
     
-    -- =====================================================
-    -- THE WAR WITHIN
-    -- =====================================================
     { id = 223728, name = "Auditor Balwurz", zone = "Dornogal", subzone = "Foundation Hall", x = 39.2, y = 24.4, mapID = 2339, faction = "neutral", expansion = "tww" },
     { id = 219318, name = "Jorid", zone = "Dornogal", subzone = "The Forgegrounds", x = 57.0, y = 60.6, mapID = 2339, faction = "neutral", expansion = "tww" },
     { id = 252910, name = "Garnett", zone = "Dornogal", subzone = "The Forgegrounds", x = 54.68, y = 57.24, mapID = 2339, faction = "neutral", expansion = "tww" },
@@ -178,16 +139,10 @@ HC.Vendors = {
     { id = 235314, name = "Ta'sam", zone = "Tazavesh", x = 43.2, y = 34.8, mapID = 2472, faction = "neutral", expansion = "tww" },
     { id = 235252, name = "Om'sirik", zone = "Tazavesh", subzone = "Tazarest", x = 40.33, y = 29.36, mapID = 2472, faction = "neutral", expansion = "tww" },
     
-    -- =====================================================
-    -- MIDNIGHT
-    -- =====================================================
     { id = 252915, name = "Corlen Hordralin", zone = "Silvermoon City", subzone = "The Bazaar", x = 44.16, y = 62.72, mapID = 2393, faction = "neutral", expansion = "midnight" },
     { id = 256828, name = "Dennia Silvertongue", zone = "Silvermoon City", subzone = "Murder Row", x = 51.16, y = 56.47, mapID = 2393, faction = "neutral", expansion = "midnight" },
     { id = 249196, name = "Materialist Ophinell", zone = "Twilight Highlands", x = 49.6, y = 81.2, mapID = 241, faction = "neutral", expansion = "midnight" },
 
-    -- =====================================================
-    -- DECORVENDOR MERGED (ADDITIONAL VENDORS)
-    -- =====================================================
     { id = 142115, name = "Fiona", zone = "Boralus Harbor", x = 67.6, y = 40.8, mapID = 1161, faction = "alliance", expansion = "bfa", model3D = 34450, notes = "DecorVendor: Boralus Harbor" },
     { id = 252316, name = "Delphine", zone = "Norwington Estate", x = 53.4, y = 31.2, mapID = 895, faction = "neutral", expansion = "bfa", model3D = 137394, notes = "DecorVendor: Norwington Estate" },
     { id = 148923, name = "Captain Zen'taga", zone = "Port of Zandalar", x = 44.6, y = 94.4, mapID = 1165, faction = "horde", expansion = "bfa", model3D = 90162, notes = "DecorVendor: Port of Zandalar" },

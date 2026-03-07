@@ -1,19 +1,5 @@
----------------------------------------------------
--- Housing Completed - Imported from internal vendor/recipe datasets
----------------------------------------------------
 local addonName, HC = ...
 
--- HousingCompleted - Vendor Locations Database
--- Converted from old item-keyed format on 2026-02-06 22:58
--- Format: HC_VendorDB[npcID] = {"Name", "Zone", mapID, x, y, "faction", exp = "Expansion", items = {[itemID] = {gold, factionID, minRep, "FactionName"[, currCost]}}}
--- Vendor fields: [1]=name, [2]=zone, [3]=mapID, [4]=x, [5]=y, [6]=faction ("A"=Alliance, "H"=Horde, "N"=Neutral)
--- exp: expansion display name (e.g. "Classic", "Legion", "Midnight")
--- added: 1769904000=baseline (2026-02-01), Unix epoch=when first added to DB
--- Item fields: [1]=goldCost (copper, 0=currency), [2]=factionID (0=none), [3]=minRep (0=none, 4-8=standing, 9+=renown rank), [4]=factionName, [5]=currCost (optional), [6]=questID (optional, 0=none), [7]=achieveID (optional, 0=none)
--- currCost: {{"c",currID,amount}} for currency, {{"i",itemID,amount}} for item tokens. Absent = gold only.
--- Standing values: 4=Neutral, 5=Friendly, 6=Honored, 7=Revered, 8=Exalted. Values 9+ = renown rank (see CONFIG.RENOWN_FACTIONS).
--- Reverse index HC_VendorByItem[itemID] built at runtime by VendorResolver
--- Regenerate: python Utilities/build_vendor_db.py
 
 HC.VendorDB = {
     [1247] = {"Innkeeper Belm", "Dun Morogh", 27, 54.4, 50.8, "A", exp = "Classic", added = 1769904000,
@@ -2448,8 +2434,4 @@ HC.VendorDB = {
     },
 }
 
--- Total unique vendors: 195
--- Total unique items with vendor sources: 1067
--- Total item entries: 1355
--- Item entries with currency costs: 136
 

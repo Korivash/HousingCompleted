@@ -1,9 +1,3 @@
---@curseforge-project-slug: libdbicon-1-0@
------------------------------------------------------------------------
--- LibDBIcon-1.0
---
--- Allows addons to easily create a lightweight minimap icon as an alternative to heavier LDB displays.
---
 
 local DBICON10 = "LibDBIcon-1.0"
 local DBICON10_MINOR = 55 -- Bump on changes
@@ -130,7 +124,6 @@ local function onLeaveCompartment(self, menu)
 	end
 end
 
---------------------------------------------------------------------------------
 
 local onDragStart, updatePosition
 
@@ -333,8 +326,6 @@ local function createButton(name, object, db, customCompartmentIcon)
 	lib.callbacks:Fire("LibDBIcon_IconCreated", button, name) -- Fire 'Icon Created' callback
 end
 
--- Wait a bit with the initial positioning to let any GetMinimapShape addons
--- load up.
 if not lib.loggedIn then
 	local frame = CreateFrame("Frame")
 	frame:SetScript("OnEvent", function(self)
@@ -374,9 +365,6 @@ do
 	Minimap:HookScript("OnLeave", OnMinimapLeave)
 end
 
---------------------------------------------------------------------------------
--- Button API
---
 
 function lib:Register(name, object, db, customCompartmentIcon)
 	if not object.icon then error("Can't register LDB objects without icons set!") end
@@ -487,9 +475,6 @@ function lib:SetButtonToPosition(button, position)
 	updatePosition(lib.objects[button] or button, position)
 end
 
---------------------------------------------------------------------------------
--- Addon Compartment API
---
 
 function lib:IsButtonCompartmentAvailable()
 	if AddonCompartmentFrame then
@@ -548,9 +533,6 @@ function lib:RemoveButtonFromCompartment(buttonName)
 	end
 end
 
---------------------------------------------------------------------------------
--- Upgrades
---
 
 for name, button in next, lib.objects do
 	local db = button.db

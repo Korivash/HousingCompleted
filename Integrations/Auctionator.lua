@@ -1,7 +1,3 @@
----------------------------------------------------
--- Housing Completed - Integrations/Auctionator.lua
--- Optional Auctionator pricing provider
----------------------------------------------------
 local addonName, HC = ...
 
 local CALLER_ID = "HousingCompleted"

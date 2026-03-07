@@ -1,14 +1,7 @@
----------------------------------------------------
--- Housing Completed - Imported from internal vendor/recipe datasets
----------------------------------------------------
 local addonName, HC = ...
 
 HC.DecorRecipes = {
 
-    -- ==========================================
-    -- PROFESSIONS: ALCHEMY
-    -- ==========================================
-    -- EXPANSION: Classic Alchemy
     [56269] = { -- Apothecary's Worktable
         name = "Apothecary's Worktable",
         spellID = 1262829,
@@ -42,7 +35,6 @@ HC.DecorRecipes = {
             [3371] = { name = "Crystal Vial", qty = 1 },
         },
     },
-    -- EXPANSION: Outland Alchemy
     [57002] = { -- Glazed Sin'dorei Vial
         name = "Glazed Sin'dorei Vial",
         spellID = 1272712,
@@ -123,7 +115,6 @@ HC.DecorRecipes = {
             [3371] = { name = "Crystal Vial", qty = 1 },
         },
     },
-    -- EXPANSION: Northrend Alchemy
     [56368] = { -- Icecrown Plague Canister
         name = "Icecrown Plague Canister",
         spellID = 1263559,
@@ -159,7 +150,6 @@ HC.DecorRecipes = {
             [3371] = { name = "Crystal Vial", qty = 1 },
         },
     },
-    -- EXPANSION: Cataclysm Alchemy
     [56070] = { -- Gilnean Cauldron
         name = "Gilnean Cauldron",
         spellID = 1261255,
@@ -194,7 +184,6 @@ HC.DecorRecipes = {
             [3371] = { name = "Crystal Vial", qty = 1 },
         },
     },
-    -- EXPANSION: Pandaria Alchemy
     [56363] = { -- Pandaren Alchemist's Kit
         name = "Pandaren Alchemist's Kit",
         spellID = 1263548,
@@ -228,7 +217,6 @@ HC.DecorRecipes = {
             [76061] = { name = "Spirit of Harmony", qty = 2 },
         },
     },
-    -- EXPANSION: Draenor Alchemy
     [56163] = { -- Orcish Felblood Cauldron
         name = "Orcish Felblood Cauldron",
         spellID = 1262011,
@@ -261,7 +249,6 @@ HC.DecorRecipes = {
             [108996] = { name = "Alchemical Catalyst", qty = 10 },
         },
     },
-    -- EXPANSION: Legion Alchemy
     [56167] = { -- Arcan'dor Cutting Fountain
         name = "Arcan'dor Cutting Fountain",
         spellID = 1262154,
@@ -295,7 +282,6 @@ HC.DecorRecipes = {
             [127835] = { name = "Ancient Mana Potion", qty = 5 },
         },
     },
-    -- EXPANSION: Kul Tiran Alchemy / Zandalari Alchemy
     [56162] = { -- Boralus Bottle Lamp
         name = "Boralus Bottle Lamp",
         spellID = 1262005,
@@ -327,7 +313,6 @@ HC.DecorRecipes = {
             [152510] = { name = "Anchor Weed", qty = 3 },
         },
     },
-    -- EXPANSION: Shadowlands Alchemy
     [56158] = { -- Sintallow Candles
         name = "Sintallow Candles",
         spellID = 1261972,
@@ -360,7 +345,6 @@ HC.DecorRecipes = {
             [173170] = { name = "Essence of Rebirth", qty = 2 },
         },
     },
-    -- EXPANSION: Dragon Isles Alchemy
     [56145] = { -- Dragon's Elixir Bottle
         name = "Dragon's Elixir Bottle",
         spellID = 1261882,
@@ -394,7 +378,6 @@ HC.DecorRecipes = {
             [192883] = { name = "Glossy Stone", qty = 6 },
         },
     },
-    -- EXPANSION: Khaz Algar Alchemy
     [55797] = { -- Boulder Springs Hot Tub
         name = "Boulder Springs Hot Tub",
         spellID = 1259673,
@@ -428,7 +411,6 @@ HC.DecorRecipes = {
             [212245] = { name = "Slumbering Soul Serum", qty = 3 },
         },
     },
-    -- EXPANSION: Midnight Alchemy
     [1233136] = { -- Riftstone
         name = "Riftstone",
         spellID = 1233136,
@@ -527,10 +509,6 @@ HC.DecorRecipes = {
         },
     },
 
-    -- ==========================================
-    -- PROFESSIONS: BLACKSMITHING
-    -- ==========================================
-    -- EXPANSION: Classic Blacksmithing
     [56119] = { -- Shadowforge Sconce
         name = "Shadowforge Sconce",
         spellID = 1261497,
@@ -563,7 +541,6 @@ HC.DecorRecipes = {
             [12810] = { name = "Enchanted Leather", qty = 4 },
         },
     },
-    -- EXPANSION: Outland Blacksmithing
     [56098] = { -- Bronze Banner of the Exiled
         name = "Bronze Banner of the Exiled",
         spellID = 1261347,
@@ -613,7 +590,6 @@ HC.DecorRecipes = {
             [22452] = { name = "Primal Earth", qty = 4 },
         },
     },
-    -- EXPANSION: Northrend Blacksmithing
     [56089] = { -- Dalaran Runic Anvil
         name = "Dalaran Runic Anvil",
         spellID = 1261327,
@@ -661,7 +637,6 @@ HC.DecorRecipes = {
             [36860] = { name = "Eternal Fire", qty = 3 },
         },
     },
-    -- EXPANSION: Cataclysm Blacksmithing
     [56071] = { -- Gilnean Pitchfork
         name = "Gilnean Pitchfork",
         spellID = 1261256,
@@ -693,7 +668,6 @@ HC.DecorRecipes = {
             [52078] = { name = "Chaos Orb", qty = 4 },
         },
     },
-    -- EXPANSION: Pandaria Blacksmithing
     [56055] = { -- Pandaren Fireplace
         name = "Pandaren Fireplace",
         spellID = 1261234,
@@ -725,7 +699,6 @@ HC.DecorRecipes = {
             [3857] = { name = "Coal", qty = 5 },
         },
     },
-    -- EXPANSION: Draenor Blacksmithing
     [56037] = { -- Blackrock Weapon Rack
         name = "Blackrock Weapon Rack",
         spellID = 1260988,
@@ -759,7 +732,6 @@ HC.DecorRecipes = {
             [109118] = { name = "Blackrock Ore", qty = 25 },
         },
     },
-    -- EXPANSION: Legion Blacksmithing
     [56018] = { -- Suramar Fence
         name = "Suramar Fence",
         spellID = 1260693,
@@ -805,10 +777,9 @@ HC.DecorRecipes = {
             [133588] = { name = "Flaked Sea Salt", qty = 3 },
             [124109] = { name = "Highmountain Salmon", qty = 5 },
             [133591] = { name = "River Onion", qty = 3 },
-            [133589] = { name = "DalapeÃƒÂ±o Pepper", qty = 3 },
+            [133589] = { name = "DalapeÃƒÆ’Ã‚Â±o Pepper", qty = 3 },
         },
     },
-    -- EXPANSION: Kul Tiran Blacksmithing / Zandalari Blacksmithing
     [56016] = { -- Brennadam Grinder
         name = "Brennadam Grinder",
         spellID = 1260691,
@@ -839,7 +810,6 @@ HC.DecorRecipes = {
             [160298] = { name = "Durable Flux", qty = 10 },
         },
     },
-    -- EXPANSION: Shadowlands Blacksmithing
     [56160] = { -- Aspirant's Meditation Pool
         name = "Aspirant's Meditation Pool",
         spellID = 1261982,
@@ -874,7 +844,6 @@ HC.DecorRecipes = {
             [173171] = { name = "Essence of Torment", qty = 1 },
         },
     },
-    -- EXPANSION: Dragon Isles Blacksmithing
     [56147] = { -- Valdrakken Hanging Cauldron
         name = "Valdrakken Hanging Cauldron",
         spellID = 1261892,
@@ -911,7 +880,6 @@ HC.DecorRecipes = {
             [192850] = { name = "Eternity Amber", qty = 1 },
         },
     },
-    -- EXPANSION: Khaz Algar Blacksmithing
     [55799] = { -- Rusting Bolted Bench
         name = "Rusting Bolted Bench",
         spellID = 1259675,
@@ -944,7 +912,6 @@ HC.DecorRecipes = {
             [222420] = { name = "Charged Alloy", qty = 1 },
         },
     },
-    -- EXPANSION: Midnight Blacksmithing
     [1276108] = { -- Gilded Silvermoon Anvil
         name = "Gilded Silvermoon Anvil",
         spellID = 1276108,
@@ -1026,10 +993,6 @@ HC.DecorRecipes = {
         },
     },
 
-    -- ==========================================
-    -- PROFESSIONS: COOKING
-    -- ==========================================
-    -- EXPANSION: Pandaria Cooking
     [56747] = { -- Mushan Dumpling Stack
         name = "Mushan Dumpling Stack",
         spellID = 1266563,
@@ -1049,7 +1012,6 @@ HC.DecorRecipes = {
             [259894] = { name = "Perfect Preservatives", qty = 10 },
         },
     },
-    -- EXPANSION: Draenor Cooking
     [56746] = { -- Hungry Human's Platter
         name = "Hungry Human's Platter",
         spellID = 1266560,
@@ -1067,7 +1029,6 @@ HC.DecorRecipes = {
             [259894] = { name = "Perfect Preservatives", qty = 5 },
         },
     },
-    -- EXPANSION: Kul Tiran Cooking / Zandalari Cooking
     [55948] = { -- Boralus-Style Lobster Platter
         name = "Boralus-Style Lobster Platter",
         spellID = 1260337,
@@ -1085,7 +1046,6 @@ HC.DecorRecipes = {
             [259894] = { name = "Perfect Preservatives", qty = 5 },
         },
     },
-    -- EXPANSION: Shadowlands Cooking
     [55947] = { -- Caramel Mint Noodle Dish
         name = "Caramel Mint Noodle Dish",
         spellID = 1260334,
@@ -1103,7 +1063,6 @@ HC.DecorRecipes = {
             [259894] = { name = "Perfect Preservatives", qty = 5 },
         },
     },
-    -- EXPANSION: Dragon Isles Cooking
     [55946] = { -- Bruffalon Rib Platter
         name = "Bruffalon Rib Platter",
         spellID = 1260333,
@@ -1156,7 +1115,6 @@ HC.DecorRecipes = {
             [190312] = { name = "Khaz'gorite Ore", qty = 4 },
         },
     },
-    -- EXPANSION: Khaz Algar Cooking
     [54235] = { -- Dornic Mine and Cheese Platter
         name = "Dornic Mine and Cheese Platter",
         spellID = 1245993,
@@ -1228,10 +1186,6 @@ HC.DecorRecipes = {
         },
     },
 
-    -- ==========================================
-    -- PROFESSIONS: ENCHANTING
-    -- ==========================================
-    -- EXPANSION: Classic Enchanting
     [56874] = { -- Darkmaster's Mystical Brazier
         name = "Darkmaster's Mystical Brazier",
         spellID = 1270459,
@@ -1265,7 +1219,6 @@ HC.DecorRecipes = {
             [17010] = { name = "Fiery Core", qty = 5 },
         },
     },
-    -- EXPANSION: Outland Enchanting
     [56268] = { -- Aldor Stellar Console
         name = "Aldor Stellar Console",
         spellID = 1262828,
@@ -1315,7 +1268,6 @@ HC.DecorRecipes = {
             [22445] = { name = "Arcane Dust", qty = 12 },
         },
     },
-    -- EXPANSION: Northrend Enchanting
     [56266] = { -- Mark of the Mages' Eye
         name = "Mark of the Mages' Eye",
         spellID = 1262824,
@@ -1349,7 +1301,6 @@ HC.DecorRecipes = {
             [41510] = { name = "Bolt of Frostweave", qty = 6 },
         },
     },
-    -- EXPANSION: Cataclysm Enchanting
     [56221] = { -- Pyrewood Glass Bottle
         name = "Pyrewood Glass Bottle",
         spellID = 1262331,
@@ -1383,7 +1334,6 @@ HC.DecorRecipes = {
             [69237] = { name = "Living Ember", qty = 1 },
         },
     },
-    -- EXPANSION: Pandaria Enchanting
     [56217] = { -- Intense Mogu Brazier
         name = "Intense Mogu Brazier",
         spellID = 1262302,
@@ -1416,7 +1366,6 @@ HC.DecorRecipes = {
             [76061] = { name = "Spirit of Harmony", qty = 2 },
         },
     },
-    -- EXPANSION: Draenor Enchanting
     [56038] = { -- Ancestral Signal Brazier
         name = "Ancestral Signal Brazier",
         spellID = 1260990,
@@ -1449,7 +1398,6 @@ HC.DecorRecipes = {
             [111557] = { name = "Sumptuous Fur", qty = 5 },
         },
     },
-    -- EXPANSION: Legion Enchanting
     [56215] = { -- Nightspire Fountain
         name = "Nightspire Fountain",
         spellID = 1262238,
@@ -1483,7 +1431,6 @@ HC.DecorRecipes = {
             [124124] = { name = "Blood of Sargeras", qty = 2 },
         },
     },
-    -- EXPANSION: Kul Tiran Enchanting / Zandalari Enchanting
     [56401] = { -- Drust Enchanter's Rod
         name = "Drust Enchanter's Rod",
         spellID = 1263877,
@@ -1517,7 +1464,6 @@ HC.DecorRecipes = {
             [158186] = { name = "Distilled Water", qty = 10 },
         },
     },
-    -- EXPANSION: Shadowlands Enchanting
     [56328] = { -- Ardenweald Lamppost
         name = "Ardenweald Lamppost",
         spellID = 1263238,
@@ -1549,7 +1495,6 @@ HC.DecorRecipes = {
             [171832] = { name = "Sinvyr Ore", qty = 3 },
         },
     },
-    -- EXPANSION: Dragon Isles Enchanting
     [56153] = { -- Draconic Scribe's Basin
         name = "Draconic Scribe's Basin",
         spellID = 1261933,
@@ -1584,7 +1529,6 @@ HC.DecorRecipes = {
             [194124] = { name = "Vibrant Shard", qty = 6 },
         },
     },
-    -- EXPANSION: Khaz Algar Enchanting
     [55805] = { -- Dornogal Hanging Sconce
         name = "Dornogal Hanging Sconce",
         spellID = 1259715,
@@ -1618,7 +1562,6 @@ HC.DecorRecipes = {
             [221859] = { name = "Gyrating Gear", qty = 6 },
         },
     },
-    -- EXPANSION: Midnight Enchanting
     [1246904] = { -- Ensorcelled Broom
         name = "Ensorcelled Broom",
         spellID = 1246904,
@@ -1816,10 +1759,6 @@ HC.DecorRecipes = {
         },
     },
 
-    -- ==========================================
-    -- PROFESSIONS: ENGINEERING
-    -- ==========================================
-    -- EXPANSION: Classic Engineering
     [56123] = { -- Dark Iron Table Saw
         name = "Dark Iron Table Saw",
         spellID = 1261509,
@@ -1854,7 +1793,6 @@ HC.DecorRecipes = {
             [14048] = { name = "Bolt of Runecloth", qty = 8 },
         },
     },
-    -- EXPANSION: Outland Engineering
     [56381] = { -- Draenei Holo-Projector Pedestal
         name = "Draenei Holo-Projector Pedestal",
         spellID = 1263654,
@@ -1902,7 +1840,6 @@ HC.DecorRecipes = {
             [23785] = { name = "Hardened Adamantite Tube", qty = 3 },
         },
     },
-    -- EXPANSION: Northrend Engineering
     [57000] = { -- Home Defense Gadget
         name = "Home Defense Gadget",
         spellID = 1272688,
@@ -1951,7 +1888,6 @@ HC.DecorRecipes = {
             [39681] = { name = "Handful of Cobalt Bolts", qty = 2 },
         },
     },
-    -- EXPANSION: Cataclysm Engineering
     [56072] = { -- Gilnean Problem Solver
         name = "Gilnean Problem Solver",
         spellID = 1261258,
@@ -1985,7 +1921,6 @@ HC.DecorRecipes = {
             [67749] = { name = "Electrified Ether", qty = 5 },
         },
     },
-    -- EXPANSION: Pandaria Engineering
     [56057] = { -- Halfhill Cookpot
         name = "Halfhill Cookpot",
         spellID = 1261236,
@@ -2020,7 +1955,6 @@ HC.DecorRecipes = {
             [87872] = { name = "Desecrated Oil", qty = 4 },
         },
     },
-    -- EXPANSION: Draenor Engineering
     [56040] = { -- Draenei Stargazer's Telescope
         name = "Draenei Stargazer's Telescope",
         spellID = 1261025,
@@ -2054,7 +1988,6 @@ HC.DecorRecipes = {
             [39354] = { name = "Light Parchment", qty = 2 },
         },
     },
-    -- EXPANSION: Legion Engineering
     [56342] = { -- Dalaran Auto-Hammer
         name = "Dalaran Auto-Hammer",
         spellID = 1263319,
@@ -2087,7 +2020,6 @@ HC.DecorRecipes = {
             [130183] = { name = "Shadowruby", qty = 3 },
         },
     },
-    -- EXPANSION: Kul Tiran Engineering / Zandalari Engineering
     [55950] = { -- Deactivated Atomic Recalibrator
         name = "Deactivated Atomic Recalibrator",
         spellID = 1260349,
@@ -2140,7 +2072,6 @@ HC.DecorRecipes = {
             [154123] = { name = "Amberblaze", qty = 1 },
         },
     },
-    -- EXPANSION: Shadowlands Engineering
     [56330] = { -- Cartel Xy Capture Crate
         name = "Cartel Xy Capture Crate",
         spellID = 1263240,
@@ -2176,7 +2107,6 @@ HC.DecorRecipes = {
             [173173] = { name = "Essence of Valor", qty = 2 },
         },
     },
-    -- EXPANSION: Dragon Isles Engineering
     [55777] = { -- Thaldraszus Telescope
         name = "Thaldraszus Telescope",
         spellID = 1259404,
@@ -2213,7 +2143,6 @@ HC.DecorRecipes = {
             [198198] = { name = "Reinforced Machine Chassis", qty = 9 },
         },
     },
-    -- EXPANSION: Khaz Algar Engineering
     [55835] = { -- Replica Rumbling Wastes Drill Pod
         name = "Replica Rumbling Wastes Drill Pod",
         spellID = 1259778,
@@ -2249,7 +2178,6 @@ HC.DecorRecipes = {
             [221865] = { name = "Chaos Circuit", qty = 1 },
         },
     },
-    -- EXPANSION: Midnight Engineering
     [1248616] = { -- Ren'dorei Warp Orb
         name = "Ren'dorei Warp Orb",
         spellID = 1248616,
@@ -2336,10 +2264,6 @@ HC.DecorRecipes = {
         },
     },
 
-    -- ==========================================
-    -- PROFESSIONS: INSCRIPTION
-    -- ==========================================
-    -- EXPANSION: Classic Inscription
     [56126] = { -- Brill Coffin
         name = "Brill Coffin",
         spellID = 1261572,
@@ -2420,7 +2344,6 @@ HC.DecorRecipes = {
             [20963] = { name = "Mithril Filigree", qty = 4 },
         },
     },
-    -- EXPANSION: Outland Inscription
     [56386] = { -- Aldor Bookcase
         name = "Aldor Bookcase",
         spellID = 1263810,
@@ -2498,7 +2421,6 @@ HC.DecorRecipes = {
             [21886] = { name = "Primal Life", qty = 2 },
         },
     },
-    -- EXPANSION: Northrend Inscription
     [56373] = { -- Dalaran Post
         name = "Dalaran Post",
         spellID = 1263575,
@@ -2577,7 +2499,6 @@ HC.DecorRecipes = {
             [43127] = { name = "Snowfall Ink", qty = 10 },
         },
     },
-    -- EXPANSION: Cataclysm Inscription
     [56865] = { -- Gilnean Map
         name = "Gilnean Map",
         spellID = 1269534,
@@ -2657,7 +2578,6 @@ HC.DecorRecipes = {
             [56850] = { name = "Deepstone Oil", qty = 4 },
         },
     },
-    -- EXPANSION: Pandaria Inscription
     [56058] = { -- Hanging Paper Lanterns
         name = "Hanging Paper Lanterns",
         spellID = 1261237,
@@ -2736,7 +2656,6 @@ HC.DecorRecipes = {
             [76061] = { name = "Spirit of Harmony", qty = 4 },
         },
     },
-    -- EXPANSION: Draenor Inscription
     [56042] = { -- Frostwall Elevated Brazier
         name = "Frostwall Elevated Brazier",
         spellID = 1261032,
@@ -2816,7 +2735,6 @@ HC.DecorRecipes = {
             [113263] = { name = "Sorcerous Earth", qty = 6 },
         },
     },
-    -- EXPANSION: Legion Inscription
     [56023] = { -- Covered Square Suramar Table
         name = "Covered Square Suramar Table",
         spellID = 1260711,
@@ -2915,7 +2833,6 @@ HC.DecorRecipes = {
             [124437] = { name = "Shal'dorei Silk", qty = 8 },
         },
     },
-    -- EXPANSION: Kul Tiran Inscription / Zandalari Inscription
     [56010] = { -- Boralus Barrel
         name = "Boralus Barrel",
         spellID = 1260583,
@@ -3007,7 +2924,6 @@ HC.DecorRecipes = {
             [158188] = { name = "Crimson Ink", qty = 4 },
         },
     },
-    -- EXPANSION: Shadowlands Inscription
     [56333] = { -- Ardenweald Hanging Baskets
         name = "Ardenweald Hanging Baskets",
         spellID = 1263247,
@@ -3121,7 +3037,6 @@ HC.DecorRecipes = {
             [173172] = { name = "Essence of Servitude", qty = 2 },
         },
     },
-    -- EXPANSION: Dragon Isles Inscription
     [55779] = { -- Literature of the Blue Dragonflight
         name = "Literature of the Blue Dragonflight",
         spellID = 1259422,
@@ -3218,7 +3133,6 @@ HC.DecorRecipes = {
             [194862] = { name = "Runed Writhebark", qty = 2 },
         },
     },
-    -- EXPANSION: Khaz Algar Inscription
     [55905] = { -- Algari Fence
         name = "Algari Fence",
         spellID = 1260005,
@@ -3314,7 +3228,6 @@ HC.DecorRecipes = {
             [222609] = { name = "Shadow Ink", qty = 3 },
         },
     },
-    -- EXPANSION: Midnight Inscription
     [1248620] = { -- Restful Bronze Bench
         name = "Restful Bronze Bench",
         spellID = 1248620,
@@ -3466,10 +3379,6 @@ HC.DecorRecipes = {
         },
     },
 
-    -- ==========================================
-    -- PROFESSIONS: JEWELCRAFTING
-    -- ==========================================
-    -- EXPANSION: Classic Jewelcrafting
     [56137] = { -- Blackrock Lamppost
         name = "Blackrock Lamppost",
         spellID = 1261667,
@@ -3502,7 +3411,6 @@ HC.DecorRecipes = {
             [12799] = { name = "Large Opal", qty = 8 },
         },
     },
-    -- EXPANSION: Outland Jewelcrafting
     [56857] = { -- Draenei Crystal Chandelier
         name = "Draenei Crystal Chandelier",
         spellID = 1269496,
@@ -3548,7 +3456,6 @@ HC.DecorRecipes = {
             [23441] = { name = "Nightseye", qty = 3 },
         },
     },
-    -- EXPANSION: Northrend Jewelcrafting
     [56374] = { -- Kirin Tor Glass Table
         name = "Kirin Tor Glass Table",
         spellID = 1263577,
@@ -3579,7 +3486,6 @@ HC.DecorRecipes = {
             [41266] = { name = "Skyflare Diamond", qty = 4 },
         },
     },
-    -- EXPANSION: Cataclysm Jewelcrafting
     [1262357] = { -- Smoke Lamp
         name = "Smoke Lamp",
         spellID = 1262357,
@@ -3613,7 +3519,6 @@ HC.DecorRecipes = {
             [52078] = { name = "Chaos Orb", qty = 2 },
         },
     },
-    -- EXPANSION: Pandaria Jewelcrafting
     [56063] = { -- Jade Temple Dragon Fountain
         name = "Jade Temple Dragon Fountain",
         spellID = 1261242,
@@ -3661,7 +3566,6 @@ HC.DecorRecipes = {
             [76061] = { name = "Spirit of Harmony", qty = 2 },
         },
     },
-    -- EXPANSION: Draenor Jewelcrafting
     [56046] = { -- Draenethyst Sconce
         name = "Draenethyst Sconce",
         spellID = 1261075,
@@ -3695,7 +3599,6 @@ HC.DecorRecipes = {
             [115811] = { name = "Greater Haste Taladite", qty = 1 },
         },
     },
-    -- EXPANSION: Legion Jewelcrafting
     [56028] = { -- Shaded Suramar Window
         name = "Shaded Suramar Window",
         spellID = 1260757,
@@ -3731,7 +3634,6 @@ HC.DecorRecipes = {
             [127004] = { name = "Imbued Silkweave", qty = 1 },
         },
     },
-    -- EXPANSION: Kul Tiran Jewelcrafting / Zandalari Jewelcrafting
     [56006] = { -- Small Mask of Bwonsamdi, Loa of Graves
         name = "Small Mask of Bwonsamdi, Loa of Graves",
         spellID = 1260501,
@@ -3764,7 +3666,6 @@ HC.DecorRecipes = {
             [152513] = { name = "Platinum Ore", qty = 5 },
         },
     },
-    -- EXPANSION: Shadowlands Jewelcrafting
     [56862] = { -- Kyrian Floating Lamp
         name = "Kyrian Floating Lamp",
         spellID = 1269502,
@@ -3797,7 +3698,6 @@ HC.DecorRecipes = {
             [172232] = { name = "Eternal Crystal", qty = 2 },
         },
     },
-    -- EXPANSION: Dragon Isles Jewelcrafting
     [55763] = { -- Valdrakken Fence
         name = "Valdrakken Fence",
         spellID = 1259384,
@@ -3845,7 +3745,6 @@ HC.DecorRecipes = {
             [192883] = { name = "Glossy Stone", qty = 10 },
         },
     },
-    -- EXPANSION: Khaz Algar Jewelcrafting
     [55918] = { -- Gundargaz Candelabra
         name = "Gundargaz Candelabra",
         spellID = 1260172,
@@ -3879,7 +3778,6 @@ HC.DecorRecipes = {
             [213756] = { name = "Marbled Stone", qty = 5 },
         },
     },
-    -- EXPANSION: Midnight Jewelcrafting
     [1246895] = { -- Brilliant Phoenix Harp
         name = "Brilliant Phoenix Harp",
         spellID = 1246895,
@@ -3975,10 +3873,6 @@ HC.DecorRecipes = {
         },
     },
 
-    -- ==========================================
-    -- PROFESSIONS: LEATHERWORKING
-    -- ==========================================
-    -- EXPANSION: Classic Leatherworking
     [56379] = { -- Camp Narache Rug
         name = "Camp Narache Rug",
         spellID = 1263633,
@@ -4012,7 +3906,6 @@ HC.DecorRecipes = {
             [14341] = { name = "Rune Thread", qty = 2 },
         },
     },
-    -- EXPANSION: Outland Leatherworking
     [56393] = { -- Arakkoa Decoy Scarecrow
         name = "Arakkoa Decoy Scarecrow",
         spellID = 1263818,
@@ -4045,7 +3938,6 @@ HC.DecorRecipes = {
             [21886] = { name = "Primal Life", qty = 2 },
         },
     },
-    -- EXPANSION: Northrend Leatherworking
     [56859] = { -- Snowfall Tribe Scare-Totem
         name = "Snowfall Tribe Scare-Totem",
         spellID = 1269499,
@@ -4078,7 +3970,6 @@ HC.DecorRecipes = {
             [35624] = { name = "Eternal Earth", qty = 2 },
         },
     },
-    -- EXPANSION: Cataclysm Leatherworking
     [56995] = { -- Gilnean Spare Saddle
         name = "Gilnean Spare Saddle",
         spellID = 1272580,
@@ -4128,7 +4019,6 @@ HC.DecorRecipes = {
             [52190] = { name = "Inferno Ruby", qty = 1 },
         },
     },
-    -- EXPANSION: Pandaria Leatherworking
     [56066] = { -- Serenity Peak Tent
         name = "Serenity Peak Tent",
         spellID = 1261245,
@@ -4161,7 +4051,6 @@ HC.DecorRecipes = {
             [76061] = { name = "Spirit of Harmony", qty = 3 },
         },
     },
-    -- EXPANSION: Draenor Leatherworking
     [56047] = { -- Blackrock Bunkbed
         name = "Blackrock Bunkbed",
         spellID = 1261081,
@@ -4194,7 +4083,6 @@ HC.DecorRecipes = {
             [109119] = { name = "True Iron Ore", qty = 15 },
         },
     },
-    -- EXPANSION: Legion Leatherworking
     [56216] = { -- Highmountain Tanner's Frame
         name = "Highmountain Tanner's Frame",
         spellID = 1262273,
@@ -4241,7 +4129,6 @@ HC.DecorRecipes = {
             [124438] = { name = "Unbroken Claw", qty = 5 },
         },
     },
-    -- EXPANSION: Kul Tiran Leatherworking / Zandalari Leatherworking
     [56399] = { -- Sandfury Diplomat's Banner
         name = "Sandfury Diplomat's Banner",
         spellID = 1263859,
@@ -4274,7 +4161,6 @@ HC.DecorRecipes = {
             [154164] = { name = "Blood-Stained Bone", qty = 12 },
         },
     },
-    -- EXPANSION: Shadowlands Leatherworking
     [56341] = { -- Maldraxxian Crate
         name = "Maldraxxian Crate",
         spellID = 1263313,
@@ -4307,7 +4193,6 @@ HC.DecorRecipes = {
             [177062] = { name = "Penumbra Thread", qty = 5 },
         },
     },
-    -- EXPANSION: Dragon Isles Leatherworking
     [55736] = { -- Draconic Nesting Bed
         name = "Draconic Nesting Bed",
         spellID = 1259195,
@@ -4341,7 +4226,6 @@ HC.DecorRecipes = {
             [193208] = { name = "Resilient Leather", qty = 60 },
         },
     },
-    -- EXPANSION: Khaz Algar Leatherworking
     [56888] = { -- Well-Lit Incontinental Couch
         name = "Well-Lit Incontinental Couch",
         spellID = 1270836,
@@ -4375,7 +4259,6 @@ HC.DecorRecipes = {
             [219889] = { name = "Sporecoated Hide", qty = 2 },
         },
     },
-    -- EXPANSION: Midnight Leatherworking
     [1246941] = { -- Stitched Haranir Rug
         name = "Stitched Haranir Rug",
         spellID = 1246941,
@@ -4478,10 +4361,6 @@ HC.DecorRecipes = {
         },
     },
 
-    -- ==========================================
-    -- PROFESSIONS: TAILORING
-    -- ==========================================
-    -- EXPANSION: Classic Tailoring
     [56142] = { -- Dwarven District Banner
         name = "Dwarven District Banner",
         spellID = 1261695,
@@ -4515,7 +4394,6 @@ HC.DecorRecipes = {
             [14341] = { name = "Rune Thread", qty = 2 },
         },
     },
-    -- EXPANSION: Outland Tailoring
     [56384] = { -- Draenei Weaver's Loom
         name = "Draenei Weaver's Loom",
         spellID = 1263692,
@@ -4548,7 +4426,6 @@ HC.DecorRecipes = {
             [14341] = { name = "Rune Thread", qty = 3 },
         },
     },
-    -- EXPANSION: Northrend Tailoring
     [56377] = { -- Gilded Dalaran Banner
         name = "Gilded Dalaran Banner",
         spellID = 1263620,
@@ -4583,7 +4460,6 @@ HC.DecorRecipes = {
             [6260] = { name = "Blue Dye", qty = 4 },
         },
     },
-    -- EXPANSION: Cataclysm Tailoring
     [56224] = { -- \"Unity of Thorns\" Tapestry
         name = "\"Unity of Thorns\" Tapestry",
         spellID = 1262370,
@@ -4617,7 +4493,6 @@ HC.DecorRecipes = {
             [54450] = { name = "Powerful Ghostly Spellthread", qty = 4 },
         },
     },
-    -- EXPANSION: Pandaria Tailoring
     [56366] = { -- Pandaren Fishing Net
         name = "Pandaren Fishing Net",
         spellID = 1263553,
@@ -4648,7 +4523,6 @@ HC.DecorRecipes = {
             [82444] = { name = "Greater Pearlescent Spellthread", qty = 2 },
         },
     },
-    -- EXPANSION: Draenor Tailoring
     [56052] = { -- Argussian Circular Rug
         name = "Argussian Circular Rug",
         spellID = 1261231,
@@ -4697,7 +4571,6 @@ HC.DecorRecipes = {
             [114931] = { name = "Cerulean Pigment", qty = 12 },
         },
     },
-    -- EXPANSION: Legion Tailoring
     [56398] = { -- Beloved Raptor Plushie
         name = "Beloved Raptor Plushie",
         spellID = 1263858,
@@ -4747,7 +4620,6 @@ HC.DecorRecipes = {
             [127037] = { name = "Runic Catgut", qty = 12 },
         },
     },
-    -- EXPANSION: Kul Tiran Tailoring / Zandalari Tailoring
     [55996] = { -- Red Dazar'alor Rug
         name = "Red Dazar'alor Rug",
         spellID = 1260458,
@@ -4780,7 +4652,6 @@ HC.DecorRecipes = {
             [159959] = { name = "Nylon Thread", qty = 20 },
         },
     },
-    -- EXPANSION: Shadowlands Tailoring
     [56994] = { -- Aspirant's Ringed Banner
         name = "Aspirant's Ringed Banner",
         spellID = 1272578,
@@ -4830,7 +4701,6 @@ HC.DecorRecipes = {
             [177062] = { name = "Penumbra Thread", qty = 5 },
         },
     },
-    -- EXPANSION: Dragon Isles Tailoring
     [55740] = { -- Draconic Circular Rug
         name = "Draconic Circular Rug",
         spellID = 1259247,
@@ -4866,7 +4736,6 @@ HC.DecorRecipes = {
             [194011] = { name = "Frozen Spellthread", qty = 2 },
         },
     },
-    -- EXPANSION: Khaz Algar Tailoring
     [55922] = { -- Dornogal Framed Rug
         name = "Dornogal Framed Rug",
         spellID = 1260215,
@@ -4899,7 +4768,6 @@ HC.DecorRecipes = {
             [224828] = { name = "Weavercloth", qty = 2 },
         },
     },
-    -- EXPANSION: Midnight Tailoring
     [1229001] = { -- Lush Telogrus Carpet
         name = "Lush Telogrus Carpet",
         spellID = 1229001,

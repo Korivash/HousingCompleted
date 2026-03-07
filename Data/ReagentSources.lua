@@ -1,19 +1,8 @@
----------------------------------------------------
--- Housing Completed - Imported from internal vendor/recipe datasets
----------------------------------------------------
 local addonName, HC = ...
 
--- ============================================================================
--- REAGENT SOURCE DATABASE v2
--- Generated: 2026-01-18
--- Total Reagents: 2073 (Gathering: 1250, Crafted: 706, Vendor: 117)
--- All 2073 items have names
--- Format: [itemID] = "Source" or "Vendor:CopperPrice"
--- ============================================================================
 
 HC.ReagentSourceDB = {
 
-    -- ========== GATHERING (1246 items) ==========
     [74853] = "Gathering", -- 100 Year Soy Sauce
     [34057] = "Gathering", -- Abyss Crystal
     [194967] = "Gathering", -- Aileron Seamoth
@@ -256,7 +245,7 @@ HC.ReagentSourceDB = {
     [130891] = "Gathering", -- Namha's Tanning Mixture
     [130892] = "Gathering", -- Stalriss' Tanning Mixture
     [133588] = "Vendor:25000", -- Flaked Sea Salt
-    [133589] = "Gathering", -- Dalapeño Pepper
+    [133589] = "Gathering", -- DalapeÃ±o Pepper
     [133590] = "Gathering", -- Muskenbutter
     [133591] = "Gathering", -- River Onion
     [133592] = "Gathering", -- Stonedark Snail
@@ -1261,7 +1250,6 @@ HC.ReagentSourceDB = {
     [204196] = "Gathering", -- Wyrm's Shadowflame Crest
     [204460] = "Gathering", -- Zaralek Glowspores
 
-    -- ========== CRAFTED (793 items) ==========
     [4407] = "Crafted", -- Accurate Scope
     [23784] = "Crafted", -- Adamantite Frame
     [191384] = "Crafted", -- Aerated Mana Potion
@@ -2056,7 +2044,6 @@ HC.ReagentSourceDB = {
     [219886] = "Crafted", -- Writhing Hide
     [197770] = "Crafted", -- Zesty Water
 
-    -- ========== VENDOR (34 items) ==========
     [3857] = "Vendor:500", -- Coal
     [3371] = "Vendor:20", -- Crystal Vial
     [10647] = "Vendor:10", -- Engineer's Ink

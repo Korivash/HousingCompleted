@@ -1,16 +1,10 @@
----------------------------------------------------
--- Housing Completed - Core.lua
--- Main addon logic and initialization
--- Author: Korivash
----------------------------------------------------
 local addonName, HC = ...
 _G["HousingCompleted"] = HC
 
-HC.version = "1.6.1"
+HC.version = "1.7.0"
 HC.searchResults = {}
 HC.collectionCache = {}
 
--- Default saved variables
 local defaults = {
     minimap = { hide = false },
     showMinimapButton = true,
@@ -33,6 +27,7 @@ scale = 1.0,
     lastTab = "acquire",
     lastSourceView = "all",
     shoppingList = {},
+    trackedReagents = {},
     mode = "hybrid",
     economy = {
         priceHistory = {},
@@ -52,23 +47,36 @@ scale = 1.0,
     favorites = {
         items = {},
     },
+    advanced = {
+        activeProfile = "default",
+        rulesEnabled = false,
+        profiles = {
+            default = {
+                scoring = {
+                    profitability = 1.0,
+                    completion = 1.0,
+                    travel = 1.0,
+                    risk = 1.0,
+                },
+                rules = {},
+            },
+        },
+        telemetry = {},
+        snapshots = {},
+        blueprints = {},
+    },
 }
 
----------------------------------------------------
--- SavedVariables item cache (names/icons)
----------------------------------------------------
 HC.cacheVersion = 1
 HC.pendingItemLoads = HC.pendingItemLoads or {}
 HC._uiRefreshQueued = false
 HC._pricingRefreshQueued = false
 
 function HC:InitSavedVars()
-    -- Root table
     if type(HousingCompletedDB) ~= "table" then
         HousingCompletedDB = {}
     end
 
-    -- Safe copy: CopyTable only works on tables; primitives should pass through
     local function SafeCopy(val)
         if type(val) == "table" then
             return CopyTable(val)
@@ -76,21 +84,18 @@ function HC:InitSavedVars()
         return val
     end
 
-    -- Merge defaults + repair type-mismatches (e.g. legacy booleans)
     if not HousingCompletedDB._initedDefaults then
         for k, v in pairs(defaults) do
             if HousingCompletedDB[k] == nil then
                 HousingCompletedDB[k] = SafeCopy(v)
             elseif type(v) == "table" then
                 if type(HousingCompletedDB[k]) ~= "table" then
-                    -- Repair bad legacy type (e.g. settings=false)
                     HousingCompletedDB[k] = SafeCopy(v)
                 else
                     for kk, vv in pairs(v) do
                         if HousingCompletedDB[k][kk] == nil then
                             HousingCompletedDB[k][kk] = SafeCopy(vv)
                         elseif type(vv) == "table" and type(HousingCompletedDB[k][kk]) ~= "table" then
-                            -- Repair nested type mismatch
                             HousingCompletedDB[k][kk] = SafeCopy(vv)
                         end
                     end
@@ -101,7 +106,6 @@ function HC:InitSavedVars()
     end
 
 
-    -- Navigation settings (repair for existing DBs)
     if type(HousingCompletedDB.navigation) ~= "table" then
         HousingCompletedDB.navigation = { forceTomTom = true }
     end
@@ -132,6 +136,27 @@ function HC:InitSavedVars()
     if type(HousingCompletedDB.favorites.items) ~= "table" then
         HousingCompletedDB.favorites.items = {}
     end
+    if type(HousingCompletedDB.advanced) ~= "table" then
+        HousingCompletedDB.advanced = CopyTable(defaults.advanced)
+    end
+    if type(HousingCompletedDB.advanced.profiles) ~= "table" then
+        HousingCompletedDB.advanced.profiles = CopyTable(defaults.advanced.profiles)
+    end
+    if type(HousingCompletedDB.advanced.activeProfile) ~= "string" or HousingCompletedDB.advanced.activeProfile == "" then
+        HousingCompletedDB.advanced.activeProfile = "default"
+    end
+    if not HousingCompletedDB.advanced.profiles[HousingCompletedDB.advanced.activeProfile] then
+        HousingCompletedDB.advanced.profiles[HousingCompletedDB.advanced.activeProfile] = CopyTable(defaults.advanced.profiles.default)
+    end
+    if type(HousingCompletedDB.advanced.telemetry) ~= "table" then
+        HousingCompletedDB.advanced.telemetry = {}
+    end
+    if type(HousingCompletedDB.advanced.snapshots) ~= "table" then
+        HousingCompletedDB.advanced.snapshots = {}
+    end
+    if type(HousingCompletedDB.advanced.blueprints) ~= "table" then
+        HousingCompletedDB.advanced.blueprints = {}
+    end
     if HousingCompletedDB.mode ~= "hybrid" and HousingCompletedDB.mode ~= "goblin" then
         HousingCompletedDB.mode = "hybrid"
     end
@@ -139,14 +164,12 @@ function HC:InitSavedVars()
         HousingCompletedDB.lastSourceView = "all"
     end
 
-    -- Item cache (flat at root for fast access)
     if type(HousingCompletedDB.itemCache) ~= "table" then
         HousingCompletedDB.itemCache = {}
     end
 
     HousingCompletedDB.cacheVersion = tonumber(HousingCompletedDB.cacheVersion) or HC.cacheVersion
     if HousingCompletedDB.cacheVersion ~= HC.cacheVersion then
-        -- Future-proof: wipe cache on schema change
         HousingCompletedDB.itemCache = {}
         HousingCompletedDB.cacheVersion = HC.cacheVersion
     end
@@ -156,6 +179,56 @@ function HC:GetShoppingList()
     if not HousingCompletedDB then return {} end
     HousingCompletedDB.shoppingList = HousingCompletedDB.shoppingList or {}
     return HousingCompletedDB.shoppingList
+end
+
+function HC:GetTrackedReagents()
+    if not HousingCompletedDB then return {} end
+    if type(HousingCompletedDB.trackedReagents) ~= "table" then
+        HousingCompletedDB.trackedReagents = {}
+    end
+    return HousingCompletedDB.trackedReagents
+end
+
+function HC:TrackReagent(itemID, name, targetQty)
+    local reagentID = tonumber(itemID)
+    if not reagentID then
+        return false, "Invalid reagent."
+    end
+    local tracked = self:GetTrackedReagents()
+    if tracked[reagentID] then
+        return false, "Reagent is already tracked."
+    end
+    local itemName = name
+    if (not itemName or itemName == "") and C_Item and C_Item.GetItemNameByID then
+        itemName = C_Item.GetItemNameByID(reagentID)
+    end
+    tracked[reagentID] = {
+        itemID = reagentID,
+        name = itemName or ("Item #" .. tostring(reagentID)),
+        targetQty = math.max(0, math.floor((tonumber(targetQty) or 0) + 0.5)),
+        addedAt = time(),
+    }
+    if self.shoppingListPanel and self.shoppingListPanel:IsShown() and self.RefreshShoppingListPanel then
+        self:RefreshShoppingListPanel()
+    end
+    return true, "Now tracking " .. (tracked[reagentID].name or ("Item #" .. tostring(reagentID))) .. "."
+end
+
+function HC:UntrackReagent(itemID)
+    local reagentID = tonumber(itemID)
+    if not reagentID then
+        return false, "Invalid reagent."
+    end
+    local tracked = self:GetTrackedReagents()
+    local existing = tracked[reagentID]
+    if not existing then
+        return false, "Reagent is not tracked."
+    end
+    tracked[reagentID] = nil
+    if self.shoppingListPanel and self.shoppingListPanel:IsShown() and self.RefreshShoppingListPanel then
+        self:RefreshShoppingListPanel()
+    end
+    return true, "Stopped tracking " .. (existing.name or ("Item #" .. tostring(reagentID))) .. "."
 end
 
 function HC:BuildShoppingListEntry(resultData)
@@ -327,11 +400,6 @@ function HC:OnItemDataLoadResult(itemID, success)
 
     if name or icon then
         self:UpdateItemCache(itemID, name, icon)
-        -- keep runtime cache in sync
-        if self.allItemCache and self.allItemCache[itemID] then
-            if name then self.allItemCache[itemID].name = name end
-            if icon then self.allItemCache[itemID].icon = icon end
-        end
         if name then
             self.itemNameToID = self.itemNameToID or {}
             local key = self:NormalizeItemName(name)
@@ -386,6 +454,65 @@ function HC:NormalizeItemName(name)
     normalized = normalized:lower()
     if normalized == "" then return nil end
     return normalized
+end
+
+function HC:EnsureCollectionSourceTypeIndex()
+    if self.collectionSourceTypeByItemID and self.collectionSourceTypeByName then
+        return
+    end
+    self.collectionSourceTypeByItemID = {}
+    self.collectionSourceTypeByName = {}
+
+    if (not self.ItemList) or (#self.ItemList == 0) then
+        self:BuildItemIndex()
+    end
+
+    for _, item in ipairs(self.ItemList or {}) do
+        local itemID = item.itemID
+        local itemName = item.name
+        local isCrafted = false
+        for _, source in ipairs(item.sources or {}) do
+            local sourceType = self:NormalizeSourceType(source and (source.sourceType or source.type) or "unknown")
+            if sourceType == "profession" then
+                isCrafted = true
+                break
+            end
+        end
+        if itemID then
+            self.collectionSourceTypeByItemID[itemID] = isCrafted and "profession" or "known"
+        end
+        local key = self:NormalizeItemName(itemName)
+        if key and not self.collectionSourceTypeByName[key] then
+            self.collectionSourceTypeByName[key] = isCrafted and "profession" or "known"
+        end
+    end
+end
+
+function HC:ShouldUseFirstAcquisitionBonus(itemID, itemName)
+    self:EnsureCollectionSourceTypeIndex()
+    local resolvedID = tonumber(itemID)
+    if resolvedID and self.collectionSourceTypeByItemID then
+        local sourceType = self.collectionSourceTypeByItemID[resolvedID]
+        if sourceType == "profession" then
+            return true
+        end
+        if sourceType == "known" then
+            return false
+        end
+    end
+
+    local key = self:NormalizeItemName(itemName)
+    if key and self.collectionSourceTypeByName then
+        local sourceType = self.collectionSourceTypeByName[key]
+        if sourceType == "profession" then
+            return true
+        end
+        if sourceType == "known" then
+            return false
+        end
+    end
+
+    return true
 end
 
 function HC:NormalizeSourceType(sourceType)
@@ -492,11 +619,22 @@ end
 
 function HC:BuildItemNameLookup()
     self.itemNameToID = {}
-    for itemID, itemData in pairs(self.allItemCache or {}) do
-        if itemData and itemData.name then
-            local key = self:NormalizeItemName(itemData.name)
+    for _, item in ipairs(self.ItemList or {}) do
+        if item and item.itemID and item.name then
+            local key = self:NormalizeItemName(item.name)
             if key then
-                self.itemNameToID[key] = itemID
+                self.itemNameToID[key] = item.itemID
+            end
+        end
+    end
+    if HousingCompletedDB and type(HousingCompletedDB.itemCache) == "table" then
+        for itemID, itemData in pairs(HousingCompletedDB.itemCache) do
+            local n = itemData and itemData.name
+            if n then
+                local key = self:NormalizeItemName(n)
+                if key and not self.itemNameToID[key] then
+                    self.itemNameToID[key] = itemID
+                end
             end
         end
     end
@@ -512,9 +650,6 @@ function HC:ResolveItemIDByName(itemName)
 end
 
 
----------------------------------------------------
--- Initialization
----------------------------------------------------
 local frame = CreateFrame("Frame")
 frame:RegisterEvent("ADDON_LOADED")
 frame:RegisterEvent("PLAYER_ENTERING_WORLD")
@@ -537,23 +672,19 @@ frame:SetScript("OnEvent", function(self, event, ...)
             HC:CacheCollection()
         end)
     elseif event == "ITEM_DATA_LOAD_RESULT" then
-        -- arg1=itemID, arg2=success
         HC:OnItemDataLoadResult(arg1, arg2)
     end
 end)
 
 function HC:Initialize()
-    -- Initialize saved variables
     self:InitSavedVars()
     
-    -- Setup minimap button
     self:SetupMinimapButton()
 
-    -- Build item-first index (items -> sources)
     self:BuildItemIndex()
 
-    -- Prime master item list (names/icons load over time via client cache)
     self:ResolveAllItems()
+    self:ReleaseSourceTables()
 
     if self.InitializeAuctionatorPricingProvider then
         self:InitializeAuctionatorPricingProvider()
@@ -563,7 +694,6 @@ function HC:Initialize()
         self:TryEnableTradeSkillMasterIntegration()
     end
     
-    -- Register slash commands
     SLASH_HOUSINGCOMPLETED1 = "/hc"
     SLASH_HOUSINGCOMPLETED2 = "/housing"
     SLASH_HOUSINGCOMPLETED3 = "/housingcompleted"
@@ -583,6 +713,104 @@ function HC:Initialize()
                 HousingCompletedDB.minimap.hide = not HousingCompletedDB.showMinimapButton
             end
             print("|cff00ff99Housing|r |cffffffffCompleted|r: Minimap button " .. (HousingCompletedDB.showMinimapButton and "shown" or "hidden"))
+        elseif cmd:find("^blueprint%s+") == 1 then
+            local encoded = msg:match("^%s*[Bb][Ll][Uu][Ee][Pp][Rr][Ii][Nn][Tt]%s+(.+)$")
+            if HC.ImportBlueprint and encoded then
+                local bp, err = HC:ImportBlueprint(encoded)
+                if not bp then
+                    print("|cff00ff99Housing Completed|r: " .. tostring(err or "Blueprint import failed."))
+                else
+                    local added = 0
+                    for _, row in ipairs(bp.items or {}) do
+                        local itemID = tonumber(row.itemID)
+                        if itemID then
+                            local name = C_Item and C_Item.GetItemNameByID and C_Item.GetItemNameByID(itemID) or ("Item #" .. tostring(itemID))
+                            local fakeResult = {
+                                name = name,
+                                itemID = itemID,
+                                type = "unknown",
+                                data = {
+                                    name = name,
+                                    itemID = itemID,
+                                    sources = {},
+                                    sourceCount = 0,
+                                },
+                            }
+                            local ok = HC:AddResultToShoppingList(fakeResult)
+                            if ok then
+                                added = added + 1
+                            end
+                        end
+                    end
+                    print("|cff00ff99Housing Completed|r: Imported blueprint '" .. tostring(bp.label or "Blueprint") .. "' with " .. tostring(added) .. " item(s) added to shopping list.")
+                    if HC.RefreshShoppingListPanel then
+                        HC:RefreshShoppingListPanel()
+                    end
+                end
+            end
+        elseif cmd:find("^profile%s+") == 1 then
+            local name = msg:match("^%s*[Pp][Rr][Oo][Ff][Ii][Ll][Ee]%s+(.+)$")
+            if name and HC.SetAdvancedProfile then
+                local ok, active = HC:SetAdvancedProfile(name)
+                if ok then
+                    print("|cff00ff99Housing Completed|r: Active profile set to '" .. tostring(active) .. "'.")
+                    if HC.DoSearch then
+                        HC:DoSearch({ preservePage = true, preserveSelection = true })
+                    end
+                end
+            end
+        elseif cmd == "profile" then
+            local active = HC.GetAdvancedProfileName and HC:GetAdvancedProfileName() or "default"
+            print("|cff00ff99Housing Completed|r: Active profile is '" .. tostring(active) .. "'.")
+        elseif cmd == "rule clear" then
+            if HC.ClearAdvancedRules then
+                HC:ClearAdvancedRules()
+                print("|cff00ff99Housing Completed|r: Advanced rules cleared for active profile.")
+                if HC.DoSearch then
+                    HC:DoSearch({ preservePage = true, preserveSelection = true })
+                end
+            end
+        elseif cmd == "rule on" then
+            if HC.SetAdvancedRulesEnabled then
+                HC:SetAdvancedRulesEnabled(true)
+                print("|cff00ff99Housing Completed|r: Rule engine enabled.")
+                if HC.DoSearch then
+                    HC:DoSearch({ preservePage = true, preserveSelection = true })
+                end
+            end
+        elseif cmd == "rule off" then
+            if HC.SetAdvancedRulesEnabled then
+                HC:SetAdvancedRulesEnabled(false)
+                print("|cff00ff99Housing Completed|r: Rule engine disabled.")
+                if HC.DoSearch then
+                    HC:DoSearch({ preservePage = true, preserveSelection = true })
+                end
+            end
+        elseif cmd:find("^rule%s+add%s+") == 1 then
+            local key, op, valueText = msg:match("^%s*[Rr][Uu][Ll][Ee]%s+[Aa][Dd][Dd]%s+(%S+)%s+(%S+)%s+(.+)$")
+            if key and op and valueText and HC.AddAdvancedRule then
+                local value = tonumber(valueText) or valueText
+                local ok = HC:AddAdvancedRule({ key = key, op = op, value = value, enabled = true })
+                if ok then
+                    print("|cff00ff99Housing Completed|r: Added rule " .. tostring(key) .. " " .. tostring(op) .. " " .. tostring(valueText))
+                    if HC.DoSearch then
+                        HC:DoSearch({ preservePage = true, preserveSelection = true })
+                    end
+                end
+            else
+                print("|cff00ff99Housing Completed|r: Usage: /hc rule add <key> <op> <value>")
+            end
+        elseif cmd == "auto" then
+            if HC.RunAutomationAction then
+                local action = HC:RunAutomationAction("next_best", HC.lastComputedResults or HC.searchResults or {})
+                if action and action.message then
+                    print("|cff00ff99Housing Completed|r: " .. action.message)
+                end
+            end
+        elseif cmd == "deps" then
+            if HC.ShowDependencyGraphDialog then
+                HC:ShowDependencyGraphDialog()
+            end
         else
             HC:ToggleUI()
         end
@@ -600,7 +828,6 @@ function HC:SetupMinimapButton()
         return 
     end
     
-    -- Create the LDB object FIRST
     local dataObj = LDB:NewDataObject("HousingCompleted", {
         type = "launcher",
         text = "Housing Completed",
@@ -620,13 +847,11 @@ function HC:SetupMinimapButton()
         end,
     })
     
-    -- Ensure we have a valid object before registering
     if not dataObj then
         print("|cff00ff99Housing Completed|r: Failed to create data broker object")
         return
     end
     
-    -- Now register with LibDBIcon
     LibDBIcon:Register("HousingCompleted", dataObj, HousingCompletedDB.minimap)
     
     if HousingCompletedDB.showMinimapButton == false then
@@ -634,11 +859,7 @@ function HC:SetupMinimapButton()
     end
 end
 
----------------------------------------------------
--- Collection Tracking
----------------------------------------------------
 function HC:CacheCollection()
-    -- Cache the player's housing collection
     self.collectionCache = {}
     self.collectionNameCache = {}
     self.collectionItemIDCache = {}
@@ -647,9 +868,15 @@ function HC:CacheCollection()
     local function mergeCollectionEntry(info)
         if not info then return end
 
+        local count = tonumber(info.quantity or info.count) or 0
+        local numPlaced = tonumber(info.numPlaced) or 0
+        local collected = (count > 0) or (numPlaced > 0)
+        if (not collected) and (info.firstAcquisitionBonus or -1) == 0 then
+            collected = self:ShouldUseFirstAcquisitionBonus(info.itemID, info.name)
+        end
         local entry = {
-            collected = info.isCollected and true or false,
-            count = tonumber(info.count) or 0,
+            collected = collected and true or false,
+            count = count,
             name = info.name,
             itemID = info.itemID,
             decorID = info.decorID,
@@ -716,11 +943,8 @@ function HC:CacheCollection()
         end
     end
 
-    -- Check if Housing Catalog API is available
     if C_HousingCatalog and C_HousingCatalog.GetNumCategories then
         local anyData = false
-
-        -- Scan multiple catalog roots when available to avoid missing entries.
         local catalogRoots = { 1, 2, 3, 4, 5, 6 }
         for _, rootIndex in ipairs(catalogRoots) do
             local okCategories, numCategories = pcall(C_HousingCatalog.GetNumCategories, rootIndex)
@@ -740,7 +964,6 @@ function HC:CacheCollection()
             end
         end
 
-        -- Fallback to legacy root if multi-root scan returned no data.
         if not anyData then
             local numCategories = C_HousingCatalog.GetNumCategories(1) or 0
             for catIndex = 1, numCategories do
@@ -759,14 +982,12 @@ function HC:CacheCollection()
 end
 
 function HC:IsDecorCollected(decorName)
-    -- Check if a decor item is collected by name
     local key = self:NormalizeItemName(decorName)
     if key and self.collectionNameCache and self.collectionNameCache[key] then
         local info = self.collectionNameCache[key]
         return info.collected, info.count
     end
 
-    -- Backward-compatible fallback for legacy cache shapes.
     if type(decorName) == "string" then
         for _, info in pairs(self.collectionCache or {}) do
             if info.name and info.name:lower() == decorName:lower() then
@@ -788,24 +1009,22 @@ function HC:IsDecorCollectedByID(itemID)
 end
 
 function HC:IsItemCollected(itemID, itemName)
-    local collectedByName, countByName = self:IsDecorCollected(itemName)
-    if collectedByName then
-        return true, countByName or 0
-    end
     local collectedByID, countByID = self:IsDecorCollectedByID(itemID)
     if collectedByID then
         return true, countByID or 0
+    end
+    local collectedByName, countByName = self:IsDecorCollected(itemName)
+    if collectedByName then
+        return true, countByName or 0
     end
     return false, 0
 end
 
 
----------------------------------------------------
--- Item-first Index (Items -> Sources)
----------------------------------------------------
 function HC:BuildItemIndex(force)
-    -- Build a unique item list where each item can have multiple sources.
-    -- force=true rebuilds even if already built.
+    if force and self._releasedSourceTables then
+        force = false
+    end
     if self.ItemList and not force then return end
 
     self.ItemIndex = {}
@@ -816,7 +1035,6 @@ function HC:BuildItemIndex(force)
         local resolvedItemID = entry.itemID or self:ResolveItemIDByName(entry.name)
         local name = entry.name
 
-        -- Imported rows may only have itemID; never drop those.
         if (not name or name == "") and resolvedItemID then
             local cachedName = self.GetCachedItemInfo and select(1, self:GetCachedItemInfo(resolvedItemID)) or nil
             name = cachedName or (C_Item and C_Item.GetItemNameByID and C_Item.GetItemNameByID(resolvedItemID)) or nil
@@ -877,12 +1095,9 @@ function HC:BuildItemIndex(force)
         })
     end
 
-    -- Primary combined table (if present)
     for _, entry in ipairs(HC.DecorItems or {}) do addEntry(entry) end
-    -- Imported sources (generated from wowdb exports)
     for _, entry in ipairs(HC.ImportedDecorItems or {}) do addEntry(entry) end
 
-    -- Back-compat tables (many projects still populate these)
     for _, entry in ipairs(HC.AchievementItems or {}) do
         addEntry({
             name = entry.name, itemID = entry.itemID,
@@ -932,10 +1147,57 @@ function HC:BuildItemIndex(force)
     table.sort(self.ItemList, function(a, b) return (a.name or "") < (b.name or "") end)
 end
 
+function HC:BuildKnownItemIDIndex()
+    if self.allKnownItemIDs and self.allKnownItemIDList then
+        return
+    end
+    self.allKnownItemIDs = {}
+    self.allKnownItemIDList = {}
+    local function addID(itemID)
+        local id = tonumber(itemID)
+        if id and not self.allKnownItemIDs[id] then
+            self.allKnownItemIDs[id] = true
+            self.allKnownItemIDList[#self.allKnownItemIDList + 1] = id
+        end
+    end
+    if HC.AllItems and HC.AllItems.IDs then
+        for _, itemID in ipairs(HC.AllItems.IDs) do addID(itemID) end
+    end
+    if HC.ImportedAllItems and HC.ImportedAllItems.IDs then
+        for _, itemID in ipairs(HC.ImportedAllItems.IDs) do addID(itemID) end
+    end
+    for _, item in ipairs(self.ItemList or {}) do
+        addID(item and item.itemID)
+    end
+    if HousingCompletedDB and type(HousingCompletedDB.itemCache) == "table" then
+        for itemID in pairs(HousingCompletedDB.itemCache) do
+            addID(itemID)
+        end
+    end
+end
+
+function HC:ReleaseSourceTables()
+    if self._releasedSourceTables then
+        return
+    end
+    HC.DecorItems = nil
+    HC.ImportedDecorItems = nil
+    HC.AchievementItems = nil
+    HC.QuestItems = nil
+    HC.ReputationItems = nil
+    HC.ProfessionItems = nil
+    HC.AuctionItems = nil
+    HC.AllItems = nil
+    HC.ImportedAllItems = nil
+    self._releasedSourceTables = true
+    if collectgarbage then
+        collectgarbage("collect")
+    end
+end
+
 function HC:GetBestWaypointForItem(item)
     if not item or not item.sources then return nil end
 
-    -- Prefer coordinate-bearing sources first (vendor-like), but any with coords works.
     local preferred = {
         vendor = 1, achievement = 2, reputation = 2, quest = 2, profession = 3, auction = 4, drop = 5, unknown = 9,
     }
@@ -992,9 +1254,6 @@ function HC:SetResultWaypoint(resultData)
     return false
 end
 
----------------------------------------------------
--- Search Functions
----------------------------------------------------
 function HC:IsReputationRequirementText(text)
     if type(text) ~= "string" then return false end
     local t = text:lower()
@@ -1196,7 +1455,6 @@ function HC:SearchAll(query, filters)
 
         local matches = nameMatch or sourceMatch
         if matches then
-            -- Source-level filters: if ANY source passes, keep the item
             local passes = true
 
             if filters.sourceTypes and next(filters.sourceTypes) then
@@ -1205,7 +1463,6 @@ function HC:SearchAll(query, filters)
                     for wantedType in pairs(filters.sourceTypes) do
                         if self:SourceMatchesType(s, wantedType) then
                             passes = true
-                            -- Prefer a filter-matching source for row/preview fields.
                             primaryType = self:NormalizeSourceType(wantedType)
                             primarySource = s.source
                             primaryVendor = s.vendor
@@ -1308,7 +1565,6 @@ function HC:SearchAll(query, filters)
         end
     end
 
-    -- Search vendors (as results) - keep vendor browsing available
     for _, vendor in ipairs(HC.Vendors or {}) do
         local matches = (not hasQuery) or
             (vendor.name and vendor.name:lower():find(query, 1, true)) or
@@ -1335,11 +1591,10 @@ function HC:SearchAll(query, filters)
         end
     end
 
-    -- Include additional known items from AllItems cache as unknown entries.
-    -- This lets newly-known itemIDs be searchable/previewable before sources are curated.
-    for itemID, itemData in pairs(self.allItemCache or {}) do
+    self:BuildKnownItemIDIndex()
+    for _, itemID in ipairs(self.allKnownItemIDList or {}) do
         if not seenItemIDs[itemID] then
-            local cachedName = itemData and itemData.name
+            local cachedName = self.GetCachedItemInfo and select(1, self:GetCachedItemInfo(itemID)) or nil
             local displayName = cachedName or ("Item #" .. tostring(itemID))
             local key = self:NormalizeItemName(displayName)
             local match = (not hasQuery)
@@ -1357,7 +1612,6 @@ function HC:SearchAll(query, filters)
         end
     end
 
-    -- Include items already in player's collection that are not in curated/imported data yet.
     for _, collectionInfo in pairs(self.collectionCache or {}) do
         local collectedName = collectionInfo and collectionInfo.name
         if collectedName and collectedName ~= "" then
@@ -1387,14 +1641,12 @@ end
 
 function HC:PassesFilters(item, filters, sourceType)
     sourceType = self:NormalizeSourceType(sourceType or "unknown")
-    -- Check source type filter
     if filters.sourceTypes and next(filters.sourceTypes) then
         if not filters.sourceTypes[sourceType] then
             return false
         end
     end
     
-    -- Check expansion filter
     if filters.expansions and next(filters.expansions) then
         local expansion = self:NormalizeExpansionID(item.expansion) or item.expansion
         if expansion and not filters.expansions[expansion] then
@@ -1402,7 +1654,6 @@ function HC:PassesFilters(item, filters, sourceType)
         end
     end
     
-    -- Check faction filter
     if filters.faction then
         local itemFaction = item.faction
         if self:IsPlayerFactionRestricted(itemFaction) and itemFaction ~= "neutral" and itemFaction ~= filters.faction then
@@ -1744,18 +1995,13 @@ function HC:GetVendorInventory(vendorRef)
     return out
 end
 
----------------------------------------------------
--- Waypoint Functions (TomTom + Blizzard fallback)
----------------------------------------------------
 
--- Preferred navigation: TomTom (full routing). Falls back to Blizzard user waypoint.
 function HC:SetSmartWaypoint(x, y, mapID, title)
     if not x or not y or not mapID then
         print("|cff00ff99Housing Completed|r: No coordinates available for this location.")
         return
     end
 
-    -- Normalize safely (accept either 0-100 or 0-1).
     local nx, ny = x, y
     if nx > 1 or ny > 1 then
         nx, ny = (x / 100), (y / 100)
@@ -1769,7 +2015,6 @@ function HC:SetSmartWaypoint(x, y, mapID, title)
     local tt = _G.TomTom
     local hasTomTom = tt and type(tt.AddWaypoint) == "function"
 
-    -- If forced, ALWAYS try TomTom first (warn once if missing)
     if forceTomTom then
         if hasTomTom then
             if self._tomtomWaypoint and type(tt.RemoveWaypoint) == "function" then
@@ -1794,7 +2039,6 @@ function HC:SetSmartWaypoint(x, y, mapID, title)
         end
     end
 
-    -- If not forcing, use TomTom when available, otherwise fallback
     if (not forceTomTom) and hasTomTom then
         if self._tomtomWaypoint and type(tt.RemoveWaypoint) == "function" then
             tt:RemoveWaypoint(self._tomtomWaypoint)
@@ -1812,18 +2056,15 @@ function HC:SetSmartWaypoint(x, y, mapID, title)
         return
     end
 
-    -- Fallback: Blizzard waypoint (limited routing).
     self:SetWaypoint(nx, ny, mapID, title)
 end
 
--- Blizzard user waypoint (fallback). Note: This does NOT provide full quest-style routing.
 function HC:SetWaypoint(x, y, mapID, title)
     if not x or not y or not mapID then
         print("|cff00ff99Housing Completed|r: No coordinates available for this location.")
         return
     end
 
-    -- Coordinates are expected normalized here (0-1). If caller passes 0-100, normalize.
     local nx, ny = x, y
     if nx > 1 or ny > 1 then
         nx, ny = (x / 100), (y / 100)
@@ -1833,7 +2074,6 @@ function HC:SetWaypoint(x, y, mapID, title)
         return
     end
 
-    -- Some maps don't allow user waypoints; walk up parent chain to find a valid waypoint map.
     local function FindWaypointMap(startMapID)
         local cur = startMapID
         local guard = 0
@@ -1875,13 +2115,11 @@ function HC:SetWaypoint(x, y, mapID, title)
 end
 
 function HC:ClearWaypoint()
-    -- Clear TomTom waypoint if we created one
     if TomTom and self._tomtomWaypoint and TomTom.RemoveWaypoint then
         TomTom:RemoveWaypoint(self._tomtomWaypoint)
         self._tomtomWaypoint = nil
     end
 
-    -- Clear Blizzard waypoint too
     if C_Map and C_Map.ClearUserWaypoint then
         C_Map.ClearUserWaypoint()
     end
@@ -1892,9 +2130,6 @@ function HC:ClearWaypoint()
     print("|cff00ff99Housing Completed|r: Waypoint cleared.")
 end
 
----------------------------------------------------
--- Utility Functions
----------------------------------------------------
 function HC:GetSourceTypeInfo(sourceType)
     sourceType = self:NormalizeSourceType(sourceType or "unknown")
     for _, info in ipairs(HC.SourceTypes or {}) do
@@ -1930,9 +2165,6 @@ function HC:GetPlayerFaction()
     return faction and faction:lower() or "neutral"
 end
 
----------------------------------------------------
--- Statistics
----------------------------------------------------
 function HC:GetStatistics()
     local stats = {
         totalItems = 0,
@@ -1973,18 +2205,18 @@ function HC:GetStatistics()
         end
     end
 
-    -- Known universe from all item IDs cache.
-    for itemID, itemData in pairs(self.allItemCache or {}) do
+    self:BuildKnownItemIDIndex()
+    for _, itemID in ipairs(self.allKnownItemIDList or {}) do
         if not knownIDKeys[itemID] then
             knownIDKeys[itemID] = true
             stats.knownTotal = stats.knownTotal + 1
 
-            local collected = self:IsItemCollected(itemID, itemData and itemData.name)
+            local cachedName = self.GetCachedItemInfo and select(1, self:GetCachedItemInfo(itemID)) or nil
+            local collected = self:IsItemCollected(itemID, cachedName)
             if collected then
                 stats.collectedKnown = stats.collectedKnown + 1
             end
 
-            local cachedName = itemData and itemData.name
             if cachedName and cachedName ~= "" then
                 local key = self:NormalizeItemName(cachedName)
                 if key then
@@ -1994,7 +2226,6 @@ function HC:GetStatistics()
         end
     end
 
-    -- Trackable universe from curated/imported item index.
     for _, item in ipairs(self.ItemList or {}) do
         local primary = (item.sources and item.sources[1]) or {}
         local collected = self:IsItemCollected(item.itemID, item.name)
@@ -2020,7 +2251,6 @@ function HC:GetStatistics()
                 stats.collectedTrackable = stats.collectedTrackable + 1
             end
 
-            -- Source-known no-ID items should still count as known when absent from known ID name set.
             if not knownNameKeysFromIDs[key] then
                 stats.knownTotal = stats.knownTotal + 1
                 if collected then
@@ -2030,7 +2260,6 @@ function HC:GetStatistics()
         end
     end
 
-    -- Player-collected names not present in known IDs nor trackable index.
     for nameKey, info in pairs(self.collectionNameCache or {}) do
         if not knownNameKeysFromIDs[nameKey] and not allTrackableNameKeys[nameKey] and not collectionExtraNameKeys[nameKey] then
             collectionExtraNameKeys[nameKey] = true
@@ -2045,7 +2274,6 @@ function HC:GetStatistics()
 
     stats.unknownSourceItems = math.max(0, stats.knownTotal - stats.trackableTotal)
 
-    -- Legacy fields retained for compatibility.
     stats.totalItems = stats.trackableTotal
     stats.collected = stats.collectedTrackable
 
@@ -2053,44 +2281,8 @@ function HC:GetStatistics()
 end
 
 
----------------------------------------------------
--- Master Item Database (All Items)
----------------------------------------------------
 function HC:ResolveAllItems()
-    -- Build a runtime cache of itemID -> name/icon for searching.
-    -- Prefer persisted SavedVariables cache so names/icons are instant on login.
-    self.allItemCache = self.allItemCache or {}
-    local allIDs = {}
-    if HC.AllItems and HC.AllItems.IDs then
-        for _, itemID in ipairs(HC.AllItems.IDs) do
-            allIDs[itemID] = true
-        end
-    end
-    if HC.ImportedAllItems and HC.ImportedAllItems.IDs then
-        for _, itemID in ipairs(HC.ImportedAllItems.IDs) do
-            allIDs[itemID] = true
-        end
-    end
-
-    for itemID in pairs(allIDs) do
-        if not self.allItemCache[itemID] then
-            local cachedName, cachedIcon = self:GetCachedItemInfo(itemID)
-
-            local name = (C_Item and C_Item.GetItemNameByID and C_Item.GetItemNameByID(itemID)) or cachedName
-            local icon = (C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(itemID)) or cachedIcon
-
-            self.allItemCache[itemID] = { itemID = itemID, name = name, icon = icon }
-
-            if name or icon then
-                self:UpdateItemCache(itemID, name, icon)
-            end
-
-            if not name or not icon then
-                self:EnsureItemCached(itemID)
-            end
-        end
-    end
-
+    self:BuildKnownItemIDIndex()
     self:BuildItemNameLookup()
 end
 
