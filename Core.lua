@@ -1,7 +1,7 @@
 local addonName, HC = ...
 _G["HousingCompleted"] = HC
 
-HC.version = "1.7.0"
+HC.version = "1.7.1"
 HC.searchResults = {}
 HC.collectionCache = {}
 
@@ -32,6 +32,10 @@ scale = 1.0,
     economy = {
         priceHistory = {},
         maxHistory = 8,
+        preferredPriceSource = "auto",
+        directPriceCache = {},
+        directPriceCacheTime = nil,
+        ownedAuctions = {},
     },
     ui = {
         primaryTab = "overview",
@@ -122,6 +126,15 @@ function HC:InitSavedVars()
     end
     if type(HousingCompletedDB.economy.priceHistory) ~= "table" then
         HousingCompletedDB.economy.priceHistory = {}
+    end
+    if type(HousingCompletedDB.economy.directPriceCache) ~= "table" then
+        HousingCompletedDB.economy.directPriceCache = {}
+    end
+    if type(HousingCompletedDB.economy.ownedAuctions) ~= "table" then
+        HousingCompletedDB.economy.ownedAuctions = {}
+    end
+    if type(HousingCompletedDB.economy.preferredPriceSource) ~= "string" or HousingCompletedDB.economy.preferredPriceSource == "" then
+        HousingCompletedDB.economy.preferredPriceSource = "auto"
     end
     HousingCompletedDB.economy.maxHistory = tonumber(HousingCompletedDB.economy.maxHistory) or 8
     if type(HousingCompletedDB.ui) ~= "table" then
@@ -520,12 +533,13 @@ function HC:NormalizeSourceType(sourceType)
     t = t:gsub("[%s%-]+", "_")
 
     if t == "promotion" then return "promo" end
+    if t == "in_game_shop" or t == "ingame_shop" or t == "cash_shop" then return "shop" end
     if t == "world_quest" or t == "worldquest" then return "quest" end
     if t == "crafted" or t == "craft" or t == "learned" then return "profession" end
     if t == "treasure" or t == "gathering" or t == "in_game" then return "drop" end
 
     if t == "achievement" or t == "vendor" or t == "quest" or t == "reputation"
-        or t == "profession" or t == "drop" or t == "auction" or t == "promo" or t == "unknown" then
+        or t == "profession" or t == "drop" or t == "auction" or t == "promo" or t == "shop" or t == "unknown" then
         return t
     end
 
@@ -853,9 +867,12 @@ function HC:SetupMinimapButton()
     end
     
     LibDBIcon:Register("HousingCompleted", dataObj, HousingCompletedDB.minimap)
+    HousingCompletedDB.minimap.hide = HousingCompletedDB.showMinimapButton == false
     
     if HousingCompletedDB.showMinimapButton == false then
         LibDBIcon:Hide("HousingCompleted")
+    else
+        LibDBIcon:Show("HousingCompleted")
     end
 end
 
@@ -870,7 +887,8 @@ function HC:CacheCollection()
 
         local count = tonumber(info.quantity or info.count) or 0
         local numPlaced = tonumber(info.numPlaced) or 0
-        local collected = (count > 0) or (numPlaced > 0)
+        local remainingRedeemable = tonumber(info.remainingRedeemable) or 0
+        local collected = (count > 0) or (numPlaced > 0) or (remainingRedeemable > 0)
         if (not collected) and (info.firstAcquisitionBonus or -1) == 0 then
             collected = self:ShouldUseFirstAcquisitionBonus(info.itemID, info.name)
         end

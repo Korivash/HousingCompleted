@@ -9,6 +9,7 @@ HC.SourceTypes = {
     { id = "drop", name = "Drop", icon = "Interface\\Icons\\INV_Misc_Bag_10_Blue", color = {0.4, 0.7, 1} },
     { id = "auction", name = "Auction House", icon = "Interface\\Icons\\INV_Misc_Coin_02", color = {1, 0.82, 0} },
     { id = "promo", name = "Promotion", icon = "Interface\\Icons\\INV_Misc_Gift_05", color = {1, 0.4, 0.8} },
+    { id = "shop", name = "In-Game Shop", icon = "Interface\\Icons\\INV_Misc_Coin_05", color = {0.35, 0.8, 1} },
     { id = "unknown", name = "Unknown", icon = "Interface\\Icons\\INV_Misc_QuestionMark", color = {0.5, 0.5, 0.5} },
 }
 

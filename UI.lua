@@ -1,30 +1,30 @@
 local addonName, HC = ...
 
-local FRAME_WIDTH = 1680
-local FRAME_HEIGHT = 940
-local SIDEBAR_WIDTH = 350
+local FRAME_WIDTH = 1840
+local FRAME_HEIGHT = 980
+local SIDEBAR_WIDTH = 420
 local PREVIEW_WIDTH = 390
-local HEADER_HEIGHT = 128
+local HEADER_HEIGHT = 96
 local ITEM_HEIGHT = 58
 local ITEMS_PER_PAGE = 10
 local RESULTS_HEADER_HEIGHT = 22
 
 local COLORS = {
-    background = {0.045, 0.05, 0.06, 0.97},
-    headerBg = {0.06, 0.075, 0.1, 0.98},
-    sidebar = {0.055, 0.065, 0.085, 0.98},
-    preview = {0.05, 0.065, 0.09, 0.98},
-    accent = {0.23, 0.63, 1.0, 1},
-    accentAlt = {0.44, 0.76, 1.0, 1},
+    background = {0.035, 0.03, 0.026, 0.98},
+    headerBg = {0.08, 0.065, 0.04, 0.99},
+    sidebar = {0.05, 0.045, 0.04, 0.98},
+    preview = {0.055, 0.05, 0.042, 0.98},
+    accent = {0.82, 0.67, 0.27, 1},
+    accentAlt = {1.0, 0.87, 0.48, 1},
     gold = {1, 0.82, 0, 1},
     text = {1, 1, 1, 1},
-    textMuted = {0.79, 0.85, 0.94, 1},
-    textDim = {0.53, 0.62, 0.75, 1},
+    textMuted = {0.88, 0.84, 0.77, 1},
+    textDim = {0.64, 0.59, 0.5, 1},
     collected = {0.56, 0.95, 0.54, 1},
-    row = {0.08, 0.095, 0.125, 0.88},
-    rowHover = {0.11, 0.14, 0.19, 1},
-    rowSelected = {0.13, 0.19, 0.29, 1},
-    border = {0.17, 0.24, 0.35, 1},
+    row = {0.1, 0.08, 0.065, 0.94},
+    rowHover = {0.16, 0.12, 0.08, 1},
+    rowSelected = {0.2, 0.15, 0.09, 1},
+    border = {0.36, 0.28, 0.14, 1},
 }
 
 local currentPage = 1
@@ -342,6 +342,8 @@ function HC:CreateUI()
     self:CreatePreviewPanel(frame)
     self:CreateSettingsPanel(frame)
     self:CreateShoppingListPanel(frame)
+    self:CreateZoneBrowserPanel(frame)
+    self:CreateMaterialsPanel(frame)
     
     tinsert(UISpecialFrames, "HousingCompletedFrame")
 end
@@ -351,33 +353,38 @@ function HC:CreateHeader(parent)
     header:SetPoint("TOPLEFT", 0, 0)
     header:SetPoint("TOPRIGHT", 0, 0)
     header:SetHeight(HEADER_HEIGHT)
-    header:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8" })
+    header:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
     header:SetBackdropColor(unpack(COLORS.headerBg))
-
-    local bottomBorder = header:CreateTexture(nil, "BORDER")
-    bottomBorder:SetPoint("BOTTOMLEFT", 0, 0)
-    bottomBorder:SetPoint("BOTTOMRIGHT", 0, 0)
-    bottomBorder:SetHeight(1)
-    bottomBorder:SetColorTexture(unpack(COLORS.border))
+    header:SetBackdropBorderColor(unpack(COLORS.border))
 
     local topGlow = header:CreateTexture(nil, "BACKGROUND")
     topGlow:SetPoint("TOPLEFT", 0, 0)
     topGlow:SetPoint("TOPRIGHT", 0, 0)
-    topGlow:SetHeight(64)
+    topGlow:SetHeight(76)
     topGlow:SetTexture("Interface\\Buttons\\WHITE8x8")
     if topGlow.SetGradientAlpha then
-        topGlow:SetGradientAlpha("VERTICAL", 0.22, 0.44, 0.75, 0.2, 0.03, 0.06, 0.1, 0)
+        topGlow:SetGradientAlpha("VERTICAL", 0.52, 0.39, 0.12, 0.34, 0.08, 0.06, 0.02, 0)
     else
-        topGlow:SetVertexColor(0.18, 0.32, 0.55, 0.2)
+        topGlow:SetVertexColor(0.42, 0.27, 0.08, 0.2)
     end
 
+    local titlePlate = CreateFrame("Frame", nil, header, "BackdropTemplate")
+    titlePlate:SetPoint("TOPLEFT", 16, -12)
+    titlePlate:SetSize(306, 52)
+    titlePlate:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8" })
+    titlePlate:SetBackdropColor(0.12, 0.09, 0.055, 0.86)
+
     local title = header:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    title:SetPoint("TOPLEFT", 20, -12)
-    title:SetText("|cff66b8ffHousing|r |cfff5fbffCompleted|r")
+    title:SetPoint("TOPLEFT", titlePlate, "TOPLEFT", 14, -8)
+    title:SetText("|cffffd38aHousing|r |cfff7f2dfCompleted|r")
 
     local subtitle = header:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    subtitle:SetPoint("TOPLEFT", 20, -34)
-    subtitle:SetText("Premium housing collection tracker")
+    subtitle:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -4)
+    subtitle:SetText("Collection tracking, routing, and market planning")
     subtitle:SetTextColor(unpack(COLORS.textMuted))
 
     local version = header:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -386,22 +393,27 @@ function HC:CreateHeader(parent)
     version:SetTextColor(unpack(COLORS.textDim))
 
     local closeBtn = CreateFrame("Button", nil, header, "UIPanelCloseButton")
-    closeBtn:SetPoint("TOPRIGHT", -5, -5)
+    closeBtn:SetPoint("TOPRIGHT", -6, -5)
     closeBtn:SetScript("OnClick", function() parent:Hide() end)
 
     local settingsBtn = CreateFrame("Button", nil, header)
-    settingsBtn:SetSize(24, 24)
-    settingsBtn:SetPoint("RIGHT", closeBtn, "LEFT", -5, 0)
+    settingsBtn:SetSize(26, 26)
+    settingsBtn:SetPoint("RIGHT", closeBtn, "LEFT", -8, -1)
     settingsBtn:SetNormalTexture("Interface\\Icons\\INV_Misc_Gear_01")
     settingsBtn:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
     settingsBtn:SetScript("OnClick", function() HC:ToggleSettings() end)
 
     local tabsHost = CreateFrame("Frame", nil, header, "BackdropTemplate")
-    tabsHost:SetPoint("TOPLEFT", 290, -8)
-    tabsHost:SetPoint("TOPRIGHT", -72, -8)
-    tabsHost:SetHeight(34)
-    tabsHost:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8" })
-    tabsHost:SetBackdropColor(0.07, 0.09, 0.13, 0.85)
+    tabsHost:SetPoint("TOPLEFT", 334, -14)
+    tabsHost:SetPoint("TOPRIGHT", -78, -14)
+    tabsHost:SetHeight(30)
+    tabsHost:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    tabsHost:SetBackdropColor(0.09, 0.08, 0.055, 0.82)
+    tabsHost:SetBackdropBorderColor(0.24, 0.19, 0.08, 1)
 
     local topTabs = {
         { id = "overview", label = "Overview", click = function()
@@ -441,10 +453,10 @@ function HC:CreateHeader(parent)
     }
 
     self.primaryTabButtons = {}
-    local tabWidth = 118
+    local tabWidth = 88
     for idx, tabInfo in ipairs(topTabs) do
         local btn = CreateFrame("Button", nil, tabsHost, "BackdropTemplate")
-        btn:SetSize(tabWidth, 30)
+        btn:SetSize(tabWidth, 22)
         if idx == 1 then
             btn:SetPoint("LEFT", 8, 0)
         else
@@ -456,11 +468,11 @@ function HC:CreateHeader(parent)
             edgeFile = "Interface\\Buttons\\WHITE8x8",
             edgeSize = 1,
         })
-        btn:SetBackdropColor(0.09, 0.11, 0.16, 0.94)
-        btn:SetBackdropBorderColor(0.17, 0.24, 0.35, 1)
+        btn:SetBackdropColor(0.12, 0.095, 0.06, 0.94)
+        btn:SetBackdropBorderColor(0.27, 0.22, 0.1, 1)
 
         local label = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        label:SetPoint("CENTER", 0, 2)
+        label:SetPoint("CENTER", 0, 1)
         label:SetText(tabInfo.label)
         label:SetTextColor(unpack(COLORS.textMuted))
         btn.label = label
@@ -474,12 +486,12 @@ function HC:CreateHeader(parent)
 
         btn:SetScript("OnEnter", function(selfBtn)
             if currentPrimaryTab ~= selfBtn.tabID then
-                selfBtn:SetBackdropColor(0.11, 0.14, 0.2, 0.98)
+                selfBtn:SetBackdropColor(0.18, 0.14, 0.08, 0.98)
             end
         end)
         btn:SetScript("OnLeave", function(selfBtn)
             if currentPrimaryTab ~= selfBtn.tabID then
-                selfBtn:SetBackdropColor(0.09, 0.11, 0.16, 0.94)
+                selfBtn:SetBackdropColor(0.12, 0.095, 0.06, 0.94)
             end
         end)
         btn:SetScript("OnClick", function()
@@ -489,43 +501,42 @@ function HC:CreateHeader(parent)
             end
             HC:UpdatePrimaryTabs()
         end)
-
         self.primaryTabButtons[tabInfo.id] = btn
     end
 
     local completionContainer = CreateFrame("Frame", nil, header, "BackdropTemplate")
-    completionContainer:SetPoint("TOPLEFT", 20, -58)
-    completionContainer:SetPoint("TOPRIGHT", -20, -58)
-    completionContainer:SetHeight(78)
+    completionContainer:SetPoint("TOPLEFT", 334, -50)
+    completionContainer:SetPoint("TOPRIGHT", -18, -50)
+    completionContainer:SetHeight(34)
     completionContainer:SetBackdrop({
         bgFile = "Interface\\Buttons\\WHITE8x8",
         edgeFile = "Interface\\Buttons\\WHITE8x8",
         edgeSize = 1,
     })
-    completionContainer:SetBackdropColor(0.065, 0.085, 0.12, 0.95)
-    completionContainer:SetBackdropBorderColor(0.17, 0.24, 0.35, 1)
+    completionContainer:SetBackdropColor(0.09, 0.075, 0.05, 0.95)
+    completionContainer:SetBackdropBorderColor(0.24, 0.19, 0.08, 1)
 
     local completionLabel = completionContainer:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    completionLabel:SetPoint("TOPLEFT", 12, -8)
+    completionLabel:SetPoint("LEFT", 12, 0)
     completionLabel:SetText("Housing Completion")
     completionLabel:SetTextColor(unpack(COLORS.textMuted))
 
     local completionValue = completionContainer:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    completionValue:SetPoint("TOPRIGHT", -12, -8)
+    completionValue:SetPoint("LEFT", completionLabel, "RIGHT", 10, 0)
     completionValue:SetText("0%")
     completionValue:SetTextColor(unpack(COLORS.accentAlt))
     self.completionValueText = completionValue
 
     local progressBg = completionContainer:CreateTexture(nil, "ARTWORK")
-    progressBg:SetPoint("TOPLEFT", 12, -28)
-    progressBg:SetPoint("TOPRIGHT", -12, -28)
-    progressBg:SetHeight(12)
+    progressBg:SetPoint("LEFT", completionValue, "RIGHT", 14, 0)
+    progressBg:SetPoint("RIGHT", -290, 0)
+    progressBg:SetHeight(10)
     progressBg:SetTexture("Interface\\Buttons\\WHITE8x8")
-    progressBg:SetColorTexture(0.11, 0.13, 0.17, 0.95)
+    progressBg:SetColorTexture(0.15, 0.12, 0.08, 0.95)
 
     local progressBar = completionContainer:CreateTexture(nil, "ARTWORK")
-    progressBar:SetPoint("TOPLEFT", progressBg, "TOPLEFT", 1, -1)
-    progressBar:SetHeight(10)
+    progressBar:SetPoint("LEFT", progressBg, "LEFT", 1, 0)
+    progressBar:SetHeight(8)
     progressBar:SetWidth(2)
     progressBar:SetTexture("Interface\\Buttons\\WHITE8x8")
     progressBar:SetColorTexture(unpack(COLORS.accent))
@@ -533,17 +544,17 @@ function HC:CreateHeader(parent)
     self.completionBarWidth = 2
 
     local metrics = completionContainer:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    metrics:SetPoint("TOPLEFT", 12, -45)
-    metrics:SetPoint("TOPRIGHT", -12, -45)
+    metrics:SetPoint("LEFT", progressBg, "RIGHT", 12, 0)
+    metrics:SetWidth(170)
     metrics:SetJustifyH("LEFT")
-    metrics:SetText("Missing: 0  | Favorites: 0  | Recent: 0")
+    metrics:SetText("Missing: 0 | Favorites: 0")
     metrics:SetTextColor(unpack(COLORS.textDim))
     self.statsText = metrics
 
     local nextActionText = completionContainer:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    nextActionText:SetPoint("TOPLEFT", 12, -58)
-    nextActionText:SetPoint("TOPRIGHT", -12, -58)
-    nextActionText:SetJustifyH("LEFT")
+    nextActionText:SetPoint("RIGHT", -12, 0)
+    nextActionText:SetWidth(260)
+    nextActionText:SetJustifyH("RIGHT")
     nextActionText:SetTextColor(unpack(COLORS.accentAlt))
     nextActionText:SetText("Next: Scanning best action...")
     self.nextActionText = nextActionText
@@ -564,10 +575,15 @@ function HC:CreateSidebar(parent)
     sidebar:SetBackdropColor(unpack(COLORS.sidebar))
     sidebar:SetBackdropBorderColor(unpack(COLORS.border))
     
+    local topRowInset = 10
+    local topRowGap = 8
+    local clearButtonWidth = 120
+    local topRowHeight = 32
     local y = -15
-    
-    local searchBox = CreateSearchBox(sidebar, SIDEBAR_WIDTH - 20)
-    searchBox:SetPoint("TOP", 0, y)
+
+    local searchWidth = SIDEBAR_WIDTH - (topRowInset * 2) - clearButtonWidth - topRowGap
+    local searchBox = CreateSearchBox(sidebar, searchWidth)
+    searchBox:SetPoint("TOPLEFT", topRowInset, y)
     searchBox.editBox:SetScript("OnEnterPressed", function(self)
         HC:DoSearch()
         self:ClearFocus()
@@ -577,16 +593,16 @@ function HC:CreateSidebar(parent)
         if userInput then C_Timer.After(0.3, function() HC:DoSearch() end) end
     end)
     self.searchBox = searchBox.editBox
-    y = y - 50
 
     local clearBtn = CreateFrame("Button", nil, sidebar, "UIPanelButtonTemplate")
-    clearBtn:SetSize(120, 22)
-    clearBtn:SetPoint("TOPRIGHT", -10, -17)
+    clearBtn:SetSize(clearButtonWidth, 22)
+    clearBtn:SetPoint("LEFT", searchBox, "RIGHT", topRowGap, 0)
     clearBtn:SetText("Clear Filters")
     clearBtn:SetScript("OnClick", function()
         if HC.searchBox then HC.searchBox:SetText("") end
         if HC.collectedCb then HC.collectedCb:SetChecked(true) end
         if HC.uncollectedCb then HC.uncollectedCb:SetChecked(true) end
+        if HC.myAuctionsCb then HC.myAuctionsCb:SetChecked(false) end
         if HC.zoneOnlyCb then HC.zoneOnlyCb:SetChecked(false) end
         if HousingCompletedDB and HousingCompletedDB.filters then
             HousingCompletedDB.filters.expansions = {}
@@ -604,6 +620,7 @@ function HC:CreateSidebar(parent)
         HC:DoSearch()
     end)
     self.clearFiltersBtn = clearBtn
+    y = y - (topRowHeight + 18)
 
     local scrollFrame = CreateFrame("ScrollFrame", nil, sidebar, "UIPanelScrollFrameTemplate")
     scrollFrame:SetPoint("TOPLEFT", 6, y)
@@ -818,7 +835,7 @@ function HC:CreateSidebar(parent)
 
     local sourcePanel = CreateFrame("Frame", nil, scrollChild, "BackdropTemplate")
     sourcePanel:SetPoint("TOPLEFT", 10, y)
-    sourcePanel:SetSize(SIDEBAR_WIDTH - 44, 318)
+    sourcePanel:SetSize(SIDEBAR_WIDTH - 44, 346)
     sourcePanel:SetBackdrop({
         bgFile = "Interface\\Buttons\\WHITE8x8",
         edgeFile = "Interface\\Buttons\\WHITE8x8",
@@ -826,7 +843,7 @@ function HC:CreateSidebar(parent)
     })
     sourcePanel:SetBackdropColor(0.08, 0.07, 0.1, 0.85)
     sourcePanel:SetBackdropBorderColor(0.2, 0.18, 0.24, 1)
-    y = y - 324
+    y = y - 352
 
     local sourceViews = {
         { id = "all", name = "All Items", icon = "Interface\\Icons\\INV_Misc_Bag_10" },
@@ -839,6 +856,7 @@ function HC:CreateSidebar(parent)
         { id = "drop", name = "Drops", icon = "Interface\\Icons\\INV_Misc_Bag_10_Blue" },
         { id = "auction", name = "Auction House", icon = "Interface\\Icons\\INV_Misc_Coin_02" },
         { id = "promo", name = "Promotions", icon = "Interface\\Icons\\INV_Misc_Gift_05" },
+        { id = "shop", name = "In-Game Shop", icon = "Interface\\Icons\\INV_Misc_Coin_05" },
         { id = "unknown", name = "Unknown", icon = "Interface\\Icons\\INV_Misc_QuestionMark" },
     }
 
@@ -923,6 +941,20 @@ function HC:CreateSidebar(parent)
     self.uncollectedCb = uncollectedCb
     y = y - 30
 
+    local myAuctionsCb = CreateFrame("CheckButton", nil, scrollChild, "UICheckButtonTemplate")
+    myAuctionsCb:SetPoint("TOPLEFT", 10, y)
+    myAuctionsCb:SetSize(24, 24)
+    SetButtonText(myAuctionsCb, "My Auctions Only", 0.7, 0.7, 0.7)
+    myAuctionsCb:SetChecked(false)
+    myAuctionsCb:SetScript("OnClick", function()
+        if HC.PricingProvider and HC.PricingProvider.QueryOwnedAuctions and myAuctionsCb:GetChecked() then
+            HC.PricingProvider:QueryOwnedAuctions()
+        end
+        HC:DoSearch()
+    end)
+    self.myAuctionsCb = myAuctionsCb
+    y = y - 28
+
     local zoneOnlyCb = CreateFrame("CheckButton", nil, scrollChild, "UICheckButtonTemplate")
     zoneOnlyCb:SetPoint("TOPLEFT", 10, y)
     zoneOnlyCb:SetSize(24, 24)
@@ -996,7 +1028,7 @@ function HC:CreateSidebar(parent)
     self.lowRiskOnlyCb = lowRiskOnlyCb
     y = y - 24
     self.econFilterWidgets = {
-        econLabel, minProfitBox, minProfitLabel, minMarginBox, minMarginLabel, craftableOnlyCb, lowRiskOnlyCb,
+        myAuctionsCb, econLabel, minProfitBox, minProfitLabel, minMarginBox, minMarginLabel, craftableOnlyCb, lowRiskOnlyCb,
     }
 
     local itemCategoryLabel = scrollChild:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -1074,18 +1106,18 @@ function HC:CreateContent(parent)
     content:SetPoint("TOPLEFT", SIDEBAR_WIDTH, -HEADER_HEIGHT)
     content:SetPoint("BOTTOMRIGHT", -PREVIEW_WIDTH, 0)
     content:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8" })
-    content:SetBackdropColor(0.06, 0.045, 0.03, 0.9)
+    content:SetBackdropColor(0.055, 0.042, 0.03, 0.94)
     
     local resultsFrame = CreateFrame("Frame", nil, content, "BackdropTemplate")
     resultsFrame:SetPoint("TOPLEFT", 15, -15)
-    resultsFrame:SetPoint("BOTTOMRIGHT", -15, 80)
+    resultsFrame:SetPoint("BOTTOMRIGHT", -15, 104)
     resultsFrame:SetBackdrop({
         bgFile = "Interface\\Buttons\\WHITE8x8",
         edgeFile = "Interface\\Buttons\\WHITE8x8",
         edgeSize = 1,
     })
-    resultsFrame:SetBackdropColor(0.06, 0.06, 0.09, 1)
-    resultsFrame:SetBackdropBorderColor(0.15, 0.15, 0.2, 1)
+    resultsFrame:SetBackdropColor(0.07, 0.058, 0.042, 1)
+    resultsFrame:SetBackdropBorderColor(0.24, 0.19, 0.08, 1)
 
     local function CreateSortHeader(label, sortKey, anchorTo, offsetX)
         local btn = CreateFrame("Button", nil, resultsFrame)
@@ -1178,13 +1210,24 @@ function HC:CreateContent(parent)
     local pagination = CreateFrame("Frame", nil, content, "BackdropTemplate")
     pagination:SetPoint("BOTTOMLEFT", 15, 15)
     pagination:SetPoint("BOTTOMRIGHT", -15, 15)
-    pagination:SetHeight(58)
-    pagination:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8" })
-    pagination:SetBackdropColor(0.08, 0.06, 0.04, 0.92)
+    pagination:SetHeight(82)
+    pagination:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    pagination:SetBackdropColor(0.08, 0.06, 0.04, 0.94)
+    pagination:SetBackdropBorderColor(0.24, 0.19, 0.08, 1)
+
+    local topDivider = pagination:CreateTexture(nil, "ARTWORK")
+    topDivider:SetPoint("TOPLEFT", 10, -36)
+    topDivider:SetPoint("TOPRIGHT", -10, -36)
+    topDivider:SetHeight(1)
+    topDivider:SetColorTexture(0.26, 0.2, 0.09, 1)
     
     local exportBtn = CreateFrame("Button", nil, pagination, "UIPanelButtonTemplate")
     exportBtn:SetSize(80, 26)
-    exportBtn:SetPoint("LEFT", 0, 0)
+    exportBtn:SetPoint("BOTTOMLEFT", 8, 10)
     exportBtn:SetText("CSV")
     exportBtn:SetScript("OnClick", function()
         HC:ShowResultsExportDialog()
@@ -1192,7 +1235,7 @@ function HC:CreateContent(parent)
     self.exportBtn = exportBtn
 
     local routeBtn = CreateFrame("Button", nil, pagination, "UIPanelButtonTemplate")
-    routeBtn:SetSize(86, 26)
+    routeBtn:SetSize(84, 26)
     routeBtn:SetPoint("LEFT", exportBtn, "RIGHT", 6, 0)
     routeBtn:SetText("Optimize")
     routeBtn:SetScript("OnClick", function()
@@ -1201,7 +1244,7 @@ function HC:CreateContent(parent)
     self.routeBtn = routeBtn
 
     local blueprintBtn = CreateFrame("Button", nil, pagination, "UIPanelButtonTemplate")
-    blueprintBtn:SetSize(82, 26)
+    blueprintBtn:SetSize(80, 26)
     blueprintBtn:SetPoint("LEFT", routeBtn, "RIGHT", 6, 0)
     blueprintBtn:SetText("Blueprint")
     blueprintBtn:SetScript("OnClick", function()
@@ -1210,7 +1253,7 @@ function HC:CreateContent(parent)
     self.blueprintBtn = blueprintBtn
 
     local autoBtn = CreateFrame("Button", nil, pagination, "UIPanelButtonTemplate")
-    autoBtn:SetSize(70, 26)
+    autoBtn:SetSize(64, 26)
     autoBtn:SetPoint("LEFT", blueprintBtn, "RIGHT", 6, 0)
     autoBtn:SetText("Auto")
     autoBtn:SetScript("OnClick", function()
@@ -1219,7 +1262,7 @@ function HC:CreateContent(parent)
     self.autoBtn = autoBtn
 
     local shoppingBtn = CreateFrame("Button", nil, pagination, "UIPanelButtonTemplate")
-    shoppingBtn:SetSize(108, 26)
+    shoppingBtn:SetSize(100, 26)
     shoppingBtn:SetPoint("LEFT", autoBtn, "RIGHT", 6, 0)
     shoppingBtn:SetText("Shopping List")
     shoppingBtn:SetScript("OnClick", function()
@@ -1227,9 +1270,43 @@ function HC:CreateContent(parent)
     end)
     self.shoppingBtn = shoppingBtn
 
+    local zoneBtn = CreateFrame("Button", nil, pagination, "UIPanelButtonTemplate")
+    zoneBtn:SetSize(60, 26)
+    zoneBtn:SetPoint("LEFT", shoppingBtn, "RIGHT", 6, 0)
+    zoneBtn:SetText("Zone")
+    zoneBtn:SetScript("OnClick", function()
+        HC:ToggleZoneBrowserPanel()
+    end)
+    self.zoneBtn = zoneBtn
+
+    local materialsBtn = CreateFrame("Button", nil, pagination, "UIPanelButtonTemplate")
+    materialsBtn:SetSize(78, 26)
+    materialsBtn:SetPoint("LEFT", zoneBtn, "RIGHT", 6, 0)
+    materialsBtn:SetText("Materials")
+    materialsBtn:SetScript("OnClick", function()
+        HC:ToggleMaterialsPanel()
+    end)
+    self.materialsBtn = materialsBtn
+
+    local priceScanBtn = CreateFrame("Button", nil, pagination, "UIPanelButtonTemplate")
+    priceScanBtn:SetSize(78, 26)
+    priceScanBtn:SetPoint("LEFT", materialsBtn, "RIGHT", 6, 0)
+    priceScanBtn:SetText("Prices")
+    priceScanBtn:SetScript("OnClick", function()
+        HC:TriggerPriceRefresh()
+    end)
+    self.priceScanBtn = priceScanBtn
+
+    local priceSourceText = pagination:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    priceSourceText:SetPoint("TOPLEFT", 10, -10)
+    priceSourceText:SetWidth(210)
+    priceSourceText:SetJustifyH("LEFT")
+    priceSourceText:SetTextColor(unpack(COLORS.textDim))
+    self.priceSourceText = priceSourceText
+
     local prevBtn = CreateFrame("Button", nil, pagination, "UIPanelButtonTemplate")
-    prevBtn:SetSize(70, 26)
-    prevBtn:SetPoint("LEFT", shoppingBtn, "RIGHT", 12, 12)
+    prevBtn:SetSize(64, 22)
+    prevBtn:SetPoint("TOPRIGHT", -116, -8)
     prevBtn:SetText("< Prev")
     prevBtn:SetScript("OnClick", function()
         if currentPage > 1 then currentPage = currentPage - 1; HC:UpdateResults() end
@@ -1237,7 +1314,7 @@ function HC:CreateContent(parent)
     self.prevBtn = prevBtn
     
     local nextBtn = CreateFrame("Button", nil, pagination, "UIPanelButtonTemplate")
-    nextBtn:SetSize(70, 26)
+    nextBtn:SetSize(64, 22)
     nextBtn:SetPoint("LEFT", prevBtn, "RIGHT", 8, 0)
     nextBtn:SetText("Next >")
     nextBtn:SetScript("OnClick", function()
@@ -1246,8 +1323,8 @@ function HC:CreateContent(parent)
     self.nextBtn = nextBtn
 
     local setWaypointBtn = CreateFrame("Button", nil, pagination, "UIPanelButtonTemplate")
-    setWaypointBtn:SetSize(130, 26)
-    setWaypointBtn:SetPoint("RIGHT", -8, 12)
+    setWaypointBtn:SetSize(116, 26)
+    setWaypointBtn:SetPoint("BOTTOMRIGHT", -8, 10)
     setWaypointBtn:SetText("Set Waypoint")
     setWaypointBtn:SetScript("OnClick", function()
         HC:SetResultWaypoint(selectedItem)
@@ -1256,7 +1333,7 @@ function HC:CreateContent(parent)
     self.setWaypointBtn = setWaypointBtn
 
     local addShoppingBtn = CreateFrame("Button", nil, pagination, "UIPanelButtonTemplate")
-    addShoppingBtn:SetSize(110, 26)
+    addShoppingBtn:SetSize(104, 26)
     addShoppingBtn:SetPoint("RIGHT", setWaypointBtn, "LEFT", -8, 0)
     addShoppingBtn:SetText("Add To List")
     addShoppingBtn:SetScript("OnClick", function()
@@ -1272,7 +1349,7 @@ function HC:CreateContent(parent)
     self.addShoppingBtn = addShoppingBtn
 
     local mapAllBtn = CreateFrame("Button", nil, pagination, "UIPanelButtonTemplate")
-    mapAllBtn:SetSize(96, 26)
+    mapAllBtn:SetSize(84, 26)
     mapAllBtn:SetPoint("RIGHT", addShoppingBtn, "LEFT", -8, 0)
     mapAllBtn:SetText("Map All")
     mapAllBtn:SetScript("OnClick", function()
@@ -1288,14 +1365,14 @@ function HC:CreateContent(parent)
     self.pageText = pageText
     
     local statusText = pagination:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    statusText:SetPoint("LEFT", 10, -14)
+    statusText:SetPoint("LEFT", priceSourceText, "RIGHT", 12, 0)
     statusText:SetText("0 results")
     statusText:SetTextColor(unpack(COLORS.textDim))
     self.statusText = statusText
 
     local plannerBudgetBox = CreateFrame("EditBox", nil, pagination, "InputBoxTemplate")
     plannerBudgetBox:SetSize(110, 20)
-    plannerBudgetBox:SetPoint("LEFT", nextBtn, "RIGHT", 14, 0)
+    plannerBudgetBox:SetPoint("TOPLEFT", statusText, "RIGHT", 16, 0)
     plannerBudgetBox:SetAutoFocus(false)
     plannerBudgetBox:SetNumeric(true)
     plannerBudgetBox:SetText("100000")
@@ -1314,7 +1391,7 @@ function HC:CreateContent(parent)
 
     local plannerSummary = pagination:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     plannerSummary:SetPoint("LEFT", plannerRunBtn, "RIGHT", 8, 0)
-    plannerSummary:SetPoint("RIGHT", setWaypointBtn, "LEFT", -8, 0)
+    plannerSummary:SetPoint("RIGHT", prevBtn, "LEFT", -10, 0)
     plannerSummary:SetJustifyH("LEFT")
     plannerSummary:SetTextColor(unpack(COLORS.textMuted))
     plannerSummary:Hide()
@@ -3156,7 +3233,7 @@ function HC:RefreshShoppingListPanel()
     panel.mapBtn:SetAlpha(#list > 0 and 1 or 0.45)
     panel.clearBtn:SetEnabled(#list > 0)
     panel.clearBtn:SetAlpha(#list > 0 and 1 or 0.45)
-    local hasPricingProvider = self.PricingProvider and self.PricingProvider.IsEnabled and self.PricingProvider:IsEnabled()
+    local hasPricingProvider = self.PricingProvider and self.PricingProvider.api ~= nil
     if panel.sendMissingBtn then
         panel.sendMissingBtn:SetEnabled((#list > 0) and hasPricingProvider)
         panel.sendMissingBtn:SetAlpha(((#list > 0) and hasPricingProvider) and 1 or 0.45)
@@ -3321,6 +3398,476 @@ function HC:ToggleShoppingListPanel()
     end
 end
 
+function HC:GetZoneBrowserResults(searchText, hideCollected)
+    local zoneMapID = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player") or nil
+    if not zoneMapID then
+        return {}, nil
+    end
+
+    local results = self:SearchAll(searchText or "", {
+        showCollected = true,
+        showUncollected = true,
+        faction = self:GetPlayerFaction(),
+        zoneMapID = zoneMapID,
+    })
+
+    local filtered = {}
+    local vendors = {}
+    local seenVendors = {}
+    local collectedCount = 0
+    local totalCount = 0
+
+    for _, resultData in ipairs(results or {}) do
+        if resultData.type ~= "vendor" then
+            totalCount = totalCount + 1
+            if resultData.collected then
+                collectedCount = collectedCount + 1
+            end
+            if (not hideCollected) or (not resultData.collected) then
+                filtered[#filtered + 1] = resultData
+            end
+        elseif resultData.data and resultData.data.name then
+            local key = tostring(resultData.data.name):lower() .. "|" .. tostring(resultData.data.mapID or 0)
+            if not seenVendors[key] then
+                seenVendors[key] = true
+                vendors[#vendors + 1] = resultData.data
+            end
+        end
+    end
+
+    table.sort(filtered, function(a, b)
+        if a.collected ~= b.collected then
+            return not a.collected
+        end
+        return tostring(a.name or "") < tostring(b.name or "")
+    end)
+    table.sort(vendors, function(a, b)
+        return tostring(a.name or "") < tostring(b.name or "")
+    end)
+
+    return filtered, {
+        mapID = zoneMapID,
+        vendors = vendors,
+        totalCount = totalCount,
+        collectedCount = collectedCount,
+    }
+end
+
+function HC:CreateZoneBrowserPanel(parent)
+    if self.zoneBrowserPanel then return end
+
+    local frame = CreateFrame("Frame", nil, parent, "BackdropTemplate")
+    frame:SetPoint("TOPLEFT", SIDEBAR_WIDTH + 54, -HEADER_HEIGHT - 54)
+    frame:SetPoint("BOTTOMRIGHT", -54, 54)
+    frame:SetFrameStrata("DIALOG")
+    frame:SetBackdrop({
+        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        edgeSize = 10,
+        insets = { left = 2, right = 2, top = 2, bottom = 2 },
+    })
+    frame:SetBackdropColor(0.055, 0.05, 0.04, 0.98)
+    frame:SetBackdropBorderColor(unpack(COLORS.border))
+    frame:Hide()
+
+    local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    title:SetPoint("TOPLEFT", 14, -10)
+    title:SetText("Zone Browser")
+    title:SetTextColor(unpack(COLORS.accentAlt))
+    frame.title = title
+
+    local subtitle = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    subtitle:SetPoint("TOPLEFT", 16, -34)
+    subtitle:SetTextColor(unpack(COLORS.textMuted))
+    frame.subtitle = subtitle
+
+    local closeBtn = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
+    closeBtn:SetPoint("TOPRIGHT", -4, -4)
+    closeBtn:SetScript("OnClick", function()
+        frame:Hide()
+    end)
+
+    local searchBox = CreateSearchBox(frame, 220)
+    searchBox:SetPoint("TOPLEFT", 16, -58)
+    searchBox.editBox:SetScript("OnEnterPressed", function(selfBox)
+        HC:RefreshZoneBrowserPanel()
+        selfBox:ClearFocus()
+    end)
+    searchBox.editBox:SetScript("OnTextChanged", function(selfBox, userInput)
+        searchBox.placeholder:SetShown(selfBox:GetText() == "")
+        if userInput then
+            C_Timer.After(0.2, function()
+                if HC.zoneBrowserPanel and HC.zoneBrowserPanel:IsShown() then
+                    HC:RefreshZoneBrowserPanel()
+                end
+            end)
+        end
+    end)
+    frame.searchBox = searchBox.editBox
+
+    local hideCollectedCb = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate")
+    hideCollectedCb:SetPoint("TOPLEFT", 248, -60)
+    SetButtonText(hideCollectedCb, "Hide Collected", 0.8, 0.8, 0.8)
+    hideCollectedCb:SetChecked(false)
+    hideCollectedCb:SetScript("OnClick", function()
+        HC:RefreshZoneBrowserPanel()
+    end)
+    frame.hideCollectedCb = hideCollectedCb
+
+    local mapAllBtn = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    mapAllBtn:SetSize(92, 22)
+    mapAllBtn:SetPoint("TOPRIGHT", -18, -58)
+    mapAllBtn:SetText("Map Vendors")
+    mapAllBtn:SetScript("OnClick", function()
+        local state = HC.zoneBrowserState
+        if not state or not state.vendors then return end
+        local results = {}
+        for _, vendor in ipairs(state.vendors) do
+            results[#results + 1] = {
+                type = "vendor",
+                data = vendor,
+                name = vendor.name,
+                vendor = vendor.name,
+                zone = vendor.zone,
+            }
+        end
+        HC:MapWaypointsForResults(results)
+    end)
+    frame.mapAllBtn = mapAllBtn
+
+    local scroll = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
+    scroll:SetPoint("TOPLEFT", 12, -92)
+    scroll:SetPoint("BOTTOMRIGHT", -30, 12)
+    frame.scroll = scroll
+
+    local child = CreateFrame("Frame", nil, scroll)
+    child:SetSize(1, 1)
+    scroll:SetScrollChild(child)
+    frame.child = child
+    frame.rows = {}
+
+    self.zoneBrowserPanel = frame
+end
+
+function HC:RefreshZoneBrowserPanel()
+    if not self.zoneBrowserPanel then return end
+    local panel = self.zoneBrowserPanel
+    local searchText = panel.searchBox and panel.searchBox:GetText() or ""
+    local hideCollected = panel.hideCollectedCb and panel.hideCollectedCb:GetChecked()
+    local results, state = self:GetZoneBrowserResults(searchText, hideCollected)
+    self.zoneBrowserState = state
+
+    local mapInfo = state and state.mapID and C_Map and C_Map.GetMapInfo and C_Map.GetMapInfo(state.mapID) or nil
+    local zoneName = mapInfo and mapInfo.name or "Current Zone"
+    local uncollected = math.max(0, (state and state.totalCount or 0) - (state and state.collectedCount or 0))
+    panel.subtitle:SetText(string.format("%s | %d vendors | %d/%d uncollected", zoneName, #(state and state.vendors or {}), uncollected, state and state.totalCount or 0))
+
+    for _, row in ipairs(panel.rows) do
+        row:Hide()
+    end
+
+    local y = -4
+    local rowHeight = 30
+    for idx, resultData in ipairs(results) do
+        local row = panel.rows[idx]
+        if not row then
+            row = CreateFrame("Button", nil, panel.child, "BackdropTemplate")
+            row:SetBackdrop({
+                bgFile = "Interface\\Buttons\\WHITE8x8",
+                edgeFile = "Interface\\Buttons\\WHITE8x8",
+                edgeSize = 1,
+            })
+            row:SetBackdropColor(0.11, 0.09, 0.07, 0.9)
+            row:SetBackdropBorderColor(0.22, 0.18, 0.12, 1)
+            row:SetHeight(rowHeight - 2)
+
+            local text = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+            text:SetPoint("LEFT", 8, 0)
+            text:SetPoint("RIGHT", -160, 0)
+            text:SetJustifyH("LEFT")
+            if text.SetWordWrap then text:SetWordWrap(false) end
+            if text.SetNonSpaceWrap then text:SetNonSpaceWrap(false) end
+            if text.SetMaxLines then text:SetMaxLines(1) end
+            row.text = text
+
+            local vendorBtn = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+            vendorBtn:SetSize(60, 20)
+            vendorBtn:SetPoint("RIGHT", -72, 0)
+            vendorBtn:SetText("Vendor")
+            vendorBtn:SetScript("OnClick", function(selfBtn)
+                if selfBtn.resultData then
+                    HC:ShowVendorInventoryForResult(selfBtn.resultData)
+                end
+            end)
+            row.vendorBtn = vendorBtn
+
+            local addBtn = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+            addBtn:SetSize(56, 20)
+            addBtn:SetPoint("RIGHT", -8, 0)
+            addBtn:SetText("Add")
+            addBtn:SetScript("OnClick", function(selfBtn)
+                if not selfBtn.resultData then return end
+                local ok = HC:AddResultToShoppingList(selfBtn.resultData)
+                if ok and HC.RefreshShoppingListPanel then
+                    HC:RefreshShoppingListPanel()
+                    HC:UpdateAddShoppingButton()
+                end
+            end)
+            row.addBtn = addBtn
+
+            row:SetScript("OnClick", function(selfRow)
+                selectedItem = selfRow.resultData
+                HC:UpdateResults()
+                if HC.UpdatePreview then
+                    HC:UpdatePreview(selfRow.resultData)
+                end
+            end)
+
+            panel.rows[idx] = row
+        end
+
+        row:ClearAllPoints()
+        row:SetPoint("TOPLEFT", 0, y)
+        row:SetPoint("TOPRIGHT", -8, y)
+        local sourceInfo = self:GetSourceTypeInfo(resultData.type)
+        local prefix = resultData.collected and "|cff66dd66[Collected]|r " or ""
+        local vendorText = resultData.vendor and (" |cff888888- " .. resultData.vendor .. "|r") or ""
+        local zoneText = resultData.zone and (" |cff777777(" .. resultData.zone .. ")|r") or ""
+        row.text:SetText(prefix .. (resultData.name or "Unknown") .. vendorText .. zoneText)
+        row.text:SetTextColor(unpack(sourceInfo.color))
+        row.vendorBtn.resultData = resultData
+        row.vendorBtn:SetEnabled(resultData.vendor and true or false)
+        row.vendorBtn:SetAlpha((resultData.vendor and true or false) and 1 or 0.45)
+        row.addBtn.resultData = resultData
+        row.resultData = resultData
+        row:SetBackdropColor(resultData.collected and 0.08 or 0.11, resultData.collected and 0.08 or 0.09, resultData.collected and 0.08 or 0.07, resultData.collected and 0.7 or 0.9)
+        row:Show()
+        y = y - rowHeight
+    end
+
+    panel.child:SetWidth(math.max(1, panel.scroll:GetWidth() - 18))
+    panel.child:SetHeight(math.max(1, -y + 8))
+end
+
+function HC:ToggleZoneBrowserPanel()
+    if not self.zoneBrowserPanel then return end
+    if self.zoneBrowserPanel:IsShown() then
+        self.zoneBrowserPanel:Hide()
+    else
+        self:RefreshZoneBrowserPanel()
+        self.zoneBrowserPanel:Show()
+    end
+end
+
+function HC:GetAggregatedMaterialsData()
+    local needed = {}
+    local byKey = {}
+
+    for _, mat in ipairs(self:GetCraftingQueueMissingMaterials() or {}) do
+        local key = tostring(mat.itemID or 0) .. "|" .. tostring((mat.name or ""):lower())
+        local bucket = byKey[key]
+        if not bucket then
+            bucket = {
+                itemID = mat.itemID,
+                name = mat.name,
+                needed = 0,
+                trackedOnly = false,
+            }
+            byKey[key] = bucket
+            needed[#needed + 1] = bucket
+        end
+        bucket.needed = bucket.needed + (tonumber(mat.quantity) or 0)
+    end
+
+    for itemID, info in pairs(self:GetTrackedReagents() or {}) do
+        local key = tostring(itemID) .. "|" .. tostring((info and info.name or ""):lower())
+        local bucket = byKey[key]
+        if not bucket then
+            bucket = {
+                itemID = tonumber(itemID),
+                name = info and info.name,
+                needed = 0,
+                trackedOnly = true,
+            }
+            byKey[key] = bucket
+            needed[#needed + 1] = bucket
+        end
+        bucket.target = math.max(bucket.target or 0, tonumber(info and info.targetQty) or 0)
+    end
+
+    for _, entry in ipairs(needed) do
+        entry.have = GetCharacterItemCount(entry.itemID)
+        if entry.target and entry.target > entry.needed then
+            entry.needed = entry.target
+        end
+        entry.missing = math.max(0, (entry.needed or 0) - (entry.have or 0))
+    end
+
+    table.sort(needed, function(a, b)
+        if (a.missing or 0) ~= (b.missing or 0) then
+            return (a.missing or 0) > (b.missing or 0)
+        end
+        return tostring(a.name or "") < tostring(b.name or "")
+    end)
+
+    return needed
+end
+
+function HC:CreateMaterialsPanel(parent)
+    if self.materialsPanel then return end
+
+    local frame = CreateFrame("Frame", nil, parent, "BackdropTemplate")
+    frame:SetPoint("TOPLEFT", SIDEBAR_WIDTH + 78, -HEADER_HEIGHT - 78)
+    frame:SetPoint("BOTTOMRIGHT", -78, 78)
+    frame:SetFrameStrata("DIALOG")
+    frame:SetBackdrop({
+        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        edgeSize = 10,
+        insets = { left = 2, right = 2, top = 2, bottom = 2 },
+    })
+    frame:SetBackdropColor(0.05, 0.06, 0.04, 0.98)
+    frame:SetBackdropBorderColor(unpack(COLORS.border))
+    frame:Hide()
+
+    local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    title:SetPoint("TOPLEFT", 14, -10)
+    title:SetText("Materials")
+    title:SetTextColor(unpack(COLORS.accentAlt))
+    frame.title = title
+
+    local summary = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    summary:SetPoint("TOPLEFT", 16, -34)
+    summary:SetTextColor(unpack(COLORS.textMuted))
+    frame.summary = summary
+
+    local closeBtn = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
+    closeBtn:SetPoint("TOPRIGHT", -4, -4)
+    closeBtn:SetScript("OnClick", function()
+        frame:Hide()
+    end)
+
+    local sendMissingBtn = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    sendMissingBtn:SetSize(140, 22)
+    sendMissingBtn:SetPoint("TOPRIGHT", -18, -30)
+    sendMissingBtn:SetText("Send To Auctionator")
+    sendMissingBtn:SetScript("OnClick", function()
+        local ok, _, msg = HC:SendCraftingQueueMissingToAuctionator("HousingCompleted Missing Mats", true)
+        if msg then
+            print("|cff00ff99Housing Completed|r: " .. msg)
+        end
+    end)
+    frame.sendMissingBtn = sendMissingBtn
+
+    local scroll = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
+    scroll:SetPoint("TOPLEFT", 12, -62)
+    scroll:SetPoint("BOTTOMRIGHT", -30, 12)
+    frame.scroll = scroll
+
+    local child = CreateFrame("Frame", nil, scroll)
+    child:SetSize(1, 1)
+    scroll:SetScrollChild(child)
+    frame.child = child
+    frame.rows = {}
+
+    self.materialsPanel = frame
+end
+
+function HC:RefreshMaterialsPanel()
+    if not self.materialsPanel then return end
+    local panel = self.materialsPanel
+    local rows = self:GetAggregatedMaterialsData()
+    local totalMissing = 0
+    for _, entry in ipairs(rows) do
+        totalMissing = totalMissing + (entry.missing or 0)
+    end
+    panel.summary:SetText(string.format("%d materials | %d total missing units", #rows, totalMissing))
+    if panel.sendMissingBtn then
+        local enabled = #rows > 0 and self.PricingProvider and self.PricingProvider.api ~= nil
+        panel.sendMissingBtn:SetEnabled(enabled and true or false)
+        panel.sendMissingBtn:SetAlpha(enabled and 1 or 0.45)
+    end
+
+    for _, row in ipairs(panel.rows) do
+        row:Hide()
+    end
+
+    local y = -4
+    local rowHeight = 28
+    for idx, entry in ipairs(rows) do
+        local row = panel.rows[idx]
+        if not row then
+            row = CreateFrame("Frame", nil, panel.child, "BackdropTemplate")
+            row:SetBackdrop({
+                bgFile = "Interface\\Buttons\\WHITE8x8",
+                edgeFile = "Interface\\Buttons\\WHITE8x8",
+                edgeSize = 1,
+            })
+            row:SetBackdropColor(0.08, 0.1, 0.07, 0.92)
+            row:SetBackdropBorderColor(0.16, 0.22, 0.14, 1)
+            row:SetHeight(rowHeight - 2)
+
+            local text = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+            text:SetPoint("LEFT", 8, 0)
+            text:SetPoint("RIGHT", -86, 0)
+            text:SetJustifyH("LEFT")
+            if text.SetWordWrap then text:SetWordWrap(false) end
+            if text.SetNonSpaceWrap then text:SetNonSpaceWrap(false) end
+            if text.SetMaxLines then text:SetMaxLines(1) end
+            row.text = text
+
+            local trackBtn = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+            trackBtn:SetSize(56, 20)
+            trackBtn:SetPoint("RIGHT", -8, 0)
+            trackBtn:SetText("Track")
+            trackBtn:SetScript("OnClick", function(selfBtn)
+                local itemID = selfBtn.itemID
+                local itemName = selfBtn.itemName
+                local targetQty = selfBtn.targetQty
+                local tracked = HC:GetTrackedReagents()
+                if tracked[itemID] then
+                    HC:UntrackReagent(itemID)
+                else
+                    HC:TrackReagent(itemID, itemName, targetQty)
+                end
+                HC:RefreshMaterialsPanel()
+                if HC.RefreshShoppingListPanel and HC.shoppingListPanel and HC.shoppingListPanel:IsShown() then
+                    HC:RefreshShoppingListPanel()
+                end
+            end)
+            row.trackBtn = trackBtn
+
+            panel.rows[idx] = row
+        end
+
+        row:ClearAllPoints()
+        row:SetPoint("TOPLEFT", 0, y)
+        row:SetPoint("TOPRIGHT", -8, y)
+        local tracked = self:GetTrackedReagents()[entry.itemID]
+        local colorPrefix = (entry.missing or 0) > 0 and "|cffffcc66" or "|cff66dd66"
+        row.text:SetText(string.format("%s%s|r |cff888888Have %d / Need %d / Missing %d|r", colorPrefix, entry.name or ("Item #" .. tostring(entry.itemID or "?")), entry.have or 0, entry.needed or 0, entry.missing or 0))
+        row.trackBtn.itemID = entry.itemID
+        row.trackBtn.itemName = entry.name
+        row.trackBtn.targetQty = entry.needed or 0
+        row.trackBtn:SetText(tracked and "Untrack" or "Track")
+        row:Show()
+        y = y - rowHeight
+    end
+
+    panel.child:SetWidth(math.max(1, panel.scroll:GetWidth() - 18))
+    panel.child:SetHeight(math.max(1, -y + 8))
+end
+
+function HC:ToggleMaterialsPanel()
+    if not self.materialsPanel then return end
+    if self.materialsPanel:IsShown() then
+        self.materialsPanel:Hide()
+    else
+        self:RefreshMaterialsPanel()
+        self.materialsPanel:Show()
+    end
+end
+
 function HC:CreateSettingsPanel(parent)
     local settings = CreateFrame("Frame", nil, parent, "BackdropTemplate")
     settings:SetPoint("TOPLEFT", SIDEBAR_WIDTH, -HEADER_HEIGHT)
@@ -3402,8 +3949,78 @@ function HC:CreateSettingsPanel(parent)
             if self:GetChecked() then LibDBIcon:Show("HousingCompleted")
             else LibDBIcon:Hide("HousingCompleted") end
         end
+        HousingCompletedDB.minimap = HousingCompletedDB.minimap or {}
+        HousingCompletedDB.minimap.hide = not self:GetChecked()
     end)
     y = y - 26
+
+    local priceSourceLabel = settings:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    priceSourceLabel:SetPoint("TOPLEFT", 20, y)
+    priceSourceLabel:SetText("Price Source:")
+    y = y - 24
+
+    local priceSourceDefs = {
+        { id = "auto", label = "Auto" },
+        { id = "direct", label = "Direct AH" },
+        { id = "auctionator", label = "Auctionator" },
+        { id = "tsm", label = "TSM" },
+    }
+    local priceSourceButtons = {}
+    local selectedPriceSource = self.PricingProvider and self.PricingProvider.GetPreferredPriceSource and self.PricingProvider:GetPreferredPriceSource() or "auto"
+    local function UpdatePriceSourceButtons()
+        for _, def in ipairs(priceSourceDefs) do
+            local btn = priceSourceButtons[def.id]
+            local available = true
+            if def.id == "auctionator" then
+                available = self.PricingProvider and self.PricingProvider.api ~= nil
+            elseif def.id == "tsm" then
+                available = self.PricingProvider and self.PricingProvider.tsmAPI ~= nil
+            end
+            btn:SetEnabled(available)
+            btn:SetAlpha(available and 1 or 0.45)
+            if selectedPriceSource == def.id then
+                btn:SetText("[" .. def.label .. "]")
+            else
+                btn:SetText(def.label)
+            end
+        end
+    end
+    local previousPriceButton = nil
+    for _, def in ipairs(priceSourceDefs) do
+        local btn = CreateFrame("Button", nil, settings, "UIPanelButtonTemplate")
+        btn:SetSize(def.id == "direct" and 90 or 76, 22)
+        if previousPriceButton then
+            btn:SetPoint("LEFT", previousPriceButton, "RIGHT", 6, 0)
+        else
+            btn:SetPoint("TOPLEFT", 30, y)
+        end
+        btn:SetText(def.label)
+        btn:SetScript("OnClick", function()
+            selectedPriceSource = def.id
+            if self.PricingProvider and self.PricingProvider.SetPreferredPriceSource then
+                self.PricingProvider:SetPreferredPriceSource(def.id)
+            end
+            UpdatePriceSourceButtons()
+            HC:UpdatePriceControls()
+            HC:DoSearch({ preservePage = true, preserveSelection = true })
+        end)
+        priceSourceButtons[def.id] = btn
+        previousPriceButton = btn
+    end
+    UpdatePriceSourceButtons()
+    y = y - 30
+
+    local clearPriceCacheBtn = CreateFrame("Button", nil, settings, "UIPanelButtonTemplate")
+    clearPriceCacheBtn:SetSize(132, 20)
+    clearPriceCacheBtn:SetPoint("TOPLEFT", 30, y)
+    clearPriceCacheBtn:SetText("Clear Direct Cache")
+    clearPriceCacheBtn:SetScript("OnClick", function()
+        if HC.PricingProvider and HC.PricingProvider.ClearDirectCache then
+            HC.PricingProvider:ClearDirectCache()
+            HC:UpdatePriceControls()
+        end
+    end)
+    y = y - 28
 
     local streamerCb = CreateFrame("CheckButton", nil, settings, "UICheckButtonTemplate")
     streamerCb:SetPoint("TOPLEFT", 20, y)
@@ -3627,6 +4244,7 @@ function HC:DoSearch(opts)
     local filters = {
         showCollected = self.collectedCb and self.collectedCb:GetChecked(),
         showUncollected = self.uncollectedCb and self.uncollectedCb:GetChecked(),
+        myAuctionsOnly = self.myAuctionsCb and self.myAuctionsCb:GetChecked(),
         faction = self:GetPlayerFaction(),
         zoneMapID = zoneMapID,
         expansions = HousingCompletedDB.filters and HousingCompletedDB.filters.expansions or nil,
@@ -3684,6 +4302,10 @@ function HC:DoSearch(opts)
             if keep and lowRiskOnly then
                 keep = (econ.risk or 100) <= 35
             end
+            if keep and filters.myAuctionsOnly then
+                local owned = econ and econ.ownedAuction
+                keep = owned and (((owned.qty or 0) > 0) or ((owned.sold or 0) > 0)) or false
+            end
             if keep then
                 table.insert(profitable, r)
             end
@@ -3723,6 +4345,7 @@ function HC:DoSearch(opts)
     self:UpdateMapAllButton()
     self:UpdateActionPanel()
     self:RefreshAnalyticsPanel()
+    self:UpdatePriceControls()
     if currentTab == "planner" then
         self:RunPlanner()
     end
@@ -3839,6 +4462,7 @@ function HC:ApplyEconomyFilters(results)
     local minMargin = tonumber(HousingCompletedDB.filters and HousingCompletedDB.filters.minMargin) or 0
     local craftableOnly = HousingCompletedDB.filters and HousingCompletedDB.filters.craftableOnly
     local lowRiskOnly = HousingCompletedDB.filters and HousingCompletedDB.filters.lowRiskOnly
+    local myAuctionsOnly = self.myAuctionsCb and self.myAuctionsCb:GetChecked()
 
     for _, r in ipairs(results or {}) do
         local econ = self.GetResultEconomics and self:GetResultEconomics(r, { forceRefresh = not performanceMode }) or nil
@@ -3854,6 +4478,10 @@ function HC:ApplyEconomyFilters(results)
         end
         if keep and lowRiskOnly then
             keep = (econ.risk or 100) <= 35
+        end
+        if keep and myAuctionsOnly then
+            local owned = econ and econ.ownedAuction
+            keep = owned and (((owned.qty or 0) > 0) or ((owned.sold or 0) > 0)) or false
         end
         if keep then
             table.insert(filtered, r)
@@ -4059,6 +4687,17 @@ function HC:UpdateResults()
                 local trendText = string.format(" |cff666666| |rTrend: %s %.1f%%  Risk: %d", economics.trend.arrow, economics.trend.changePct or 0, economics.risk or 0)
                 row.infoText:SetText((row.infoText:GetText() or "") .. trendText)
             end
+            if (not streamerMode) and economics and economics.priceSource then
+                local extra = " |cff666666| |r|cff999999Price: " .. tostring(economics.priceSource)
+                local owned = economics.ownedAuction
+                if owned and (((owned.qty or 0) > 0) or ((owned.sold or 0) > 0)) then
+                    extra = extra .. string.format("  Listed %d", tonumber(owned.qty) or 0)
+                    if (tonumber(owned.sold) or 0) > 0 then
+                        extra = extra .. string.format("  Sold %d", tonumber(owned.sold) or 0)
+                    end
+                end
+                row.infoText:SetText((row.infoText:GetText() or "") .. extra .. "|r")
+            end
 
             if economics and economics.profit then
                 if economics.profit >= 0 then
@@ -4108,6 +4747,7 @@ function HC:UpdateResults()
     self:UpdateSetWaypointButton()
     self:UpdateAddShoppingButton()
     self:UpdateMapAllButton()
+    self:UpdatePriceControls()
 end
 
 function HC:RefreshVisiblePricingData()
@@ -4125,14 +4765,7 @@ function HC:RefreshVisiblePricingData()
     end
 
     if currentTab == "economy" or currentTab == "planner" then
-        local filtered = {}
-        for _, r in ipairs(currentResults) do
-            local econ = self.GetResultEconomics and self:GetResultEconomics(r) or nil
-            if econ and econ.ahPrice and econ.totalCost then
-                table.insert(filtered, r)
-            end
-        end
-        currentResults = filtered
+        currentResults = self:ApplyEconomyFilters(currentResults)
         totalPages = math.max(1, math.ceil(#currentResults / ITEMS_PER_PAGE))
         if currentPage > totalPages then
             currentPage = totalPages
@@ -4146,6 +4779,87 @@ function HC:RefreshVisiblePricingData()
         self:UpdatePreview(selectedItem)
     end
     self:UpdatePlannerControls()
+end
+
+function HC:CollectVisibleAuctionItemIDs()
+    local ids = {}
+    local seen = {}
+    for _, resultData in ipairs(currentResults or {}) do
+        local itemID = self.GetResolvedItemID and self:GetResolvedItemID(resultData) or resultData.itemID or (resultData.data and resultData.data.itemID)
+        if itemID and not seen[itemID] then
+            seen[itemID] = true
+            ids[#ids + 1] = itemID
+        end
+    end
+    table.sort(ids)
+    return ids
+end
+
+function HC:UpdatePriceControls()
+    if self.priceSourceText then
+        local label = self.GetPriceSourceLabel and self:GetPriceSourceLabel() or "Static"
+        if self.PricingProvider and self.PricingProvider.GetDirectCacheInfo then
+            local count, cacheTime = self.PricingProvider:GetDirectCacheInfo()
+            if cacheTime and label == "Direct AH" then
+                local age = math.max(0, time() - cacheTime)
+                self.priceSourceText:SetText(string.format("%s %d | %ds", label, count or 0, age))
+            elseif label == "Direct AH" then
+                self.priceSourceText:SetText(string.format("%s %d", label, count or 0))
+            else
+                self.priceSourceText:SetText(label)
+            end
+        else
+            self.priceSourceText:SetText(label)
+        end
+    end
+
+    if self.priceScanBtn then
+        local enabled = currentTab == "economy" or currentTab == "planner" or currentTab == "acquire"
+        self.priceScanBtn:SetEnabled(enabled)
+        self.priceScanBtn:SetAlpha(enabled and 1 or 0.45)
+        if self.PricingProvider and self.PricingProvider.IsDirectScanInProgress and self.PricingProvider:IsDirectScanInProgress() then
+            local found, total = self.PricingProvider:GetDirectScanProgress()
+            self.priceScanBtn:SetText(string.format("Scan %d/%d", tonumber(found) or 0, tonumber(total) or 0))
+        else
+            self.priceScanBtn:SetText("Refresh")
+        end
+    end
+end
+
+function HC:TriggerPriceRefresh()
+    if not self.PricingProvider then
+        return
+    end
+
+    if self.PricingProvider.QueryOwnedAuctions then
+        self.PricingProvider:QueryOwnedAuctions()
+    end
+
+    local preferred = self.PricingProvider.GetPreferredPriceSource and self.PricingProvider:GetPreferredPriceSource() or "auto"
+    if preferred == "direct" or (preferred == "auto" and self.PricingProvider.api == nil and self.PricingProvider.tsmAPI == nil) then
+        local itemIDs = self:CollectVisibleAuctionItemIDs()
+        if #itemIDs == 0 then
+            self:UpdatePriceControls()
+            return
+        end
+        local started = self.PricingProvider.StartDirectScan and self.PricingProvider:StartDirectScan(itemIDs, function()
+            HC:UpdatePriceControls()
+        end, function()
+            HC:RefreshVisiblePricingData()
+            HC:UpdatePriceControls()
+        end)
+        if not started then
+            print("|cff00ff99Housing Completed|r: Open the Auction House to run a direct price scan.")
+        end
+        self:UpdatePriceControls()
+        return
+    end
+
+    if self.PricingProvider.InvalidateCache then
+        self.PricingProvider:InvalidateCache()
+    end
+    self:RefreshVisiblePricingData()
+    self:UpdatePriceControls()
 end
 
 function HC:RunPlanner()
@@ -4192,13 +4906,13 @@ function HC:UpdatePrimaryTabs()
     for tabID, btn in pairs(self.primaryTabButtons or {}) do
         local active = tabID == currentPrimaryTab
         if active then
-            btn:SetBackdropColor(0.12, 0.2, 0.32, 0.98)
+            btn:SetBackdropColor(0.22, 0.16, 0.08, 0.98)
             btn:SetBackdropBorderColor(unpack(COLORS.accentAlt))
-            btn.label:SetTextColor(1, 1, 1)
+            btn.label:SetTextColor(1, 0.97, 0.86)
             btn.underline:SetAlpha(1)
         else
-            btn:SetBackdropColor(0.09, 0.11, 0.16, 0.94)
-            btn:SetBackdropBorderColor(0.17, 0.24, 0.35, 1)
+            btn:SetBackdropColor(0.12, 0.095, 0.06, 0.94)
+            btn:SetBackdropBorderColor(0.27, 0.22, 0.1, 1)
             btn.label:SetTextColor(unpack(COLORS.textMuted))
             btn.underline:SetAlpha(0.15)
         end
@@ -4208,15 +4922,15 @@ end
 function HC:UpdateTabButtons()
     for tabID, btn in pairs(self.tabButtons) do
         if tabID == currentTab then
-            btn.bg:SetColorTexture(0.23, 0.18, 0.07, 0.95)
+            btn.bg:SetColorTexture(0.32, 0.22, 0.09, 0.95)
             btn:SetBackdropBorderColor(unpack(COLORS.accentAlt))
             btn.label:SetTextColor(1, 0.95, 0.8)
             if btn.icon then btn.icon:SetVertexColor(1, 1, 1) end
         else
-            btn.bg:SetColorTexture(0.16, 0.15, 0.19, 0.5)
-            btn:SetBackdropBorderColor(0.24, 0.22, 0.28, 1)
-            btn.label:SetTextColor(0.78, 0.76, 0.72)
-            if btn.icon then btn.icon:SetVertexColor(0.82, 0.82, 0.82) end
+            btn.bg:SetColorTexture(0.17, 0.13, 0.08, 0.55)
+            btn:SetBackdropBorderColor(0.26, 0.2, 0.09, 1)
+            btn.label:SetTextColor(0.84, 0.8, 0.72)
+            if btn.icon then btn.icon:SetVertexColor(0.9, 0.84, 0.72) end
         end
     end
     self:UpdateModeButtons()
@@ -4260,16 +4974,16 @@ function HC:UpdateSourceViewButtons()
 
     for sourceID, btn in pairs(self.sourceViewButtons or {}) do
         if sourceID == currentSourceView then
-            btn.bg:SetColorTexture(0.23, 0.18, 0.07, 0.95)
+            btn.bg:SetColorTexture(0.32, 0.22, 0.09, 0.95)
             btn:SetBackdropBorderColor(unpack(COLORS.accentAlt))
             btn.label:SetTextColor(1, 0.95, 0.8)
             if btn.icon then btn.icon:SetVertexColor(1, 1, 1) end
             if btn.countText then btn.countText:SetTextColor(1, 0.95, 0.8) end
         else
-            btn.bg:SetColorTexture(0.16, 0.15, 0.19, 0.5)
-            btn:SetBackdropBorderColor(0.24, 0.22, 0.28, 1)
-            btn.label:SetTextColor(0.78, 0.76, 0.72)
-            if btn.icon then btn.icon:SetVertexColor(0.82, 0.82, 0.82) end
+            btn.bg:SetColorTexture(0.17, 0.13, 0.08, 0.55)
+            btn:SetBackdropBorderColor(0.26, 0.2, 0.09, 1)
+            btn.label:SetTextColor(0.84, 0.8, 0.72)
+            if btn.icon then btn.icon:SetVertexColor(0.9, 0.84, 0.72) end
             if btn.countText then btn.countText:SetTextColor(unpack(COLORS.textDim)) end
         end
         if btn.countText then
@@ -4292,9 +5006,9 @@ function HC:UpdateModeButtons()
             btn:SetBackdropBorderColor(unpack(COLORS.accentAlt))
             btn.text:SetTextColor(1, 0.95, 0.84)
         else
-            btn:SetBackdropColor(0.14, 0.13, 0.16, 0.95)
-            btn:SetBackdropBorderColor(0.24, 0.22, 0.28, 1)
-            btn.text:SetTextColor(0.72, 0.72, 0.72)
+            btn:SetBackdropColor(0.14, 0.11, 0.08, 0.95)
+            btn:SetBackdropBorderColor(0.26, 0.2, 0.09, 1)
+            btn.text:SetTextColor(0.82, 0.78, 0.72)
         end
     end
 

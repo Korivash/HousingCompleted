@@ -319,6 +319,23 @@ function HC:GetAuctionPriceForResult(resultData)
     return nil, nil
 end
 
+function HC:GetOwnedAuctionInfoForResult(resultData)
+    local itemID = (self.GetResolvedItemID and self:GetResolvedItemID(resultData))
+        or resultData.itemID
+        or (resultData.data and resultData.data.itemID)
+    if not itemID or not (self.PricingProvider and self.PricingProvider.GetOwnedAuctionInfo) then
+        return nil
+    end
+    return self.PricingProvider:GetOwnedAuctionInfo(itemID)
+end
+
+function HC:GetPriceSourceLabel()
+    if not (self.PricingProvider and self.PricingProvider.GetActiveSourceName) then
+        return "Static"
+    end
+    return self.PricingProvider:GetActiveSourceName() or "Auto"
+end
+
 function HC:RecordPriceHistory(itemID, price, auctionAgeSeconds)
     if not itemID or not price or price <= 0 then return end
     if not HousingCompletedDB or type(HousingCompletedDB.economy) ~= "table" then return end
@@ -563,10 +580,12 @@ function HC:BuildEconomicsSnapshot(resultData)
     end
 
     local trend = self:GetPriceTrendInfo(itemID, ahPrice)
+    local ownedAuction = self:GetOwnedAuctionInfoForResult(resultData)
 
     return {
         ahPrice = ahPrice,
         auctionAgeSeconds = auctionInfo and auctionInfo.age or nil,
+        priceSource = auctionInfo and auctionInfo.source or self:GetPriceSourceLabel(),
         vendorCost = vendorCost,
         craftCost = craftCost,
         totalCost = totalCost,
@@ -578,6 +597,7 @@ function HC:BuildEconomicsSnapshot(resultData)
         stability = trend and trend.stability or 50,
         missingMaterials = missingMaterials or {},
         reagents = reagents or {},
+        ownedAuction = ownedAuction,
     }
 end
 

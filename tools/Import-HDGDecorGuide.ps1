@@ -106,6 +106,7 @@ function Normalize-SourceType {
         9 { return "drop" }
         10 { return "promo" }
         11 { return "profession" }
+        12 { return "shop" }
         default { return "unknown" }
     }
 }
@@ -322,12 +323,11 @@ foreach ($id in $ids) {
 }
 $idLines.Add("}") | Out-Null
 
-$sourceLines | Set-Content -Path $OutputSources -Encoding UTF8
-$idLines | Set-Content -Path $OutputAllItems -Encoding UTF8
+$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+[System.IO.File]::WriteAllLines($OutputSources, $sourceLines, $utf8NoBom)
+[System.IO.File]::WriteAllLines($OutputAllItems, $idLines, $utf8NoBom)
 
 Write-Output ("Imported {0} source rows and {1} unique itemIDs from HousingDecorGuide." -f $sorted.Count, $ids.Count)
 Write-Output ("Wrote: {0}" -f $OutputSources)
 Write-Output ("Wrote: {0}" -f $OutputAllItems)
-
-
 
